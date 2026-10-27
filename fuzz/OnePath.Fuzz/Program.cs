@@ -38,6 +38,18 @@ public static class Program
             return 0;
         }
 
+        // AFL mode (no native libFuzzer host needed): the input arrives on standard input.
+        if (args.Length > 1 && args[1] == "--afl")
+        {
+            Fuzzer.Run(stream =>
+            {
+                using var ms = new System.IO.MemoryStream();
+                stream.CopyTo(ms);
+                target(ms.ToArray());
+            });
+            return 0;
+        }
+
         Fuzzer.LibFuzzer.Run(span => target(span.ToArray()));
         return 0;
     }
@@ -52,5 +64,8 @@ public static class Targets
         // Placeholder target: proves the scaffold builds and runs.
         ["info"] = _ => GC.KeepAlive(OnePathInfo.Version),
         ["build3d"] = Build3DTarget.Run,
+        ["build2d"] = Build2DFuzz.Run,
+        ["build2d-smoke"] = Build2DFuzz.Smoke,
+        ["build2d-describe"] = Build2DFuzz.Describe,
     };
 }
