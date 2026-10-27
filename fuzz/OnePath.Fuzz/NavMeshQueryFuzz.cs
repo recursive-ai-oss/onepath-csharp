@@ -97,7 +97,7 @@ internal static class NavMeshQueryFuzz
                 }
                 try
                 {
-                    switch (b.U8() % 8)
+                    switch (b.U8() % 14)
                     {
                         case 0:
                             _ = s_query.FindNearestPoly(b.Vec(), b.Vec(), filter);
@@ -174,16 +174,88 @@ internal static class NavMeshQueryFuzz
                                 removed = null;
                             }
                             break;
-                        default:
+                        case 7:
                             _ = s_query.FindNearestPoly(b.Vec(), new Vector3D(2, 4, 2), filter);
                             _ = s_query.UpdatePath(1);
                             break;
+                        case 8:
+                        {
+                            var polys = new PolyRef[b.U8() % 40];
+                            var parents = new PolyRef[b.U8() % 40];
+                            var dist = new double[b.U8() % 40];
+                            _ = s_query.FindPolysInCircle(b.Ref(true), b.Vec(), b.Coord(), filter, polys, parents, dist, out int n, out _);
+                            if (n < 0 || n > polys.Length)
+                            {
+                                throw new InvalidOperationException("area count out of range");
+                            }
+                            break;
+                        }
+                        case 9:
+                        {
+                            var shape = new Vector3D[b.U8() % 70];
+                            for (int i = 0; i < shape.Length; i++)
+                            {
+                                shape[i] = b.Vec();
+                            }
+                            var polys = new PolyRef[1 + (b.U8() % 40)];
+                            _ = s_query.FindPolysInShape(b.Ref(true), shape, filter, polys, default, default, out int n, out _);
+                            if (n < 0 || n > polys.Length)
+                            {
+                                throw new InvalidOperationException("area count out of range");
+                            }
+                            break;
+                        }
+                        case 10:
+                        {
+                            WallHit w = s_query.DistanceToWall(b.Ref(true), b.Vec(), b.Coord(), filter, out _);
+                            if (w.Found && !(w.Distance >= 0))
+                            {
+                                throw new InvalidOperationException("wall distance out of range");
+                            }
+                            break;
+                        }
+                        case 11:
+                        {
+                            var rng = new SeededRandom(b.U64());
+                            RandomPointResult r = b.U8() < 128
+                                ? s_query.RandomPoint(ref rng, filter)
+                                : s_query.RandomPointAround(ref rng, b.Ref(true), b.Vec(), b.Coord(), filter);
+                            if (r.Found && !s_mesh.IsValid(r.Poly))
+                            {
+                                throw new InvalidOperationException("random point on an invalid polygon");
+                            }
+                            break;
+                        }
+                        case 12:
+                        {
+                            MoveResult mv = s_query.MoveAlongSurface(b.Ref(true), b.Vec(), b.Vec(), filter, visited.AsSpan(0, b.U8() % 33), out int vc);
+                            if (vc < 0 || vc > 32)
+                            {
+                                throw new InvalidOperationException("visited count out of range");
+                            }
+                            _ = mv;
+                            break;
+                        }
+                        default:
+                        {
+                            // A sliced search in odd budgets, finished early, then asked for a wall or a random point.
+                            AreaQueryStatus s = s_query.BeginAreaSearch(b.Ref(true), b.Vec(), b.Coord(), filter);
+                            int rounds = b.U8() % 6;
+                            for (int i = 0; i < rounds && s == AreaQueryStatus.InProgress; i++)
+                            {
+                                s = s_query.UpdateAreaSearch(b.U8() % 5);
+                            }
+                            _ = s_query.FinishDistanceToWall();
+                            var rng = new SeededRandom(b.U64());
+                            _ = s_query.FinishRandomPointAround(ref rng);
+                            break;
+                        }
                     }
                 }
                 catch (ArgumentOutOfRangeException)
                 {
                 }
-                catch (InvalidOperationException e) when (e.Message.StartsWith("The search was started with a struct", StringComparison.Ordinal))
+                catch (InvalidOperationException e) when (e.Message.StartsWith("The search was started with a struct", StringComparison.Ordinal) || e.Message.StartsWith("No circle search", StringComparison.Ordinal))
                 {
                 }
             }

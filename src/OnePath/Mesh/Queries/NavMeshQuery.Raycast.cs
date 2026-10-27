@@ -20,8 +20,13 @@ public sealed partial class NavMeshQuery
     /// <param name="visitedCount">Number written to <paramref name="visited"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
     public RaycastResult Raycast<TFilter>(PolyRef startPoly, Vector3D start, Vector3D end, in TFilter filter, Span<PolyRef> visited, out int visitedCount)
+        where TFilter : struct, IQueryFilter => RaycastCore(startPoly, start, end, in filter, visited, out visitedCount, out _);
+
+    // The raycast proper; also reports the last polygon the ray was in (the visited buffer may be too short to tell).
+    private RaycastResult RaycastCore<TFilter>(PolyRef startPoly, Vector3D start, Vector3D end, in TFilter filter, Span<PolyRef> visited, out int visitedCount, out PolyRef last)
         where TFilter : struct, IQueryFilter
     {
+        last = startPoly;
         CheckPos(start, nameof(start));
         CheckPos(end, nameof(end));
         visitedCount = 0;
@@ -42,6 +47,7 @@ public sealed partial class NavMeshQuery
         int cap = 1 << 20;
         for (int step = 0; step < cap; step++)
         {
+            last = cur;
             if (visitedCount < visited.Length)
             {
                 visited[visitedCount++] = cur;

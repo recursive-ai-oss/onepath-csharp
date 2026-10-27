@@ -14,6 +14,8 @@ internal static class NavMeshQueryScenarios
         Scenarios.Register("navmesh/query-nearest", Nearest);
         Scenarios.Register("navmesh/query-path", Paths);
         Scenarios.Register("navmesh/query-raycast", Rays);
+        Scenarios.Register("navmesh/query-random", RandomPoints);
+        Scenarios.Register("navmesh/query-areas", Areas);
     }
 
     private static void Write(ScenarioContext ctx, Vector3D v)
@@ -97,6 +99,100 @@ internal static class NavMeshQueryScenarios
             {
                 ctx.Write((long)visited[k].Value);
             }
+        }
+    }
+
+    private static void RandomPoints(ScenarioContext ctx)
+    {
+        TiledNavMesh m = NavMeshWorlds.RandomMesh(14, -1, -1, 3, 3, 3, detail: true, offMesh: 0);
+        var q = new NavMeshQuery(m);
+        var r = new NavMeshWorlds.Rng(4);
+        var rng = new SeededRandom(0x5EED);
+        var f = new QueryFilter { ExcludeFlags = 4 };
+        for (int i = 0; i < 400; i++)
+        {
+            RandomPointResult p = q.RandomPoint(ref rng, i % 2 == 0 ? null : f);
+            ctx.Write((long)p.Poly.Value);
+            Write(ctx, p.Point);
+        }
+        for (int i = 0; i < 200; i++)
+        {
+            Vector3D c = Spot(r);
+            NearestPoly n = q.FindNearestPoly(c, new Vector3D(2, 5, 2));
+            if (!n.Poly.IsSet)
+            {
+                ctx.Write(0);
+                continue;
+            }
+            RandomPointResult p = q.RandomPointAround(ref rng, n.Poly, n.Point, 1 + r.Int(5), i % 3 == 0 ? f : null);
+            ctx.Write((long)p.Poly.Value);
+            Write(ctx, p.Point);
+        }
+        ctx.Write(rng.NextUInt64());
+    }
+
+    private static void Areas(ScenarioContext ctx)
+    {
+        TiledNavMesh m = NavMeshWorlds.RandomMesh(15, -1, -1, 3, 3, 3, detail: true, offMesh: 2);
+        var q = new NavMeshQuery(m);
+        var r = new NavMeshWorlds.Rng(5);
+        var f = new QueryFilter { ExcludeFlags = 2 }.SetAreaCost(3, double.PositiveInfinity);
+        var polys = new PolyRef[512];
+        var parents = new PolyRef[512];
+        var dist = new double[512];
+        var visited = new PolyRef[64];
+        var shape = new Vector3D[4];
+        for (int i = 0; i < 200; i++)
+        {
+            Vector3D c = Spot(r);
+            NearestPoly n = q.FindNearestPoly(c, new Vector3D(2, 5, 2));
+            if (!n.Poly.IsSet)
+            {
+                ctx.Write(0);
+                continue;
+            }
+            QueryFilter? filter = i % 2 == 0 ? null : f;
+            double rad = 0.5 + r.Int(6);
+            AreaQueryStatus s = q.FindPolysInCircle(n.Poly, n.Point, rad, filter, polys, parents, dist, out int cnt, out bool tr);
+            ctx.Write((int)s);
+            ctx.Write(cnt);
+            ctx.Write(tr ? 1 : 0);
+            for (int k = 0; k < cnt; k++)
+            {
+                ctx.Write((long)polys[k].Value);
+                ctx.Write((long)parents[k].Value);
+                ctx.Write(dist[k]);
+            }
+            shape[0] = new Vector3D(n.Point.X - rad, 0, n.Point.Z - 1);
+            shape[1] = new Vector3D(n.Point.X + rad, 0, n.Point.Z - rad);
+            shape[2] = new Vector3D(n.Point.X + 1, 0, n.Point.Z + rad);
+            shape[3] = new Vector3D(n.Point.X - 1, 0, n.Point.Z + 1);
+            s = q.FindPolysInShape(n.Poly, shape, filter, polys, parents, dist, out cnt, out tr);
+            ctx.Write((int)s);
+            ctx.Write(cnt);
+            for (int k = 0; k < cnt; k++)
+            {
+                ctx.Write((long)polys[k].Value);
+            }
+            q.FindLocalNeighbourhood(n.Poly, n.Point, rad, filter, polys, parents, out cnt, out _);
+            ctx.Write(cnt);
+            for (int k = 0; k < cnt; k++)
+            {
+                ctx.Write((long)polys[k].Value);
+            }
+            WallHit w = q.DistanceToWall(n.Poly, n.Point, rad, filter, out _);
+            ctx.Write(w.Found ? 1 : 0);
+            ctx.Write(w.Distance);
+            Write(ctx, w.Point);
+            Write(ctx, w.Normal);
+            ctx.Write((long)w.Poly.Value);
+            ctx.Write(w.Edge);
+            MoveResult mv = q.MoveAlongSurface(n.Poly, n.Point, Spot(r), filter, visited, out int vc);
+            ctx.Write((int)mv.Status);
+            Write(ctx, mv.Position);
+            ctx.Write((long)mv.Poly.Value);
+            ctx.Write(mv.Blocked ? 1 : 0);
+            ctx.Write(vc);
         }
     }
 }
