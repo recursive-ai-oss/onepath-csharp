@@ -225,6 +225,8 @@ public sealed class TiledNavMesh
 
     private void Place(int slot, NavTile tile)
     {
+        // The mesh keeps its own copy so runtime edits never reach a tile object the caller or another mesh still holds.
+        tile = tile.OwnedCopy();
         _tiles[slot] = tile;
         _tileCount++;
         if (tile.OffMeshLinks.Length > 0)
@@ -266,8 +268,23 @@ public sealed class TiledNavMesh
         _salts[slot] = salt == 0 ? 1 : salt;
     }
 
-    // Used by the deserializer: slots are restored exactly (including free slots and their generations).
+    // Used by the deserializer and by snapshot restore: slots are restored exactly (including free slots and their
+    // generations), then runtime edits are applied before the links are built.
     internal void RestoreSlots(IReadOnlyList<(uint Salt, NavTile? Tile)> slots)
+    {
+        var list = new List<SlotRestore>(slots.Count);
+        foreach ((uint salt, NavTile? tile) in slots)
+        {
+            list.Add(new SlotRestore(salt, tile, [], []));
+        }
+        RestoreSlots(list);
+    }
+
+    internal readonly record struct PolyEdit(int Poly, byte Area, ushort Flags);
+
+    internal readonly record struct SlotRestore(uint Salt, NavTile? Tile, PolyEdit[] Edits, int[] DisabledLinks);
+
+    internal void RestoreSlots(IReadOnlyList<SlotRestore> slots)
     {
         for (int i = 0; i < slots.Count; i++)
         {
@@ -282,6 +299,16 @@ public sealed class TiledNavMesh
                     throw new NavMeshFormatException($"Slots hold two tiles at ({t.TileX}, {t.TileZ}, layer {t.Layer}).");
                 }
                 Place(i, t);
+                NavTile placed = _tiles[i]!;
+                foreach (PolyEdit e in slots[i].Edits)
+                {
+                    placed.SetPolyArea(e.Poly, e.Area);
+                    placed.SetPolyFlags(e.Poly, e.Flags);
+                }
+                foreach (int l in slots[i].DisabledLinks)
+                {
+                    placed.SetOffMeshDisabled(l, true);
+                }
             }
         }
         for (int i = 0; i < _tiles.Count; i++)
@@ -289,6 +316,97 @@ public sealed class TiledNavMesh
             _links[i] = _tiles[i] is null ? s_noLinks : BuildLinks(i);
         }
     }
+
+    // Moves the whole state of a freshly restored staging mesh (same parameters) into this one. Cannot fail, so a
+    // restore either replaces everything or nothing.
+    internal void AdoptState(TiledNavMesh o)
+    {
+        _tiles.Clear();
+        _tiles.AddRange(o._tiles);
+        _salts.Clear();
+        _salts.AddRange(o._salts);
+        _links.Clear();
+        _links.AddRange(o._links);
+        _columns.Clear();
+        foreach (KeyValuePair<long, List<int>> kv in o._columns)
+        {
+            _columns.Add(kv.Key, kv.Value);
+        }
+        _tileCount = o._tileCount;
+        _offMeshTileCount = o._offMeshTileCount;
+    }
+
+    // --- runtime state: polygon flags and areas, off-mesh link switches ---
+
+    /// <summary>
+    /// Changes the flags of a polygon at run time (a door that opens, a zone that closes). Takes effect for every
+    /// later query; polygon references stay valid. Replacing the tile resets its edits to the new tile's values.
+    /// </summary>
+    /// <returns>False if the reference is stale or invalid (nothing changed).</returns>
+    public bool SetPolyFlags(PolyRef poly, ushort flags)
+    {
+        if (!TryGetPoly(poly, out NavTile t, out int pi))
+        {
+            return false;
+        }
+        t.SetPolyFlags(pi, flags);
+        return true;
+    }
+
+    /// <summary>Changes the area id of a polygon at run time (see <see cref="SetPolyFlags"/>).</summary>
+    /// <returns>False if the reference is stale or invalid (nothing changed).</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="area"/> is above <see cref="NavMeshFormat.MaxArea"/>.</exception>
+    public bool SetPolyArea(PolyRef poly, byte area)
+    {
+        if (area > NavMeshFormat.MaxArea)
+        {
+            throw new ArgumentOutOfRangeException(nameof(area), area, $"The largest area id is {NavMeshFormat.MaxArea}.");
+        }
+        if (!TryGetPoly(poly, out NavTile t, out int pi))
+        {
+            return false;
+        }
+        t.SetPolyArea(pi, area);
+        return true;
+    }
+
+    /// <summary>
+    /// Switches an off-mesh link of a tile on or off (all links start on). A disabled link has no stitched links, so
+    /// no query uses it; the mesh is re-stitched immediately.
+    /// </summary>
+    /// <returns>False if the tile reference is stale or the link index does not exist (nothing changed).</returns>
+    public bool SetOffMeshLinkEnabled(TileRef tile, int link, bool enabled)
+    {
+        NavTile? t = GetTile(tile);
+        if (t is null || (uint)link >= (uint)t.OffMeshLinks.Length)
+        {
+            return false;
+        }
+        if (t.IsOffMeshDisabled(link) == !enabled)
+        {
+            return true;
+        }
+        t.SetOffMeshDisabled(link, !enabled);
+        Restitch(t.TileX, t.TileZ, true);
+        return true;
+    }
+
+    /// <summary>True if the off-mesh link exists and is switched on.</summary>
+    public bool IsOffMeshLinkEnabled(TileRef tile, int link) =>
+        GetTile(tile) is { } t && (uint)link < (uint)t.OffMeshLinks.Length && !t.IsOffMeshDisabled(link);
+
+    /// <summary>
+    /// Captures the run-time state of the mesh (which tiles sit in which slots with which generations, runtime polygon
+    /// edits, switched-off off-mesh links) in the format of <c>docs/navmesh-snapshot.md</c>.
+    /// </summary>
+    public byte[] Snapshot(SnapshotMode mode = SnapshotMode.Full) => NavMeshSnapshot.Take(this, mode);
+
+    /// <summary>
+    /// Replaces the run-time state with a snapshot taken from a mesh with the same parameters. All or nothing: on a
+    /// malformed snapshot the mesh is left unchanged.
+    /// </summary>
+    /// <exception cref="NavMeshFormatException">The bytes are malformed, a referenced tile is missing from <paramref name="library"/>, or the snapshot belongs to a mesh with different parameters.</exception>
+    public void Restore(ReadOnlySpan<byte> snapshot, TileLibrary? library = null) => NavMeshSnapshot.RestoreInto(this, snapshot, library);
 
     // --- stitching ---
 
@@ -488,6 +606,10 @@ public sealed class TiledNavMesh
         endSlot = -1;
         endPoly = -1;
         startPoly = -1;
+        if (t.IsOffMeshDisabled(linkIndex))
+        {
+            return false;
+        }
         double radius = l.Radius;
         if (!NearestPoly(t, t.OriginX + l.StartX, t.OriginY + l.StartY, t.OriginZ + l.StartZ, radius, out startPoly, out _))
         {
