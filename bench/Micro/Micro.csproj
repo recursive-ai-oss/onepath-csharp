@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <AssemblyName>OnePath.Micro</AssemblyName>
+    <!-- Named after the project file so BenchmarkDotNet can find and rebuild it out of process. -->
+    <AssemblyName>Micro</AssemblyName>
     <RootNamespace>RecursiveAI.OnePath.Micro</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
