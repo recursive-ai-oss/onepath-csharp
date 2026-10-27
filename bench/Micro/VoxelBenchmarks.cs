@@ -87,6 +87,22 @@ public class VoxelSearchBenchmarks
     [Benchmark]
     public double DijkstraAllScenarios() => Run(_dijkstra);
 
+    // The one-line query on the same scenarios: its search state is paged, the two rows above use dense buffers.
+    [Benchmark]
+    public double OneLineQueryAllScenarios()
+    {
+        double sum = 0;
+        for (int i = 0; i < _starts.Length; i++)
+        {
+            VoxelPath p = _grid.FindPath(_grid.CellOf(_starts[i]), _grid.CellOf(_goals[i]));
+            if (p.Found)
+            {
+                sum += p.Cost;
+            }
+        }
+        return sum;
+    }
+
     private double Run(AStar<VoxelTopology, DefaultStepCost, VoxelHeuristic> search)
     {
         double sum = 0;
