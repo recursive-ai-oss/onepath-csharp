@@ -74,6 +74,8 @@ public static class Targets
         ["build3d"] = Build3DTarget.Run,
         ["build2d"] = Build2DFuzz.Run,
         ["build2d-smoke"] = Build2DFuzz.Smoke,
+        ["build2d-tiles"] = Build2DFuzz.RunTiles,
+        ["build2d-tiles-smoke"] = Build2DFuzz.SmokeTiles,
         ["build2d-describe"] = Build2DFuzz.Describe,
         ["navmesh-mesh"] = NavMeshFuzz.Mesh,
         ["navmesh-tile"] = NavMeshFuzz.Tile,

@@ -37,6 +37,50 @@ public sealed class Triangulation
     /// <summary>Number of triangles.</summary>
     public int TriangleCount => _indices.Length / 3;
 
+    /// <summary>
+    /// The triangulation of a subset of triangles (ascending indices): unused vertices are dropped (the rest keep their
+    /// order), and an edge whose neighbour is outside the subset becomes a boundary edge.
+    /// </summary>
+    internal Triangulation Subset(IReadOnlyList<int> triangles)
+    {
+        var newTri = new Dictionary<int, int>(triangles.Count);
+        for (int i = 0; i < triangles.Count; i++)
+        {
+            newTri[triangles[i]] = i;
+        }
+        var used = new bool[_vertices.Length];
+        foreach (int t in triangles)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                used[_indices[(3 * t) + i]] = true;
+            }
+        }
+        var map = new int[_vertices.Length];
+        var verts = new List<Vector2D>();
+        for (int v = 0; v < _vertices.Length; v++)
+        {
+            if (used[v])
+            {
+                map[v] = verts.Count;
+                verts.Add(_vertices[v]);
+            }
+        }
+        var idx = new int[triangles.Count * 3];
+        var nb = new int[idx.Length];
+        for (int i = 0; i < triangles.Count; i++)
+        {
+            int t = triangles[i];
+            for (int k = 0; k < 3; k++)
+            {
+                idx[(3 * i) + k] = map[_indices[(3 * t) + k]];
+                int u = _neighbors[(3 * t) + k];
+                nb[(3 * i) + k] = u >= 0 && newTri.TryGetValue(u, out int nu) ? nu : -1;
+            }
+        }
+        return new Triangulation(verts.ToArray(), idx, nb);
+    }
+
     internal static Triangulation CreateEmpty() => new(Array.Empty<Vector2D>(), Array.Empty<int>(), Array.Empty<int>());
 
     internal static Triangulation FromCdt(Cdt cdt, (int, int)[] winding, P[] verts, int bits)

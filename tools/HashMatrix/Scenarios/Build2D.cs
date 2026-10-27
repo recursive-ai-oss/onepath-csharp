@@ -20,6 +20,7 @@ internal static class Build2DScenarios
         Scenarios.Register("build2d/boolean", ctx => Run(ctx, 0, 300));
         Scenarios.Register("build2d/offset", ctx => Run(ctx, 1, 120));
         Scenarios.Register("build2d/mesh", ctx => Run(ctx, 2, 200));
+        Scenarios.Register("build2d/tiles", ctx => Run(ctx, 3, 120));
     }
 
     private static void Run(ScenarioContext ctx, int kind, int cases)
@@ -85,6 +86,10 @@ internal static class Build2DScenarios
         double ox = i % 5 == 0 ? 2097152.0 - extent - 1 : 0.0;
         double oy = i % 5 == 0 ? -2097151.0 : 0.0;
         bool nudge = i % 3 == 0;
+        if (kind == 3)
+        {
+            return TileCase(ref rng, i);
+        }
         Region a = Region.FromOutlines(Outlines(ref rng, 1 + rng.Next(3), extent, denom, ox, oy, nudge));
         var res = new List<long>();
         switch (kind)
@@ -121,6 +126,32 @@ internal static class Build2DScenarios
                     }
                     break;
                 }
+        }
+        return res;
+    }
+
+    // Outlines on the 2^-10 grid cut into tiles of several sizes (tile lines on and off the outlines' vertices), built into
+    // a stitched mesh whose serialized bytes are hashed.
+    private static List<long> TileCase(ref Rng rng, int i)
+    {
+        int denom = new[] { 1, 8, 1024 }[rng.Next(3)];
+        double ox = i % 4 == 0 ? 2097152.0 - 70 : 0.0;
+        double oz = i % 4 == 0 ? -2097151.0 : 0.0;
+        Region region = Region.FromOutlines(Outlines(ref rng, 1 + rng.Next(3), 24, denom, ox, oz, false), new Geometry2DOptions { SnapBits = 10 });
+        double ts = new[] { 2.0, 4.0, 8.0, 16.0 }[rng.Next(4)];
+        var p = new RecursiveAI.OnePath.Mesh.NavMeshParams { TileSize = ts, CellSize = 0.25, OriginX = ox - (rng.Next(4) * 0.5), OriginZ = oz - (rng.Next(4) * 0.25), MaxVertsPerPoly = 3 + rng.Next(6) };
+        var data = new List<RecursiveAI.OnePath.Mesh.NavTileData>();
+        foreach (TilePartition t in TileSlicer.Slice(region, p))
+        {
+            data.Add(Mesh2DPipeline.ToTileData(t, p, 0.5, 0, 1));
+        }
+        byte[] bytes = RecursiveAI.OnePath.Mesh.NavMeshSerializer.WriteMesh(Mesh2DPipeline.Assemble(p, data));
+        var res = new List<long>(bytes.Length / 8) { bytes.Length };
+        for (int k = 0; k < bytes.Length; k += 8)
+        {
+            long v = 0;
+            for (int b = 0; b < 8 && k + b < bytes.Length; b++) { v |= (long)bytes[k + b] << (8 * b); }
+            res.Add(v);
         }
         return res;
     }

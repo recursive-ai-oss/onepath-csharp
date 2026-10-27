@@ -604,6 +604,75 @@ public sealed class Region
         return Triangulation.FromCdt(cdt, w, va, SnapBits);
     }
 
+    /// <summary>The bounding box of all ring vertices in grid units; false for an empty region.</summary>
+    internal bool TryGetGridBounds(out long minX, out long minY, out long maxX, out long maxY)
+    {
+        minX = minY = long.MaxValue;
+        maxX = maxY = long.MinValue;
+        bool any = false;
+        foreach (P[] r in _rings)
+        {
+            foreach (P q in r)
+            {
+                any = true;
+                minX = Math.Min(minX, q.X);
+                maxX = Math.Max(maxX, q.X);
+                minY = Math.Min(minY, q.Y);
+                maxY = Math.Max(maxY, q.Y);
+            }
+        }
+        return any;
+    }
+
+    /// <summary>
+    /// Triangulates the region with extra constraint lines: the vertical lines x = <paramref name="xLines"/> and the
+    /// horizontal lines y = <paramref name="yLines"/> (grid units) are cut through the region, so no triangle crosses
+    /// one. The lines are noded with the boundary by the same snap rounding as every other construction: where a line
+    /// crosses the boundary off the grid, the crossing is rounded once and the boundary passes through the rounded point.
+    /// </summary>
+    internal Triangulation TriangulateWithCuts(IReadOnlyList<long> xLines, IReadOnlyList<long> yLines)
+    {
+        if (!TryGetGridBounds(out long x0, out long y0, out long x1, out long y1))
+        {
+            return Triangulation.CreateEmpty();
+        }
+        var edges = new List<InEdge>();
+        AppendEdges(edges, 0);
+        foreach (long x in xLines)
+        {
+            if (x > x0 && x < x1)
+            {
+                edges.Add(new InEdge(new P(x, y0), new P(x, y1), 1));
+            }
+        }
+        foreach (long y in yLines)
+        {
+            if (y > y0 && y < y1)
+            {
+                edges.Add(new InEdge(new P(x0, y), new P(x1, y), 1));
+            }
+        }
+        Arrangement arr = Arrangement.Build(edges);
+        var constraints = new List<(int, int)>(arr.SegA.Length);
+        var index = new Dictionary<long, int>(arr.SegA.Length);
+        for (int i = 0; i < arr.SegA.Length; i++)
+        {
+            constraints.Add((arr.SegA[i], arr.SegB[i]));
+            index[((long)arr.SegA[i] << 32) | (uint)arr.SegB[i]] = i;
+        }
+        var cdt = new Cdt(arr.Verts, constraints);
+        (int, int)[] w = cdt.Winding((u, v) =>
+        {
+            // Only the region boundary (operand 0) changes the winding; the cut lines are plain constraints.
+            if (u < v)
+            {
+                return (arr.D0[index[((long)u << 32) | (uint)v]], 0);
+            }
+            return (-arr.D0[index[((long)v << 32) | (uint)u]], 0);
+        });
+        return Triangulation.FromCdt(cdt, w, arr.Verts, SnapBits);
+    }
+
     /// <summary>Triangulates the region and merges the triangles into convex polygons; see <see cref="ConvexPartition"/>.</summary>
     /// <param name="maxVerticesPerPolygon">Upper bound on polygon size, 3 to 16.</param>
     public ConvexPartition PartitionConvex(int maxVerticesPerPolygon = 6) =>
