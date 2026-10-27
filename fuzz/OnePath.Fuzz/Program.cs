@@ -16,11 +16,25 @@ public static class Program
         // AFL mode (SharpFuzz out-of-process): OnePath.Fuzz --afl <target>. Used where clang and libFuzzer are not available.
         if (args.Length == 2 && args[0] == "--afl" && Targets.All.TryGetValue(args[1], out var aflTarget))
         {
+            string? lastInput = Environment.GetEnvironmentVariable("ONEPATH_FUZZ_LAST_INPUT");
+            if (lastInput != null)
+            {
+                // AFL discards the child's output; keep what killed it next to the input.
+                AppDomain.CurrentDomain.UnhandledException += (_, e) => System.IO.File.WriteAllText(lastInput + ".error", e.ExceptionObject.ToString());
+            }
             Fuzzer.Run(stream =>
             {
                 using var ms = new System.IO.MemoryStream();
                 stream.CopyTo(ms);
-                aflTarget(ms.ToArray());
+                byte[] input = ms.ToArray();
+                // The process is its own fork server, so a crash that cannot be caught (stack overflow, out of memory)
+                // loses the input; with this variable set the current input is kept on disk to replay.
+                string? last = Environment.GetEnvironmentVariable("ONEPATH_FUZZ_LAST_INPUT");
+                if (last != null)
+                {
+                    System.IO.File.WriteAllBytes(last, input);
+                }
+                aflTarget(input);
             });
             return 0;
         }

@@ -42,8 +42,9 @@ true position; otherwise the tiling is rejected (`ArgumentException`: use a tile
 ## Slicing rule
 
 1. Take the region's bounding box. Lines strictly inside the box (on neither extreme) are cut lines; each is one
-   segment across the box, vertical for X lines and horizontal for Z lines. At most 2^16 lines per axis and 2^22
-   crossings of X lines with Z lines are accepted.
+   segment across the box, vertical for X lines and horizontal for Z lines. At most 2^12 lines per axis and 2^20
+   crossings of X lines with Z lines are accepted (the arrangement's noding cost grows with lines times the points
+   near them; larger worlds use larger tiles or several builds).
 2. The cut lines join the region's boundary edges in **one snap-rounded arrangement** (`build2d-geometry.md`,
    "Arrangement"): cut lines meet each other at grid points, so those crossings are exact; where a boundary edge
    crosses a line, the crossing is computed exactly as a rational and **rounded once** to the grid, and both the

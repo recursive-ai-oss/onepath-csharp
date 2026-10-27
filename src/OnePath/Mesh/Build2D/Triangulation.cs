@@ -48,23 +48,28 @@ public sealed class Triangulation
         {
             newTri[triangles[i]] = i;
         }
-        var used = new bool[_vertices.Length];
+        // Work proportional to the subset, not to the whole triangulation: a region cut into thousands of tiles calls this per tile.
+        var ids = new List<int>(triangles.Count * 3);
         foreach (int t in triangles)
         {
             for (int i = 0; i < 3; i++)
             {
-                used[_indices[(3 * t) + i]] = true;
+                ids.Add(_indices[(3 * t) + i]);
             }
         }
-        var map = new int[_vertices.Length];
-        var verts = new List<Vector2D>();
-        for (int v = 0; v < _vertices.Length; v++)
+        ids.Sort();
+        var used = new List<int>(ids.Count / 2 + 1);
+        foreach (int v in ids)
         {
-            if (used[v])
+            if (used.Count == 0 || used[^1] != v)
             {
-                map[v] = verts.Count;
-                verts.Add(_vertices[v]);
+                used.Add(v);
             }
+        }
+        var verts = new Vector2D[used.Count];
+        for (int i = 0; i < verts.Length; i++)
+        {
+            verts[i] = _vertices[used[i]];
         }
         var idx = new int[triangles.Count * 3];
         var nb = new int[idx.Length];
@@ -73,12 +78,12 @@ public sealed class Triangulation
             int t = triangles[i];
             for (int k = 0; k < 3; k++)
             {
-                idx[(3 * i) + k] = map[_indices[(3 * t) + k]];
+                idx[(3 * i) + k] = used.BinarySearch(_indices[(3 * t) + k]);
                 int u = _neighbors[(3 * t) + k];
                 nb[(3 * i) + k] = u >= 0 && newTri.TryGetValue(u, out int nu) ? nu : -1;
             }
         }
-        return new Triangulation(verts.ToArray(), idx, nb);
+        return new Triangulation(verts, idx, nb);
     }
 
     internal static Triangulation CreateEmpty() => new(Array.Empty<Vector2D>(), Array.Empty<int>(), Array.Empty<int>());

@@ -45,10 +45,10 @@ public static class TileSlicer
     }
 
     /// <summary>Most crossings of vertical with horizontal tile lines accepted inside one region.</summary>
-    public const int MaxCrossings = 1 << 22;
+    public const int MaxCrossings = 1 << 20;
 
     /// <summary>Most tile lines accepted along one axis.</summary>
-    public const int MaxLinesPerAxis = 1 << 16;
+    public const int MaxLinesPerAxis = 1 << 12;
 
     /// <summary>
     /// Slices the region. The tile grid starts at <c>OriginX</c>/<c>OriginZ</c> of <paramref name="p"/> and has square
