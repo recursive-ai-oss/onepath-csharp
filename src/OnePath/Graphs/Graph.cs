@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
 using RecursiveAI.OnePath.Grids;
+using RecursiveAI.OnePath.Graphs;
 
-namespace RecursiveAI.OnePath.Graphs;
+namespace RecursiveAI.OnePath;
 
 /// <summary>Which search a graph query runs.</summary>
 public enum GraphAlgorithm
@@ -28,6 +29,22 @@ public enum GraphAlgorithm
 /// <summary>Plain options for one-line graph queries; every member is optional. No struct callbacks are needed.</summary>
 public sealed class GraphOptions
 {
+    /// <summary>Plain defaults: the search picks itself (Dijkstra without estimates), no filters, unlimited.</summary>
+    public static GraphOptions Default => new();
+
+    /// <summary>Bidirectional A* (Dijkstra when there is no estimate), the fast choice for long queries on large graphs.</summary>
+    public static GraphOptions Bidirectional => new() { Algorithm = GraphAlgorithm.BidirectionalAStar };
+
+    /// <summary>A* with ALT landmark estimates (Goldberg &amp; Harrelson 2005).</summary>
+    /// <param name="landmarks">Tables built for the graph that is queried.</param>
+    /// <returns>A new options object.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="landmarks"/> is null.</exception>
+    public static GraphOptions WithLandmarks(Landmarks landmarks)
+    {
+        ArgumentNullException.ThrowIfNull(landmarks);
+        return new GraphOptions { Algorithm = GraphAlgorithm.AStar, Landmarks = landmarks };
+    }
+
     /// <summary>The search to run (<see cref="GraphAlgorithm.Auto"/> by default).</summary>
     public GraphAlgorithm Algorithm { get; init; } = GraphAlgorithm.Auto;
 
@@ -49,7 +66,7 @@ public sealed class GraphOptions
     /// <summary>Node filter: nodes for which this returns true can not be entered (the start and goal included, which makes the query invalid).</summary>
     public Func<int, bool>? Blocked { get; init; }
 
-    /// <summary>Maximum iterations (expansions); 0 means unlimited. A query that runs out ends with <see cref="PathStatus.BudgetExhausted"/>.</summary>
+    /// <summary>Maximum iterations (expansions); 0 means unlimited. A query that runs out ends with <see cref="PathOutcome.BudgetExhausted"/>.</summary>
     public int IterationBudget { get; init; }
 
     /// <summary>When true the result lists the expanded nodes in order (debug data; forward expansions first, then backward ones).</summary>
@@ -64,7 +81,7 @@ public sealed class GraphPath
     private readonly int[] _expanded;
     private readonly Point3[] _positions;
 
-    internal GraphPath(PathStatus status, double cost, int[]? nodes, int expandedCount, int[]? expanded, Point3[]? positions, GraphAlgorithm algorithm)
+    internal GraphPath(PathOutcome status, double cost, int[]? nodes, int expandedCount, int[]? expanded, Point3[]? positions, GraphAlgorithm algorithm)
     {
         Status = status;
         Cost = cost;
@@ -76,10 +93,10 @@ public sealed class GraphPath
     }
 
     /// <summary>How the query ended.</summary>
-    public PathStatus Status { get; }
+    public PathOutcome Status { get; }
 
     /// <summary>True when a path was found.</summary>
-    public bool Found => Status == PathStatus.Found;
+    public bool Found => Status == PathOutcome.Found;
 
     /// <summary>The path cost (+∞ when no path was found).</summary>
     public double Cost { get; }
@@ -314,19 +331,17 @@ public sealed class Graph
     }
 
     /// <summary>Builds landmark tables for the current edges (see <see cref="Landmarks.Build"/>). Edits afterwards make the table stale.</summary>
-    /// <param name="count">Number of landmarks.</param>
-    /// <param name="selection">Selection method.</param>
-    /// <param name="seed">Seed for root choice.</param>
+    /// <param name="options">Count, selection and seed; null means <see cref="LandmarkOptions"/> defaults (16 landmarks, avoid, seed 1).</param>
     /// <returns>The table.</returns>
     /// <exception cref="ArgumentException">The graph has no nodes.</exception>
-    public Landmarks BuildLandmarks(int count = 16, LandmarkSelection selection = LandmarkSelection.Avoid, ulong seed = 1) => Landmarks.Build(Compile(), count, selection, seed);
+    public Landmarks BuildLandmarks(LandmarkOptions? options = null) => Landmarks.Build(Compile(), options?.Count ?? 16, options?.Selection ?? LandmarkSelection.Avoid, options?.Seed ?? 1);
 
     /// <summary>Finds the cheapest path from <paramref name="start"/> to <paramref name="goal"/>.</summary>
     /// <param name="start">Start node id.</param>
     /// <param name="goal">Goal node id.</param>
     /// <param name="options">Options; null means defaults (Dijkstra).</param>
     /// <param name="cancellationToken">Checked every 256 iterations.</param>
-    /// <returns>The result. Ids outside the graph (or blocked by the filter) give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
+    /// <returns>The result. Ids outside the graph (or blocked by the filter) give <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/>.</returns>
     /// <exception cref="InvalidOperationException">The landmarks in <paramref name="options"/> were built for a different graph.</exception>
     /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
     public GraphPath FindPath(int start, int goal, GraphOptions? options = null, CancellationToken cancellationToken = default)

@@ -69,13 +69,13 @@ public abstract class ReplanSearch
 
     /// <summary>
     /// Applies the recorded changes and repairs the search until the start's cost is exact or <paramref name="budget"/> iterations
-    /// have been spent. A call that returns <see cref="PathStatus.BudgetExhausted"/> can be continued by calling again; the result
+    /// have been spent. A call that returns <see cref="PathOutcome.BudgetExhausted"/> can be continued by calling again; the result
     /// is the same as one unsliced call.
     /// </summary>
     /// <param name="budget">Most queue pops this call may make; at least 1.</param>
     /// <returns>Found, NoPath, StartInvalid, GoalInvalid or BudgetExhausted.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The budget is below 1.</exception>
-    public abstract PathStatus Replan(int budget = int.MaxValue);
+    public abstract PathOutcome Replan(int budget = int.MaxValue);
 
     /// <summary>The cost of the best path after <see cref="Replan"/> returned Found (+∞ otherwise).</summary>
     public abstract double Cost { get; }
@@ -385,15 +385,15 @@ public sealed class ReplanSearch<TTopology, TCost, THeuristic> : ReplanSearch
     }
 
     /// <inheritdoc/>
-    public override PathStatus Replan(int budget = int.MaxValue)
+    public override PathOutcome Replan(int budget = int.MaxValue)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(budget, 1);
-        PathStatus status = ReplanCore(budget);
-        _found = status == PathStatus.Found;
+        PathOutcome status = ReplanCore(budget);
+        _found = status == PathOutcome.Found;
         return status;
     }
 
-    private PathStatus ReplanCore(int budget)
+    private PathOutcome ReplanCore(int budget)
     {
         _lastExpanded = 0;
         if (!_initialized || _pendingOverflow)
@@ -406,11 +406,11 @@ public sealed class ReplanSearch<TTopology, TCost, THeuristic> : ReplanSearch
         }
         if (!_topology.IsWalkable(_start))
         {
-            return PathStatus.StartInvalid;
+            return PathOutcome.StartInvalid;
         }
         if (!_topology.IsWalkable(_goal))
         {
-            return PathStatus.GoalInvalid;
+            return PathOutcome.GoalInvalid;
         }
         int focus = Focus;
         int spent = 0;
@@ -426,7 +426,7 @@ public sealed class ReplanSearch<TTopology, TCost, THeuristic> : ReplanSearch
             }
             if (spent >= budget)
             {
-                return PathStatus.BudgetExhausted;
+                return PathOutcome.BudgetExhausted;
             }
             spent++;
             _iterations++;
@@ -458,7 +458,7 @@ public sealed class ReplanSearch<TTopology, TCost, THeuristic> : ReplanSearch
                 UpdateNeighbors(u);
             }
         }
-        return double.IsPositiveInfinity(_g[focus]) ? PathStatus.NoPath : PathStatus.Found;
+        return double.IsPositiveInfinity(_g[focus]) ? PathOutcome.NoPath : PathOutcome.Found;
     }
 
     /// <inheritdoc/>

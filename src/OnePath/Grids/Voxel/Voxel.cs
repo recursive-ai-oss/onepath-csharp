@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.Grids.Voxel;
+namespace RecursiveAI.OnePath;
 
 /// <summary>A voxel of a <see cref="VoxelGrid"/>: zero-based integer coordinates along x, y and z.</summary>
 /// <param name="X">Position along x (0 at the low edge).</param>
@@ -77,14 +77,4 @@ public readonly struct VoxelSpace : IEquatable<VoxelSpace>
 
     /// <summary>Inequality.</summary>
     public static bool operator !=(VoxelSpace left, VoxelSpace right) => !left.Equals(right);
-}
-
-/// <summary>Constants of the voxel grid code.</summary>
-public static class VoxelMath
-{
-    /// <summary>
-    /// √3 as the double nearest the true value (0x3FFBB67AE8584CAA, 1.7320508075688772): the length of a corner
-    /// move. Correctly rounded square root gives the same bits; the literal avoids relying on it.
-    /// </summary>
-    public const double Sqrt3 = 1.7320508075688772;
 }

@@ -1,4 +1,5 @@
 using System;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 using RecursiveAI.OnePath.Grids.Voxel;
 
@@ -18,9 +19,15 @@ internal static class GridSmoke
         GridPath path = grid.FindPath(new Cell(0, 0), new Cell(0, 4));
         bool ok = path.Found && path.Cells.Length == 13 && path.Cost == 12.0;
 
+        // Text maps, then a one-goal flow field over them.
+        Grid picture = Grid.FromText("..#.\n..#.\n....");
+        ok &= picture.FindPath(new Cell(0, 0), new Cell(3, 0)).Found;
+        using GridFlowField toCorner = picture.CreateFlowField(new Cell(3, 0));
+        ok &= toCorner.GetCost(new Cell(0, 0)) == picture.FindPath(new Cell(0, 0), new Cell(3, 0)).Cost;
+
         // Options with a delegate cost and a filter (the tier-1 path adapts these onto the struct-generic core).
         GridPath blocked = grid.FindPath(new Cell(0, 0), new Cell(0, 4), new GridOptions { Blocked = c => c.X == 4 && c.Y == 1, StepCost = (_, _, cost) => cost * 2 });
-        ok &= blocked.Status == PathStatus.NoPath;
+        ok &= blocked.Status == PathOutcome.NoPath;
 
         // World-space query.
         grid.Space = new GridSpace(10, 20, 2);
@@ -92,7 +99,7 @@ internal static class GridSmoke
             GridPath around = replanner.Replan();
             ok &= around.Found && Math.Abs(around.Cost - replanGrid.FindPath(new Cell(0, 0), new Cell(7, 0)).Cost) < 1e-9;
             replanner.MoveStart(around.Cells[1]);
-            ok &= replanner.Replan(1).Status is PathStatus.BudgetExhausted or PathStatus.Found;
+            ok &= replanner.Replan(1).Status is PathOutcome.BudgetExhausted or PathOutcome.Found;
             ok &= replanner.Replan().Found;
         }
         var hexOpen = new HexGrid(6, 6);

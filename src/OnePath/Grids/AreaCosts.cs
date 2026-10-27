@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.Grids;
+namespace RecursiveAI.OnePath;
 
 /// <summary>
 /// Cost multipliers per area type. A grid cell stores an area id (0..254); <see cref="Wall"/> (255) is

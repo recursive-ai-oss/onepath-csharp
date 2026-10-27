@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 using RecursiveAI.OnePath.Grids.Voxel;
 

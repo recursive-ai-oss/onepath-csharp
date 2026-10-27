@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using RecursiveAI.OnePath.Grids;
 
-namespace RecursiveAI.OnePath.Grids;
+namespace RecursiveAI.OnePath;
 
 /// <summary>
 /// A hexagonal grid stored as a rectangular offset array (see <see cref="HexLayout"/>), with the same area-cost
@@ -109,6 +110,21 @@ public sealed class HexGrid
         }
         areas.CopyTo(grid._cells);
         return grid;
+    }
+
+    /// <summary>
+    /// Creates a grid from a text picture, one line per row of the offset array; the characters are those of <see cref="Grid.FromText"/>
+    /// (<c>.</c> open, <c>#</c> wall, <c>1</c>–<c>9</c> areas).
+    /// </summary>
+    /// <param name="text">The picture.</param>
+    /// <param name="layout">The offset layout.</param>
+    /// <returns>The grid.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="text"/> is null.</exception>
+    /// <exception cref="GridFormatException">The picture is malformed (see <see cref="Grid.FromText"/>).</exception>
+    public static HexGrid FromText(string text, HexLayout layout = HexLayout.PointyOddRow)
+    {
+        byte[] cells = Grid.ParseText(text, out int width, out int height);
+        return From(cells, width, height, layout);
     }
 
     /// <summary>Whether (<paramref name="col"/>, <paramref name="row"/>) lies inside the grid.</summary>
@@ -294,7 +310,7 @@ public sealed class HexGrid
     /// <param name="start">Start position.</param>
     /// <param name="goal">Goal position.</param>
     /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
-    /// <returns>The result. Positions outside the grid give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
+    /// <returns>The result. Positions outside the grid give <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN or beyond ±2^21.</exception>
     /// <exception cref="ArgumentException">The options ask for an agent size other than 1.</exception>
     public GridPath FindPath(WorldPoint start, WorldPoint goal, GridOptions? options = null)
@@ -303,11 +319,11 @@ public sealed class HexGrid
         bool g = TryGetCell(goal, out Cell gc);
         if (!s)
         {
-            return new GridPath(PathStatus.StartInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathOutcome.StartInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         if (!g)
         {
-            return new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathOutcome.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         return FindPathCore(sc, gc, options ?? DefaultOptions, true);
     }
@@ -329,11 +345,11 @@ public sealed class HexGrid
         }
         if (!Contains(start.X, start.Y) || _cells[(start.Y * Width) + start.X] == AreaCosts.Wall || o.Blocked?.Invoke(start) == true)
         {
-            return new GridPath(PathStatus.StartInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathOutcome.StartInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         if (!Contains(goal.X, goal.Y) || _cells[(goal.Y * Width) + goal.X] == AreaCosts.Wall || o.Blocked?.Invoke(goal) == true)
         {
-            return new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathOutcome.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         HexTopology topology = CreateTopology();
         bool zero = o.Heuristic == GridHeuristic.Zero;
@@ -374,6 +390,13 @@ public sealed class HexGrid
     /// <exception cref="ArgumentException">No goals, or the options ask for an agent size other than 1.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A goal is outside the grid.</exception>
     public GridFlowField CreateFlowField(ReadOnlySpan<Cell> goals, GridOptions? options = null) => new(this, goals, options ?? DefaultOptions);
+
+    /// <summary>Computes a flow field toward one goal cell; see <see cref="CreateFlowField(ReadOnlySpan{Cell}, GridOptions?)"/>.</summary>
+    /// <param name="goal">The goal cell, inside the grid.</param>
+    /// <param name="options">Options; null means <see cref="GridOptions.Default"/>.</param>
+    /// <returns>The field.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The goal is outside the grid.</exception>
+    public GridFlowField CreateFlowField(Cell goal, GridOptions? options = null) => CreateFlowField([goal], options);
 
     private void CheckCell(int col, int row)
     {

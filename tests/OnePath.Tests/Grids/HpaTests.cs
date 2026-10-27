@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 using Xunit;
 
@@ -221,7 +222,7 @@ public class HpaTests
         Assert.Equal(w.Cells.Length, w.WorldPoints.Length);
 
         GridPath s = g.FindPath(a, b, new GridOptions { Algorithm = GridAlgorithm.Hpa, IterationBudget = 1 });
-        Assert.Equal(PathStatus.BudgetExhausted, s.Status);
+        Assert.Equal(PathOutcome.BudgetExhausted, s.Status);
         GridPath none = g.FindPath(a, a, new GridOptions { Algorithm = GridAlgorithm.Hpa });
         Assert.True(none.Found);
         Assert.Equal(0.0, none.Cost);

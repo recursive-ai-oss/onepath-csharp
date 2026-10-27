@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 
 namespace RecursiveAI.OnePath.HashMatrix;
@@ -95,7 +96,7 @@ internal static class ReplanScenarios
         {
             p = r.Replan(budget);
         }
-        while (p.Status == PathStatus.BudgetExhausted);
+        while (p.Status == PathOutcome.BudgetExhausted);
         return p;
     }
 

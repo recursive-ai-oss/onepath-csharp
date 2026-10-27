@@ -63,7 +63,7 @@ else
 // The DIMACS files list both directions of every road; the graph is directed as given.
 Graph g = Graph.From(edges, nodes, directed: true);
 var sw = Stopwatch.StartNew();
-Landmarks lm = g.BuildLandmarks(landmarkCount, LandmarkSelection.Avoid, seed);
+Landmarks lm = g.BuildLandmarks(new LandmarkOptions { Count = landmarkCount, Selection = LandmarkSelection.Avoid, Seed = seed });
 double landmarkSeconds = sw.Elapsed.TotalSeconds;
 Console.WriteLine($"{name}: {nodes} nodes, {edges.Count} arcs, {lm.Count} landmarks built in {landmarkSeconds:F1}s ({lm.Serialize().Length / 1048576.0:F1} MiB)");
 

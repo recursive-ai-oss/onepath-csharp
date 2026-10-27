@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Graphs;
 using RecursiveAI.OnePath.Grids;
 using Xunit;
@@ -194,7 +195,7 @@ public class GraphSearchTests
         {
             GraphWorlds.World w = GraphWorlds.Make(index);
             Graph g = Graph.From(w.Edges, w.Nodes, w.Directed);
-            Landmarks lm = g.BuildLandmarks(1 + (index % 5), index % 2 == 0 ? LandmarkSelection.Avoid : LandmarkSelection.Farthest, (ulong)index);
+            Landmarks lm = g.BuildLandmarks(new LandmarkOptions { Count = 1 + (index % 5), Selection = index % 2 == 0 ? LandmarkSelection.Avoid : LandmarkSelection.Farthest, Seed = (ulong)index });
             Func<int, int, double>? euclid = w.Positions is null ? null : (a, b) => w.Positions[a].DistanceTo(w.Positions[b]);
             var rng = new SeededRandom((ulong)index * 7919UL);
             for (int q = 0; q < 3; q++)
@@ -218,7 +219,7 @@ public class GraphSearchTests
                         string label = $"graph {index} ({w.Family}) {s}->{t} {algorithm} lm={options.Landmarks is not null} h={options.Heuristic is not null}";
                         if (double.IsPositiveInfinity(truth[t]))
                         {
-                            Assert.True(p.Status == PathStatus.NoPath, label + " should have no path");
+                            Assert.True(p.Status == PathOutcome.NoPath, label + " should have no path");
                             continue;
                         }
                         Assert.True(p.Found, label + " should find a path");
@@ -252,7 +253,7 @@ public class GraphSearchTests
                 links.Add((rng.NextInt(n), rng.NextInt(n)));
             }
             var pg = PointGraph.From(pos, new PointGraphOptions { Links = links });
-            Landmarks lm = pg.BuildLandmarks(4);
+            Landmarks lm = pg.BuildLandmarks(new LandmarkOptions { Count = 4 });
             int s = rng.NextInt(n);
             int t = rng.NextInt(n);
             GraphPath reference = GraphWorlds.Find(pg, s, t, new GraphOptions { Algorithm = GraphAlgorithm.Dijkstra });
@@ -280,8 +281,8 @@ public class GraphSearchTests
             Assert.Equal(6.0, p.Cost);
             GraphPath blocked = GraphWorlds.Find(g, 0, 2, new GraphOptions { Algorithm = a, Blocked = n => n == 1 });
             Assert.Equal([0, 2], blocked.Nodes.ToArray());
-            Assert.Equal(PathStatus.StartInvalid, GraphWorlds.Find(g, 0, 2, new GraphOptions { Algorithm = a, Blocked = n => n == 0 }).Status);
-            Assert.Equal(PathStatus.GoalInvalid, GraphWorlds.Find(g, 0, 7, new GraphOptions { Algorithm = a }).Status);
+            Assert.Equal(PathOutcome.StartInvalid, GraphWorlds.Find(g, 0, 2, new GraphOptions { Algorithm = a, Blocked = n => n == 0 }).Status);
+            Assert.Equal(PathOutcome.GoalInvalid, GraphWorlds.Find(g, 0, 7, new GraphOptions { Algorithm = a }).Status);
         }
     }
 
@@ -308,8 +309,8 @@ public class GraphSearchTests
             Assert.True(same.Found);
             Assert.Equal(0.0, same.Cost);
             Assert.Equal([2], same.Nodes.ToArray());
-            Assert.Equal(PathStatus.NoPath, GraphWorlds.Find(g, 1, 0, new GraphOptions { Algorithm = a }).Status);
-            Assert.Equal(PathStatus.NoPath, GraphWorlds.Find(g, 0, 2, new GraphOptions { Algorithm = a, Landmarks = g.BuildLandmarks(2) }).Status);
+            Assert.Equal(PathOutcome.NoPath, GraphWorlds.Find(g, 1, 0, new GraphOptions { Algorithm = a }).Status);
+            Assert.Equal(PathOutcome.NoPath, GraphWorlds.Find(g, 0, 2, new GraphOptions { Algorithm = a, Landmarks = g.BuildLandmarks(new LandmarkOptions { Count = 2 }) }).Status);
         }
     }
 
@@ -375,7 +376,7 @@ public class GraphSearchTests
             return;
         }
         GraphPath cut = GraphWorlds.Find(g, 0, w.Nodes - 1, new GraphOptions { IterationBudget = 1 });
-        Assert.Equal(PathStatus.BudgetExhausted, cut.Status);
+        Assert.Equal(PathOutcome.BudgetExhausted, cut.Status);
         GraphPath enough = GraphWorlds.Find(g, 0, w.Nodes - 1, new GraphOptions { IterationBudget = full.ExpandedCount + 1 });
         Assert.Equal(full.Cost, enough.Cost);
         Assert.Equal(full.ExpandedNodes.ToArray(), GraphWorlds.Find(g, 0, w.Nodes - 1, new GraphOptions { RecordExpansions = true }).ExpandedNodes.ToArray());
@@ -419,8 +420,8 @@ public class GraphSearchTests
             edges.Add(new GraphEdge(a, b, Math.Ceiling(pos[a].DistanceTo(pos[b]) * 0.5) + Math.Ceiling(pos[a].DistanceTo(pos[b]) * 0.5)));
         }
         Graph g = Graph.From(edges, W * H, false);
-        Landmarks lm = g.BuildLandmarks(16, LandmarkSelection.Avoid, 7);
-        Landmarks far = g.BuildLandmarks(16, LandmarkSelection.Farthest, 7);
+        Landmarks lm = g.BuildLandmarks(new LandmarkOptions { Count = 16, Selection = LandmarkSelection.Avoid, Seed = 7 });
+        Landmarks far = g.BuildLandmarks(new LandmarkOptions { Count = 16, Selection = LandmarkSelection.Farthest, Seed = 7 });
         long dij = 0, ast = 0, alt = 0, altFar = 0, bidiDij = 0, bidiAlt = 0, bidiAst = 0;
         int found = 0;
         for (int q = 0; q < 60; q++)
@@ -485,7 +486,7 @@ public class GraphSearchTests
         Assert.Throws<ArgumentOutOfRangeException>(() => g.RemoveEdge(99));
 
         // Landmarks built before an edit are refused afterwards.
-        Landmarks lm = g.BuildLandmarks(2);
+        Landmarks lm = g.BuildLandmarks(new LandmarkOptions { Count = 2 });
         g.AddEdge(1, 3, 0.25);
         Assert.Throws<InvalidOperationException>(() => GraphWorlds.Find(g, 0, 3, new GraphOptions { Landmarks = lm }));
     }
@@ -732,7 +733,7 @@ public class PointGraphTests
         Assert.Equal(pts.ToArray(), p.Positions.ToArray());
         Assert.Equal(GraphAlgorithm.AStar, p.Algorithm);
         Assert.Equal(-1, PointGraph.From(new List<Point3>()).NearestNode(new Point3(0, 0)));
-        Assert.Equal(PathStatus.StartInvalid, GraphWorlds.Find(PointGraph.From(new List<Point3>()), new Point3(0, 0), new Point3(1, 1)).Status);
+        Assert.Equal(PathOutcome.StartInvalid, GraphWorlds.Find(PointGraph.From(new List<Point3>()), new Point3(0, 0), new Point3(1, 1)).Status);
     }
 
     [Fact]

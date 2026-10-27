@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 using Xunit;
 
@@ -25,7 +26,7 @@ public class SearchAgainstBruteForce
             GridPath p = g.FindPath(a, b, options);
             if (double.IsPositiveInfinity(expect))
             {
-                Assert.Equal(PathStatus.NoPath, p.Status);
+                Assert.Equal(PathOutcome.NoPath, p.Status);
                 continue;
             }
             Assert.True(p.Found, $"expected a path of cost {expect}");
@@ -109,7 +110,7 @@ public class SearchAgainstBruteForce
                 GridPath p = hex.FindPath(a, b, i % 3 == 0 ? new GridOptions { Heuristic = GridHeuristic.Zero } : null);
                 if (double.IsPositiveInfinity(expect))
                 {
-                    Assert.Equal(PathStatus.NoPath, p.Status);
+                    Assert.Equal(PathOutcome.NoPath, p.Status);
                 }
                 else
                 {
@@ -203,7 +204,7 @@ public class SearchAgainstBruteForce
     {
         var g = new Grid(30, 30);
         GridPath p = g.FindPath(new Cell(0, 0), new Cell(29, 29), new GridOptions { IterationBudget = 3, Heuristic = GridHeuristic.Zero });
-        Assert.Equal(PathStatus.BudgetExhausted, p.Status);
+        Assert.Equal(PathOutcome.BudgetExhausted, p.Status);
         Assert.Equal(3, p.ExpandedCount);
     }
 

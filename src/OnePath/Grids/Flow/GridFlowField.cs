@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using RecursiveAI.OnePath.Grids;
 
-namespace RecursiveAI.OnePath.Grids;
+namespace RecursiveAI.OnePath;
 
 // Cost hook of the one-line flow fields: the options' blocked filter applies to both ends of a move (a blocked cell
 // is isolated) and the step-cost delegate sees (from, to, grid cost).

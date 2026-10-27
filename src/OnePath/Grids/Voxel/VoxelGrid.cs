@@ -1,18 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using RecursiveAI.OnePath.Grids;
+using RecursiveAI.OnePath.Grids.Voxel;
 
-namespace RecursiveAI.OnePath.Grids.Voxel;
-
-/// <summary>Told when a voxel of a <see cref="VoxelGrid"/> changes; caches and incremental searches subscribe to this.</summary>
-public interface IVoxelChangeListener
-{
-    /// <summary>Called after voxel (<paramref name="x"/>, <paramref name="y"/>, <paramref name="z"/>) changed area (including becoming or ceasing to be solid).</summary>
-    /// <param name="x">Position along x.</param>
-    /// <param name="y">Position along y.</param>
-    /// <param name="z">Position along z.</param>
-    void OnVoxelChanged(int x, int y, int z);
-}
+namespace RecursiveAI.OnePath;
 
 /// <summary>
 /// A bounded block of voxels, one byte each: an area id (0..254, see <see cref="AreaCosts"/>) or <see cref="AreaCosts.Wall"/>
@@ -345,14 +337,14 @@ public sealed class VoxelGrid
     /// <param name="start">Start voxel.</param>
     /// <param name="goal">Goal voxel.</param>
     /// <param name="options">Query options; null means <see cref="VoxelOptions.Default"/>.</param>
-    /// <returns>The result; check <see cref="VoxelPath.Status"/>. Voxels outside the grid or solid give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
+    /// <returns>The result; check <see cref="VoxelPath.Status"/>. Voxels outside the grid or solid give <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/>.</returns>
     public VoxelPath FindPath(VoxelCell start, VoxelCell goal, VoxelOptions? options = null) => FindPathCore(start, goal, options ?? DefaultOptions, false);
 
     /// <summary>Finds a least-cost path between two world positions (their containing voxels); the result carries world-space voxel centres.</summary>
     /// <param name="start">Start position; each coordinate within ±2^21.</param>
     /// <param name="goal">Goal position; each coordinate within ±2^21.</param>
     /// <param name="options">Query options; null means <see cref="VoxelOptions.Default"/>.</param>
-    /// <returns>The result. A position outside the grid gives <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
+    /// <returns>The result. A position outside the grid gives <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN or beyond ±2^21.</exception>
     public VoxelPath FindPath(VoxelPoint start, VoxelPoint goal, VoxelOptions? options = null)
     {
@@ -360,11 +352,11 @@ public sealed class VoxelGrid
         bool b = TryGetCell(goal, out VoxelCell g);
         if (!a)
         {
-            return VoxelPath.Invalid(PathStatus.StartInvalid);
+            return VoxelPath.Invalid(PathOutcome.StartInvalid);
         }
         if (!b)
         {
-            return VoxelPath.Invalid(PathStatus.GoalInvalid);
+            return VoxelPath.Invalid(PathOutcome.GoalInvalid);
         }
         return FindPathCore(s, g, options ?? DefaultOptions, true);
     }
@@ -373,15 +365,15 @@ public sealed class VoxelGrid
     {
         if (!Contains(start.X, start.Y, start.Z) || Read(_chunks, ChunksX, ChunksY, _fill, start.X, start.Y, start.Z) == AreaCosts.Wall)
         {
-            return VoxelPath.Invalid(PathStatus.StartInvalid);
+            return VoxelPath.Invalid(PathOutcome.StartInvalid);
         }
         if (!Contains(goal.X, goal.Y, goal.Z) || Read(_chunks, ChunksX, ChunksY, _fill, goal.X, goal.Y, goal.Z) == AreaCosts.Wall)
         {
-            return VoxelPath.Invalid(PathStatus.GoalInvalid);
+            return VoxelPath.Invalid(PathOutcome.GoalInvalid);
         }
         if (o.Blocked is not null && (o.Blocked(start) || o.Blocked(goal)))
         {
-            return VoxelPath.Invalid(o.Blocked(start) ? PathStatus.StartInvalid : PathStatus.GoalInvalid);
+            return VoxelPath.Invalid(o.Blocked(start) ? PathOutcome.StartInvalid : PathOutcome.GoalInvalid);
         }
         VoxelTopology topology = CreateTopology(o.Connectivity, o.Corners);
         int a = start.X + (SizeX * (start.Y + (SizeY * start.Z)));

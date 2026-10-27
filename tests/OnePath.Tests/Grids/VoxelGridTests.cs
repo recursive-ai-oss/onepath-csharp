@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 using RecursiveAI.OnePath.Grids.Voxel;
 using Xunit;
@@ -39,7 +40,7 @@ public class VoxelGridTests
     {
         var g = new VoxelGrid(20, 20, 20, AreaCosts.Wall);
         Assert.Equal(AreaCosts.Wall, g.GetArea(3, 3, 3));
-        Assert.Equal(PathStatus.StartInvalid, g.FindPath(new VoxelCell(1, 1, 1), new VoxelCell(2, 2, 2)).Status);
+        Assert.Equal(PathOutcome.StartInvalid, g.FindPath(new VoxelCell(1, 1, 1), new VoxelCell(2, 2, 2)).Status);
         for (int x = 1; x <= 18; x++)
         {
             g.SetWalkable(x, 5, 5, true);
@@ -161,7 +162,7 @@ public class VoxelGridTests
     {
         var g = new VoxelGrid(30, 30, 30);
         VoxelPath p = g.FindPath(new VoxelCell(0, 0, 0), new VoxelCell(29, 29, 0), new VoxelOptions { IterationBudget = 3, Heuristic = GridHeuristic.Zero });
-        Assert.Equal(PathStatus.BudgetExhausted, p.Status);
+        Assert.Equal(PathOutcome.BudgetExhausted, p.Status);
     }
 
     [Fact]
@@ -173,8 +174,8 @@ public class VoxelGridTests
         g.SetWalkable(0, 1, 0, false);
         var a = new VoxelCell(0, 0, 0);
         var b = new VoxelCell(1, 1, 0);
-        Assert.Equal(PathStatus.NoPath, g.FindPath(a, b, new VoxelOptions { Corners = VoxelCornerRule.NoCornerCutting }).Status);
-        Assert.Equal(PathStatus.NoPath, g.FindPath(a, b, new VoxelOptions { Corners = VoxelCornerRule.NoSqueezing }).Status);
+        Assert.Equal(PathOutcome.NoPath, g.FindPath(a, b, new VoxelOptions { Corners = VoxelCornerRule.NoCornerCutting }).Status);
+        Assert.Equal(PathOutcome.NoPath, g.FindPath(a, b, new VoxelOptions { Corners = VoxelCornerRule.NoSqueezing }).Status);
         Assert.Equal(GridMath.Sqrt2, g.FindPath(a, b, new VoxelOptions { Corners = VoxelCornerRule.AllowAll }).Cost);
         g.SetWalkable(1, 0, 0, true);
         Assert.Equal(2.0, g.FindPath(a, b, new VoxelOptions { Corners = VoxelCornerRule.NoCornerCutting }).Cost);
@@ -199,7 +200,7 @@ public class VoxelGridTests
         Assert.True(p.Found);
         Assert.Equal(4, p.Cells.Length);
         Assert.Equal(new VoxelPoint(-4.75, 100.25, 2.25), p.WorldPoints[0]);
-        Assert.Equal(PathStatus.GoalInvalid, g.FindPath(new VoxelPoint(-4.9, 100.1, 2.1), new VoxelPoint(50, 100.1, 2.1)).Status);
+        Assert.Equal(PathOutcome.GoalInvalid, g.FindPath(new VoxelPoint(-4.9, 100.1, 2.1), new VoxelPoint(50, 100.1, 2.1)).Status);
         var ex = Assert.Throws<ArgumentOutOfRangeException>(() => g.FindPath(new VoxelPoint(3e6, 0, 0), new VoxelPoint(0, 0, 0)));
         Assert.Contains("2^21", ex.Message, StringComparison.Ordinal);
         Assert.Throws<ArgumentOutOfRangeException>(() => g.FindPath(new VoxelPoint(0, double.NaN, 0), new VoxelPoint(0, 0, 0)));
@@ -214,8 +215,8 @@ public class VoxelGridTests
         var o = new VoxelOptions { StepCost = (_, to, c) => to.X == 2 ? c * 10 : c };
         Assert.Equal(13.0, g.FindPath(new VoxelCell(0, 0, 0), new VoxelCell(4, 0, 0), o).Cost);
         var blocked = new VoxelOptions { Blocked = c => c.X == 2 };
-        Assert.Equal(PathStatus.NoPath, g.FindPath(new VoxelCell(0, 0, 0), new VoxelCell(4, 0, 0), blocked).Status);
-        Assert.Equal(PathStatus.GoalInvalid, g.FindPath(new VoxelCell(0, 0, 0), new VoxelCell(2, 0, 0), blocked).Status);
+        Assert.Equal(PathOutcome.NoPath, g.FindPath(new VoxelCell(0, 0, 0), new VoxelCell(4, 0, 0), blocked).Status);
+        Assert.Equal(PathOutcome.GoalInvalid, g.FindPath(new VoxelCell(0, 0, 0), new VoxelCell(2, 0, 0), blocked).Status);
     }
 
     [Fact]
@@ -226,7 +227,7 @@ public class VoxelGridTests
         var g = new VoxelGrid(3, 3, 3);
         Assert.Throws<ArgumentOutOfRangeException>(() => g.GetArea(3, 0, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => g.SetArea(0, -1, 0, 1));
-        Assert.Equal(PathStatus.StartInvalid, g.FindPath(new VoxelCell(9, 0, 0), new VoxelCell(0, 0, 0)).Status);
+        Assert.Equal(PathOutcome.StartInvalid, g.FindPath(new VoxelCell(9, 0, 0), new VoxelCell(0, 0, 0)).Status);
         Assert.Throws<ArgumentOutOfRangeException>(() => g.CreateTopology((VoxelConnectivity)7));
         Assert.Throws<ArgumentOutOfRangeException>(() => new VoxelOptions { HeuristicWeight = double.NaN });
     }

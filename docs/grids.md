@@ -1,7 +1,10 @@
 # Grids: square and hex, open set, A*, area costs, clearance
 
 Normative. A port must reproduce the same expansion order, costs and paths from this text. Code lives in
-`src/OnePath/Grids/`; the namespace is `RecursiveAI.OnePath.Grids`.
+`src/OnePath/Grids/`. The tier-1 types (`Grid`, `HexGrid`, `VoxelGrid`, their options and results, `Cell`, `WorldPoint`, `VoxelCell`,
+`VoxelPoint`, `GridSpace`, `VoxelSpace`, `AreaCosts`, `HexCoord`, `GridAlgorithm`, `PathOutcome`, `GridFlowField` and the replanners) live in
+the root namespace `RecursiveAI.OnePath`; the search cores, topologies, heuristics, buffers and indexes (tiers 2 and 3) live in
+`RecursiveAI.OnePath.Grids` and `.Grids.Voxel`.
 
 ## Layout
 
@@ -94,11 +97,11 @@ admissible and consistent for the default cost model; hooks that lower costs, or
 **Sliced search.** `AStar.Step(n)` performs at most `n` iterations and returns `Running` while work remains;
 `Run()` is `Step(int.MaxValue)` with cooperative cancellation; time is never consulted. Any sequence of budgets gives
 the same expansion order, path and cost as one unsliced run. The tier-1 `GridOptions.IterationBudget` ends the query with
-`PathStatus.BudgetExhausted` after that many iterations.
+`PathOutcome.BudgetExhausted` after that many iterations.
 
 ## API tiers
 
-1. **Happy path.** `Grid.From(bool[,])` (or spans, or `MovingAiMap.ToGrid()`), `grid.FindPath(a, b[, GridOptions])` with
+1. **Happy path.** `Grid.From(bool[,])` (or spans, `Grid.FromText(picture)` with `.` open, `#` wall and `1`-`9` areas, or `MovingAiMap.ToGrid()`; `HexGrid.FromText` likewise), `grid.FindPath(a, b[, GridOptions])` with
    cells or world points; `GridOptions` (connectivity, diagonal rule, agent size, heuristic, weight, `StepCost` and `Blocked`
    delegates, expansion recording, iteration budget) with presets `Default`, `FourConnected`, `NoSqueezing`, `ForAgentSize(n)`.
    Start or goal outside the grid, blocked or too narrow for the agent give `StartInvalid`/`GoalInvalid`, not exceptions. The
@@ -375,7 +378,7 @@ the area cost table (`AreaCosts.Version`) mark everything. `Grid` notifies liste
 **Cost model.** Build: one Dijkstra per node over at most C² cells; node count per chunk is roughly `4·C/T` to `4·C/2`. Memory: `n²` doubles per chunk.
 ## 3D voxel grids
 
-`VoxelGrid` (`RecursiveAI.OnePath.Grids.Voxel`) is a bounded block of voxels, one byte each: an area id 0..254 or
+`VoxelGrid` (root namespace) is a bounded block of voxels, one byte each: an area id 0..254 or
 255 for solid, the same ids and `AreaCosts` table as the square grid. It is searched by the same `AStar` through
 `VoxelTopology`.
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 using Xunit;
 

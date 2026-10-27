@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 using Xunit;
 
@@ -323,7 +324,7 @@ public class ThetaTests
         foreach (GridAlgorithm alg in Algorithms)
         {
             GridPath p = g.FindPath(new Cell(0, 0), new Cell(99, 99), new GridOptions { Algorithm = alg, Heuristic = GridHeuristic.Zero, IterationBudget = 5 });
-            Assert.Equal(PathStatus.BudgetExhausted, p.Status);
+            Assert.Equal(PathOutcome.BudgetExhausted, p.Status);
         }
     }
 

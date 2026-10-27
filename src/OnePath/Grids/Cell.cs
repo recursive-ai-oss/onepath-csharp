@@ -1,4 +1,4 @@
-namespace RecursiveAI.OnePath.Grids;
+namespace RecursiveAI.OnePath;
 
 /// <summary>A cell of a grid: <see cref="X"/> is the column, <see cref="Y"/> the row, both zero-based.</summary>
 /// <param name="X">Column, 0 at the left.</param>
@@ -11,7 +11,7 @@ public readonly record struct Cell(int X, int Y);
 public readonly record struct WorldPoint(double X, double Y);
 
 /// <summary>Why a grid query ended.</summary>
-public enum PathStatus
+public enum PathOutcome
 {
     /// <summary>A path was found; it is optimal for the cost model unless a heuristic weight above 1 was used.</summary>
     Found = 0,

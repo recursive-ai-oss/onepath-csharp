@@ -85,11 +85,11 @@ internal static class GraphRunner
         var cost = new OptionCost { Edge = options.EdgeCost, Blocked = options.Blocked };
         if ((uint)start >= (uint)graph.NodeCount || (options.Blocked?.Invoke(start) ?? false))
         {
-            return new GraphPath(PathStatus.StartInvalid, double.PositiveInfinity, null, 0, null, null, options.Algorithm);
+            return new GraphPath(PathOutcome.StartInvalid, double.PositiveInfinity, null, 0, null, null, options.Algorithm);
         }
         if ((uint)goal >= (uint)graph.NodeCount || (options.Blocked?.Invoke(goal) ?? false))
         {
-            return new GraphPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null, options.Algorithm);
+            return new GraphPath(PathOutcome.GoalInvalid, double.PositiveInfinity, null, 0, null, null, options.Algorithm);
         }
         var heuristic = new OptionHeuristic { Positions = positions, Landmarks = options.Landmarks, Custom = options.Heuristic };
         GraphAlgorithm algorithm = options.Algorithm;
@@ -155,11 +155,11 @@ internal static class GraphRunner
         }
         if (status == SearchStatus.Running)
         {
-            return new GraphPath(PathStatus.BudgetExhausted, double.PositiveInfinity, null, expandedCount, expanded, null, algorithm);
+            return new GraphPath(PathOutcome.BudgetExhausted, double.PositiveInfinity, null, expandedCount, expanded, null, algorithm);
         }
         if (status == SearchStatus.NotFound)
         {
-            return new GraphPath(PathStatus.NoPath, double.PositiveInfinity, null, expandedCount, expanded, null, algorithm);
+            return new GraphPath(PathOutcome.NoPath, double.PositiveInfinity, null, expandedCount, expanded, null, algorithm);
         }
         Point3[]? world = null;
         if (positions is not null && nodes is not null)
@@ -170,7 +170,7 @@ internal static class GraphRunner
                 world[i] = positions[nodes[i]];
             }
         }
-        return new GraphPath(PathStatus.Found, pathCost, nodes, expandedCount, expanded, world, algorithm);
+        return new GraphPath(PathOutcome.Found, pathCost, nodes, expandedCount, expanded, world, algorithm);
     }
 
     // With a token the search runs in 256-iteration slices so cancellation is observed between them; the result is

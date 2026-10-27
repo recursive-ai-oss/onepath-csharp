@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Graphs;
 using RecursiveAI.OnePath.Grids;
 
@@ -28,7 +29,7 @@ internal static class GraphTargets
             pos += 3;
         }
         Graph g = Graph.From(edges, n, directed);
-        Landmarks lm = g.BuildLandmarks(landmarkCount, selection, data[0]);
+        Landmarks lm = g.BuildLandmarks(new LandmarkOptions { Count = landmarkCount, Selection = selection, Seed = data[0] });
         double[,] best = new double[n, n];
         for (int i = 0; i < n; i++)
         {
@@ -64,7 +65,7 @@ internal static class GraphTargets
                     GraphPath p = g.FindPath(s, t, new GraphOptions { Algorithm = a, Landmarks = lm });
                     if (double.IsPositiveInfinity(best[s, t]))
                     {
-                        if (p.Status != PathStatus.NoPath)
+                        if (p.Status != PathOutcome.NoPath)
                         {
                             throw new InvalidOperationException($"{a} {s}->{t}: expected no path, got {p.Status}");
                         }

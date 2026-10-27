@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
-using RecursiveAI.OnePath.Grids;
+using RecursiveAI.OnePath.Graphs;
 
-namespace RecursiveAI.OnePath.Graphs;
+namespace RecursiveAI.OnePath;
 
 /// <summary>
 /// How a <see cref="PointGraph"/> links its points. Links from every source are merged into one set of undirected pairs,
@@ -196,12 +196,10 @@ public sealed class PointGraph
     }
 
     /// <summary>Builds landmark tables for this graph (see <see cref="Landmarks.Build"/>).</summary>
-    /// <param name="count">Number of landmarks.</param>
-    /// <param name="selection">Selection method.</param>
-    /// <param name="seed">Seed for root choice.</param>
+    /// <param name="options">Count, selection and seed; null means <see cref="LandmarkOptions"/> defaults (16 landmarks, avoid, seed 1).</param>
     /// <returns>The table.</returns>
     /// <exception cref="ArgumentException">The graph has no nodes.</exception>
-    public Landmarks BuildLandmarks(int count = 16, LandmarkSelection selection = LandmarkSelection.Avoid, ulong seed = 1) => Landmarks.Build(_graph, count, selection, seed);
+    public Landmarks BuildLandmarks(LandmarkOptions? options = null) => Landmarks.Build(_graph, options?.Count ?? 16, options?.Selection ?? LandmarkSelection.Avoid, options?.Seed ?? 1);
 
     /// <summary>Finds the cheapest path between two nodes (A* with the straight-line estimate by default).</summary>
     /// <param name="start">Start node id.</param>
@@ -229,7 +227,7 @@ public sealed class PointGraph
     /// <param name="goal">Goal position.</param>
     /// <param name="options">Options; null means defaults.</param>
     /// <param name="cancellationToken">Checked every 256 iterations.</param>
-    /// <returns>The result; <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/> for an empty graph.</returns>
+    /// <returns>The result; <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/> for an empty graph.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN, infinite or beyond ±2^21.</exception>
     public GraphPath FindPath(Point3 start, Point3 goal, GraphOptions? options = null, CancellationToken cancellationToken = default)
         => FindPath(NearestNode(start), NearestNode(goal), options, cancellationToken);

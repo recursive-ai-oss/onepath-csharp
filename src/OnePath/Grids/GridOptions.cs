@@ -1,6 +1,7 @@
 using System;
+using RecursiveAI.OnePath.Grids;
 
-namespace RecursiveAI.OnePath.Grids;
+namespace RecursiveAI.OnePath;
 
 /// <summary>
 /// Options for the one-line grid queries (<see cref="Grid.FindPath(Cell, Cell, GridOptions?)"/> and the hex equivalent).
@@ -14,7 +15,7 @@ public sealed class GridOptions
     private int _iterationBudget = int.MaxValue;
     private int _hpaChunkSize = 16;
 
-    /// <summary>The moves allowed on a square grid. Default <see cref="Grids.Connectivity.Eight"/>. Ignored on hex grids (always six).</summary>
+    /// <summary>The moves allowed on a square grid. Default <see cref="OnePath.Connectivity.Eight"/>. Ignored on hex grids (always six).</summary>
     public Connectivity Connectivity { get; set; } = Connectivity.Eight;
 
     /// <summary>When diagonal moves are allowed. Default <see cref="DiagonalRule.NoCornerCutting"/>. Ignored on hex grids and four-connected searches.</summary>
@@ -94,7 +95,7 @@ public sealed class GridOptions
     public bool RecordExpansions { get; set; }
 
     /// <summary>
-    /// Most iterations (node expansions) a query may use before it gives up with <see cref="PathStatus.BudgetExhausted"/>;
+    /// Most iterations (node expansions) a query may use before it gives up with <see cref="PathOutcome.BudgetExhausted"/>;
     /// counts iterations, never time. Default unlimited.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is below 1.</exception>
@@ -136,7 +137,7 @@ public sealed class GridPath
     private readonly Cell[] _expanded;
     private readonly WorldPoint[] _world;
 
-    internal GridPath(PathStatus status, double cost, Cell[]? cells, int expandedCount, Cell[]? expanded, WorldPoint[]? world)
+    internal GridPath(PathOutcome status, double cost, Cell[]? cells, int expandedCount, Cell[]? expanded, WorldPoint[]? world)
     {
         Status = status;
         Cost = cost;
@@ -150,10 +151,10 @@ public sealed class GridPath
     public GridAlgorithm Algorithm { get; internal init; }
 
     /// <summary>How the query ended.</summary>
-    public PathStatus Status { get; }
+    public PathOutcome Status { get; }
 
     /// <summary>True when a path was found.</summary>
-    public bool Found => Status == PathStatus.Found;
+    public bool Found => Status == PathOutcome.Found;
 
     /// <summary>The path cost (+∞ when no path was found).</summary>
     public double Cost { get; }

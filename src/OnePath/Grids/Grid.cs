@@ -1,17 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using RecursiveAI.OnePath.Grids;
 
-namespace RecursiveAI.OnePath.Grids;
-
-/// <summary>Told when a cell of a grid changes; incremental algorithms (replanning, caches) subscribe to this.</summary>
-public interface IGridChangeListener
-{
-    /// <summary>Called after the cell (<paramref name="x"/>, <paramref name="y"/>) changed area (including becoming or ceasing to be a wall).</summary>
-    /// <param name="x">Column of the cell.</param>
-    /// <param name="y">Row of the cell.</param>
-    void OnCellChanged(int x, int y);
-}
+namespace RecursiveAI.OnePath;
 
 /// <summary>
 /// A square grid: one byte per cell holding an area id (0..254, see <see cref="AreaCosts"/>) or <see cref="AreaCosts.Wall"/>.
@@ -146,6 +138,75 @@ public sealed class Grid
         }
         areas.CopyTo(grid._cells);
         return grid;
+    }
+
+    /// <summary>
+    /// Creates a grid from a text picture, one line per row. <c>.</c> is open ground (area 0), <c>#</c> is a wall and the digits
+    /// <c>1</c>–<c>9</c> are areas 1–9 (see <see cref="AreaCosts"/>). Blank lines before and after the picture are ignored,
+    /// carriage returns are removed, and every row must have the same length.
+    /// </summary>
+    /// <param name="text">The picture.</param>
+    /// <returns>The grid.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="text"/> is null.</exception>
+    /// <exception cref="GridFormatException">The picture is empty, a row has a different length or a character is not one of those above; the message gives the line.</exception>
+    public static Grid FromText(string text)
+    {
+        byte[] cells = ParseText(text, out int width, out int height);
+        return From(cells, width, height);
+    }
+
+    internal static byte[] ParseText(string text, out int width, out int height)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        string[] lines = text.Replace("\r", string.Empty, StringComparison.Ordinal).Split('\n');
+        int first = 0;
+        int last = lines.Length - 1;
+        while (first <= last && lines[first].Length == 0)
+        {
+            first++;
+        }
+        while (last >= first && lines[last].Length == 0)
+        {
+            last--;
+        }
+        if (first > last)
+        {
+            throw new GridFormatException("The text map has no rows.");
+        }
+        height = last - first + 1;
+        width = lines[first].Length;
+        var cells = new byte[checked(width * height)];
+        for (int y = 0; y < height; y++)
+        {
+            string row = lines[first + y];
+            if (row.Length != width)
+            {
+                throw new GridFormatException(first + y + 1, $"the row has {row.Length} characters but the first row has {width}.");
+            }
+            for (int x = 0; x < width; x++)
+            {
+                char c = row[x];
+                byte area;
+                if (c == '.')
+                {
+                    area = 0;
+                }
+                else if (c == '#')
+                {
+                    area = AreaCosts.Wall;
+                }
+                else if (c >= '1' && c <= '9')
+                {
+                    area = (byte)(c - '0');
+                }
+                else
+                {
+                    throw new GridFormatException(first + y + 1, $"unexpected character '{c}' at column {x + 1}; use '.', '#' or '1'-'9'.");
+                }
+                cells[(y * width) + x] = area;
+            }
+        }
+        return cells;
     }
 
     /// <summary>Whether (<paramref name="x"/>, <paramref name="y"/>) lies inside the grid.</summary>
@@ -329,14 +390,14 @@ public sealed class Grid
     /// <param name="start">Start cell.</param>
     /// <param name="goal">Goal cell.</param>
     /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
-    /// <returns>The result; check <see cref="GridPath.Status"/>. Cells outside the grid or not walkable for the agent give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
+    /// <returns>The result; check <see cref="GridPath.Status"/>. Cells outside the grid or not walkable for the agent give <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/>.</returns>
     public GridPath FindPath(Cell start, Cell goal, GridOptions? options = null) => FindPathCore(start, goal, options ?? DefaultOptions, false);
 
     /// <summary>Finds a least-cost path between two world positions (their containing cells); the result carries world-space cell centres.</summary>
     /// <param name="start">Start position.</param>
     /// <param name="goal">Goal position.</param>
     /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
-    /// <returns>The result. Positions outside the grid give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
+    /// <returns>The result. Positions outside the grid give <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN or beyond ±2^21.</exception>
     public GridPath FindPath(WorldPoint start, WorldPoint goal, GridOptions? options = null)
     {
@@ -344,11 +405,11 @@ public sealed class Grid
         bool g = TryGetCell(goal, out Cell gc);
         if (!s)
         {
-            return new GridPath(PathStatus.StartInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathOutcome.StartInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         if (!g)
         {
-            return new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathOutcome.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         return FindPathCore(sc, gc, options ?? DefaultOptions, true);
     }
@@ -372,11 +433,11 @@ public sealed class Grid
         int size = o.AgentSize;
         if (!Contains(start.X, start.Y) || _clearance[(start.Y * Width) + start.X] < size || o.Blocked?.Invoke(start) == true)
         {
-            return new GridPath(PathStatus.StartInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathOutcome.StartInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         if (!Contains(goal.X, goal.Y) || _clearance[(goal.Y * Width) + goal.X] < size || o.Blocked?.Invoke(goal) == true)
         {
-            return new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathOutcome.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         if (o.Algorithm is GridAlgorithm.ThetaStar or GridAlgorithm.LazyThetaStar && AnyAngleRunner.Applies(this, o, out double anyAngleCost))
         {
@@ -715,6 +776,13 @@ public sealed class Grid
     /// <exception cref="ArgumentException">No goals.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A goal is outside the grid.</exception>
     public GridFlowField CreateFlowField(ReadOnlySpan<Cell> goals, GridOptions? options = null) => new(this, goals, options ?? DefaultOptions);
+
+    /// <summary>Computes a flow field toward one goal cell; see <see cref="CreateFlowField(ReadOnlySpan{Cell}, GridOptions?)"/>.</summary>
+    /// <param name="goal">The goal cell, inside the grid.</param>
+    /// <param name="options">Options; null means <see cref="GridOptions.Default"/>.</param>
+    /// <returns>The field.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The goal is outside the grid.</exception>
+    public GridFlowField CreateFlowField(Cell goal, GridOptions? options = null) => CreateFlowField([goal], options);
 
     private void CheckCell(int x, int y)
     {

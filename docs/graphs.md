@@ -1,6 +1,7 @@
 # Graphs: generic and point graphs, A*, bidirectional search, ALT
 
-Namespace `RecursiveAI.OnePath.Graphs`. Graphs are their own family: grids do not route through these types.
+The tier-1 types (`Graph`, `PointGraph`, `GraphOptions`, `GraphPath`, `Landmarks`, `LandmarkOptions`, `GraphEdge`, `Point3`) live in the root namespace
+`RecursiveAI.OnePath`; the CSR form, searches and heuristics (tiers 2 and 3) live in `RecursiveAI.OnePath.Graphs`. Graphs are their own family: grids do not route through these types.
 Everything here follows the same determinism rules as the grids: IEEE-exact `+ - * / sqrt` on double, ties broken on
 node ids, no hash-collection order, no clocks. A port that follows this text reproduces the same paths, costs and
 expansion orders bit for bit.
@@ -36,7 +37,7 @@ grid search's loop transplanted onto CSR, and it uses the grid core's `OpenSet` 
   `(g' + h, g')`, reopening `v` if it was closed. Equal-cost alternatives keep the first parent found.
 - `ExpandedCount` counts expansions (the goal's pop is not one); `Iterations` counts pops.
 - Sliced search: `Step(n)` does at most `n` iterations; any sequence of budgets gives the same result as one run.
-  Tier-1 `GraphOptions.IterationBudget` ends the query with `PathStatus.BudgetExhausted` after that many iterations.
+  Tier-1 `GraphOptions.IterationBudget` ends the query with `PathOutcome.BudgetExhausted` after that many iterations.
   `Run(token)` checks cancellation every 256 iterations.
 
 ### Estimates
@@ -126,7 +127,8 @@ each landmark `L`, `d(L, v)` (forward Dijkstra) and `d(v, L)` (Dijkstra over the
 
 1. `Graph.From(edges).FindPath(a, b)`, `PointGraph.From(points, options).FindPath(a, b)` (or by position), with
    `GraphOptions` carrying plain delegates: `EdgeCost(from, to, weight)`, `Blocked(node)`, `Heuristic(from, to)`, plus
-   `Algorithm`, `Landmarks`, `IterationBudget`, `RecordExpansions`. No struct callbacks. The options are adapted onto one
+   `Algorithm`, `Landmarks`, `IterationBudget`, `RecordExpansions`; presets `GraphOptions.Default`, `Bidirectional` and
+   `WithLandmarks(table)`; `graph.BuildLandmarks(LandmarkOptions?)` (count 16, avoid, seed 1 by default). No struct callbacks. The options are adapted onto one
    struct adapter per hook, so the happy path instantiates each search once.
 2. `GraphAStar<TCost, THeuristic>` and `BidirectionalGraphSearch<TCost, THeuristic>` with `IGraphCost` / `IGraphHeuristic`
    structs (`DefaultGraphCost`, `ZeroGraphHeuristic`, `EuclideanGraphHeuristic`, `AltGraphHeuristic`), caller-owned buffers
