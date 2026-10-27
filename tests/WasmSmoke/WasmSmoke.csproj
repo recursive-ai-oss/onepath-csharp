@@ -7,5 +7,6 @@
   <ItemGroup>
     <WasmExtraFilesToDeploy Include="main.mjs" />
     <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
+    <Compile Include="../AotSmoke/OrcaSmoke.cs" Link="OrcaSmoke.cs" />
   </ItemGroup>
 </Project>

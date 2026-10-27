@@ -13,4 +13,6 @@ try
 catch (ArgumentOutOfRangeException)
 {
 }
-return ok && OnePathInfo.Version.Major >= 0 ? 0 : 1;
+bool orca = OrcaSmoke.Run();
+Console.WriteLine($"ORCA run: {(orca ? "ok" : "FAILED")}");
+return ok && orca && OnePathInfo.Version.Major >= 0 ? 0 : 1;
