@@ -34,6 +34,18 @@ public enum GridAlgorithm
 
     /// <summary>Lazy Theta* (Nash et al. 2010): Theta* that tests the line of sight when a node is expanded instead of when it is generated, with the corrected-cost re-insertion of <see cref="ThetaVariant.LazyRequeue"/>. Same requirements and result form as <see cref="ThetaStar"/>.</summary>
     LazyThetaStar = 4,
+
+    /// <summary>
+    /// Lifelong Planning A* (Koenig, Likhachev &amp; Furcy 2004) for <see cref="Grid.CreateReplanner"/>: a fixed start, repaired after
+    /// every grid edit. A one-off <c>FindPath</c> with this value runs A* (and says so in <see cref="GridPath.Algorithm"/>).
+    /// </summary>
+    LpaStar = 8,
+
+    /// <summary>
+    /// D* Lite (Koenig &amp; Likhachev 2002) for <see cref="Grid.CreateReplanner"/>: searches from the goal so the start can move while the grid
+    /// changes. The replanner's default. A one-off <c>FindPath</c> with this value runs A*.
+    /// </summary>
+    DStarLite = 9,
 }
 
 /// <summary>

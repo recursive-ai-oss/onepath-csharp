@@ -14,6 +14,8 @@ namespace RecursiveAI.OnePath.GridOptima;
 /// Usage: <c>GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--alg astar|jps|jps+|flow]</c>, where DIR holds
 /// <c>NAME-map.zip</c> and <c>NAME-scen.zip</c> (as downloaded from the benchmark site; never committed) or a folder NAME of loose files.
 /// Prints one summary line: scenarios, mismatches, maximum absolute difference. Exit code 1 if any mismatch.
+/// <c>--replan lpa|dstar</c> instead checks incremental replanning: per map, <c>--per-map</c> scenarios; after each of <c>--rounds</c> random wall toggles
+/// near the current path, the replanned cost must equal a fresh A* search (the scenario's published length is checked before the first toggle).
 /// Options: <c>--swamp 0|1</c>, <c>--water 0|1</c> choose how S and W terrain is read.
 /// </summary>
 public static class Program
@@ -32,6 +34,9 @@ public static class Program
         double tolerance = 1e-6; // relative: the published lengths carry single-precision-class error
         double altSqrt2 = 0;
         string alg = "astar";
+        string? replan = null;
+        int perMap = 20;
+        int rounds = 10;
         var options = new MovingAiOptions();
         for (int i = 0; i + 1 < args.Length; i += 2)
         {
@@ -43,6 +48,9 @@ public static class Program
                 case "--limit": limit = long.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
                 case "--tolerance": tolerance = double.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
                 case "--alg": alg = args[i + 1]; break;
+                case "--replan": replan = args[i + 1]; break;
+                case "--per-map": perMap = int.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
+                case "--rounds": rounds = int.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
                 case "--alt-sqrt2": altSqrt2 = double.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
                 case "--swamp": options.SwampWalkable = args[i + 1] == "1"; break;
                 case "--water": options.WaterWalkable = args[i + 1] == "1"; break;
@@ -51,7 +59,7 @@ public static class Program
         }
         if (dir is null || set is null)
         {
-            Console.Error.WriteLine("usage: GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--swamp 0|1] [--water 0|1] [--alt-sqrt2 X] [--alg astar|jps|jps+|flow]  |  --alg theta|lazytheta (--random N | --maps DIR --set NAME), a quality report");
+            Console.Error.WriteLine("usage: GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--swamp 0|1] [--water 0|1] [--alt-sqrt2 X] [--alg astar|jps|jps+|flow] [--replan lpa|dstar [--per-map N] [--rounds N]]  |  --alg theta|lazytheta (--random N | --maps DIR --set NAME), a quality report");
             return 2;
         }
 
@@ -99,6 +107,11 @@ public static class Program
                 return 2;
             }
             jobs.Add((mapName, MovingAiScenarios.Parse(scenBytes), MovingAiMap.Parse(mapBytes)));
+        }
+
+        if (replan is not null)
+        {
+            return ReplanCheck.Run(set, replan, jobs, options, threads, perMap, rounds);
         }
 
         long total = 0;

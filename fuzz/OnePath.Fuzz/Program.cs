@@ -103,5 +103,6 @@ public static class Targets
         ["navmesh-snapshot"] = NavMeshSnapshotFuzz.Run,
         ["grid-theta"] = ThetaTarget.Run,
         ["grid-flow"] = FlowTargets.Run,
+        ["grid-replan"] = GridTargets.Replan,
     };
 }

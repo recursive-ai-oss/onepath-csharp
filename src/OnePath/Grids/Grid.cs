@@ -34,6 +34,8 @@ public sealed class Grid
     private readonly object _sync = new();
     private readonly List<IGridChangeListener> _listeners = [];
     private int _clearanceVersion = -1;
+    private readonly List<ClearanceRect> _dirty = [];
+    private readonly List<int> _changedScratch = [];
     private GridSearchBuffers? _spare;
     private JpsPlusIndex? _jpsPlus;
     private BlockMap? _blockMap;
@@ -184,10 +186,50 @@ public sealed class Grid
         }
         _cells[i] = area;
         Version++;
+        MarkDirty(x, y, x, y);
         for (int l = 0; l < _listeners.Count; l++)
         {
             _listeners[l].OnCellChanged(x, y);
         }
+    }
+
+    /// <summary>
+    /// Sets every cell of a rectangle (a tile) to one area as a single edit: <see cref="Version"/> goes up once, the clearance
+    /// is repaired only around the cells that changed, and listeners hear about it once
+    /// (<see cref="IGridBatchListener"/>) or once per changed cell in row-major order (plain <see cref="IGridChangeListener"/>).
+    /// Nothing happens (no version bump, no notification) when no cell changes.
+    /// </summary>
+    /// <param name="x">Left column.</param>
+    /// <param name="y">Top row.</param>
+    /// <param name="width">Columns, 0 or more.</param>
+    /// <param name="height">Rows, 0 or more.</param>
+    /// <param name="area">The area id to write (use <see cref="AreaCosts.Wall"/> for walls).</param>
+    /// <exception cref="ArgumentOutOfRangeException">The rectangle is not inside the grid.</exception>
+    public void SetRect(int x, int y, int width, int height, byte area) =>
+        ApplyRect(x, y, width, height, area, default, false);
+
+    /// <summary>
+    /// Overwrites a rectangle (a tile) with row-major area ids as a single edit; see <see cref="SetRect(int, int, int, int, byte)"/>.
+    /// </summary>
+    /// <param name="x">Left column.</param>
+    /// <param name="y">Top row.</param>
+    /// <param name="width">Columns, 0 or more.</param>
+    /// <param name="height">Rows, 0 or more.</param>
+    /// <param name="areas">Exactly <c>width * height</c> area ids, row by row.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The rectangle is not inside the grid.</exception>
+    /// <exception cref="ArgumentException"><paramref name="areas"/> has the wrong length.</exception>
+    public void SetRect(int x, int y, int width, int height, ReadOnlySpan<byte> areas) =>
+        ApplyRect(x, y, width, height, 0, areas, true);
+
+    private void ApplyRect(int x, int y, int width, int height, byte fill, ReadOnlySpan<byte> source, bool useSource)
+    {
+        if (!RectEdit.Apply(_cells, Width, Height, x, y, width, height, fill, source, useSource, _changedScratch, out int x0, out int y0, out int x1, out int y1))
+        {
+            return;
+        }
+        Version++;
+        MarkDirty(x0, y0, x1, y1);
+        RectEdit.Notify(_listeners, _changedScratch, Width, x0, y0, x1, y1);
     }
 
     /// <summary>Makes a cell a wall or an area-0 floor.</summary>
@@ -309,6 +351,19 @@ public sealed class Grid
         }
         return FindPathCore(sc, gc, options ?? DefaultOptions, true);
     }
+
+    /// <summary>
+    /// Creates an incremental search that keeps the path from <paramref name="start"/> to <paramref name="goal"/> up to date as the grid
+    /// is edited and the start moves (LPA* when <see cref="GridOptions.Algorithm"/> is <see cref="GridAlgorithm.LpaStar"/>, otherwise D* Lite).
+    /// Call <see cref="GridReplanner.Replan()"/> for the first path and after changes; dispose it to stop listening.
+    /// </summary>
+    /// <param name="start">Start cell.</param>
+    /// <param name="goal">Goal cell.</param>
+    /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>. The heuristic weight must be 1.</param>
+    /// <returns>The replanner.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">A cell is outside the grid.</exception>
+    /// <exception cref="ArgumentException">The heuristic weight is not 1.</exception>
+    public GridReplanner CreateReplanner(Cell start, Cell goal, GridOptions? options = null) => new(this, start, goal, options ?? DefaultOptions);
 
     private GridPath FindPathCore(Cell start, Cell goal, GridOptions o, bool world)
     {
@@ -454,8 +509,119 @@ public sealed class Grid
             {
                 return;
             }
-            ComputeClearance();
+            if (_clearanceVersion < 0)
+            {
+                ComputeClearance();
+            }
+            else
+            {
+                RepairClearance();
+            }
+            _dirty.Clear();
             _clearanceVersion = Version;
+        }
+    }
+
+    private readonly record struct ClearanceRect(int X0, int Y0, int X1, int Y1);
+
+    // Remember which cells were edited since the clearance was last current (only once it has been computed at all).
+    private void MarkDirty(int x0, int y0, int x1, int y1)
+    {
+        if (_clearanceVersion < 0)
+        {
+            return;
+        }
+        if (_dirty.Count >= 32)
+        {
+            // Too many separate edits: one bounding box is cheaper to track than a long list.
+            int ax = x0, ay = y0, bx = x1, by = y1;
+            foreach (ClearanceRect r in _dirty)
+            {
+                ax = Math.Min(ax, r.X0);
+                ay = Math.Min(ay, r.Y0);
+                bx = Math.Max(bx, r.X1);
+                by = Math.Max(by, r.Y1);
+            }
+            _dirty.Clear();
+            _dirty.Add(new ClearanceRect(ax, ay, bx, by));
+            return;
+        }
+        _dirty.Add(new ClearanceRect(x0, y0, x1, y1));
+    }
+
+    // Incremental form of ComputeClearance. The clearance of a cell reads only the cells right of and below it, so a cell can
+    // change only if it was edited or the cell to its right, below it or diagonally below-right changed. Rows are repaired
+    // bottom to top, right to left, touching an edited cell, then following changes leftwards and upwards until a value
+    // comes out unchanged. The result equals a full recompute.
+    private void RepairClearance()
+    {
+        int w = Width;
+        int h = Height;
+        int maxY = -1;
+        int minY = int.MaxValue;
+        foreach (ClearanceRect r in _dirty)
+        {
+            maxY = Math.Max(maxY, r.Y1);
+            minY = Math.Min(minY, r.Y0);
+        }
+        int prevLo = int.MaxValue;
+        int prevHi = -1;
+        for (int y = maxY; y >= 0; y--)
+        {
+            int lo = prevHi >= 0 ? prevLo - 1 : int.MaxValue;
+            int hi = prevHi;
+            foreach (ClearanceRect r in _dirty)
+            {
+                if (y >= r.Y0 && y <= r.Y1)
+                {
+                    lo = Math.Min(lo, r.X0);
+                    hi = Math.Max(hi, r.X1);
+                }
+            }
+            if (hi < 0)
+            {
+                if (y < minY)
+                {
+                    break;
+                }
+                prevLo = int.MaxValue;
+                prevHi = -1;
+                continue;
+            }
+            lo = Math.Max(lo, 0);
+            hi = Math.Min(hi, w - 1);
+            int row = y * w;
+            int changedLo = int.MaxValue;
+            int changedHi = -1;
+            for (int x = hi; x >= 0; x--)
+            {
+                byte value;
+                if (_cells[row + x] == AreaCosts.Wall)
+                {
+                    value = 0;
+                }
+                else
+                {
+                    int right = x + 1 < w ? _clearance[row + x + 1] : 0;
+                    int down = y + 1 < h ? _clearance[row + w + x] : 0;
+                    int diag = x + 1 < w && y + 1 < h ? _clearance[row + w + x + 1] : 0;
+                    int m = Math.Min(right, Math.Min(down, diag));
+                    value = (byte)(m < 255 ? m + 1 : 255);
+                }
+                bool changed = _clearance[row + x] != value;
+                _clearance[row + x] = value;
+                if (changed)
+                {
+                    changedLo = x;
+                    changedHi = Math.Max(changedHi, x);
+                }
+                else if (x <= lo)
+                {
+                    break;
+                }
+            }
+            prevLo = changedLo;
+            prevHi = changedHi;
         }
     }
 

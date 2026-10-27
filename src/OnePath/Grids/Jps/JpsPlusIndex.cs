@@ -17,7 +17,7 @@ namespace RecursiveAI.OnePath.Grids;
 /// <see cref="Dispose"/> to stop listening.
 /// </para>
 /// </summary>
-public sealed class JpsPlusIndex : IGridChangeListener, IDisposable
+public sealed class JpsPlusIndex : IGridBatchListener, IDisposable
 {
     /// <summary>The longest side (columns or rows) an index supports: distances are 16-bit.</summary>
     public const int MaxSide = 32766;
@@ -92,6 +92,28 @@ public sealed class JpsPlusIndex : IGridChangeListener, IDisposable
             return;
         }
         _pending.Add((y * _w) + x);
+    }
+
+    /// <inheritdoc/>
+    public void OnRectChanged(int x, int y, int width, int height)
+    {
+        if (_all)
+        {
+            return;
+        }
+        if (_pending.Count + ((long)width * height) > Math.Max(256, _n / 64))
+        {
+            _all = true;
+            _pending.Clear();
+            return;
+        }
+        for (int j = 0; j < height; j++)
+        {
+            for (int i = 0; i < width; i++)
+            {
+                _pending.Add(((y + j) * _w) + x + i);
+            }
+        }
     }
 
     /// <summary>Stops following the grid's edits.</summary>
