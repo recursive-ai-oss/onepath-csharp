@@ -22,11 +22,11 @@ internal static class HpaRunner
         }
         if (status == SearchStatus.Running)
         {
-            return new GridPath(PathStatus.BudgetExhausted, double.PositiveInfinity, null, search.ExpandedCount, expanded, null) { Algorithm = GridAlgorithm.Hpa };
+            return new GridPath(PathOutcome.BudgetExhausted, double.PositiveInfinity, null, search.ExpandedCount, expanded, null) { Algorithm = GridAlgorithm.Hpa };
         }
         if (status == SearchStatus.NotFound)
         {
-            return new GridPath(PathStatus.NoPath, double.PositiveInfinity, null, search.ExpandedCount, expanded, null) { Algorithm = GridAlgorithm.Hpa };
+            return new GridPath(PathOutcome.NoPath, double.PositiveInfinity, null, search.ExpandedCount, expanded, null) { Algorithm = GridAlgorithm.Hpa };
         }
         int[] nodes = new int[search.PathLength()];
         search.CopyPath(nodes);
@@ -40,6 +40,6 @@ internal static class HpaRunner
                 world[i] = centre!(cells[i]);
             }
         }
-        return new GridPath(PathStatus.Found, search.PathCost, cells, search.ExpandedCount, expanded, world) { Algorithm = GridAlgorithm.Hpa };
+        return new GridPath(PathOutcome.Found, search.PathCost, cells, search.ExpandedCount, expanded, world) { Algorithm = GridAlgorithm.Hpa };
     }
 }

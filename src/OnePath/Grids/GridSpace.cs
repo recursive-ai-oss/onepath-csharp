@@ -1,7 +1,7 @@
 using System;
 using System.Globalization;
 
-namespace RecursiveAI.OnePath.Grids;
+namespace RecursiveAI.OnePath;
 
 /// <summary>
 /// Maps cells to world space: cell (x, y) of a square grid has its centre at

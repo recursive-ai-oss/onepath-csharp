@@ -3,11 +3,137 @@
 Pathfinding and navigation for .NET, written from first principles: grids, graphs, navmeshes and
 crowds in one package, `RecursiveAI.OnePath`. Results are bit-identical on every platform.
 
-**Status:** repository skeleton. The package builds and ships a version type only; the algorithms
-arrive part by part.
+**Status:** pre-release. Grids, graphs and the 2D navmesh builder with its queries work today; the 3D navmesh
+builder and crowds are on the way. Everything is `net10.0`, NativeAOT- and trim-compatible, and results do not depend on
+the machine, the thread count or SIMD.
 
 Licensed under either of MIT ([LICENSE-MIT](LICENSE-MIT)) or Apache-2.0
 ([LICENSE-APACHE](LICENSE-APACHE)) at your option. © Recursive AI, LLC.
+
+## Quickstart
+
+One `using RecursiveAI.OnePath;` reaches every grid and graph type below (the navmesh example also uses OneMath's
+vectors and the query result types). Options are plain objects with named presets and optional
+delegates; you never write a struct to use the happy path (the struct-generic search cores are there for tuning, in
+`RecursiveAI.OnePath.Grids` and `.Graphs`). World positions are doubles within ±2^21.
+
+```csharp
+using RecursiveAI.OneMath;
+using RecursiveAI.OnePath;
+using RecursiveAI.OnePath.Mesh.Queries;
+```
+
+**Square grid.** `.` is open, `#` a wall, `1`-`9` are area ids (give an area a cost with `grid.Areas[id] = 3.0`). You can
+also build a grid from a `bool[,]` of walkable cells, or from row-major area bytes.
+
+```csharp
+// quickstart: grid
+var grid = Grid.FromText("""
+    ........
+    .#####..
+    .#...#..
+    .#.#.#..
+    ...#....
+    """);
+GridPath path = grid.FindPath(new Cell(0, 0), new Cell(4, 3));
+if (path.Found)
+{
+    // path.Cost is exact for eight-connected octile moves and path.Cells lists the cells; query with
+    // WorldPoint arguments (after setting grid.Space) to also get path.WorldPoints.
+}
+```
+
+Every tunable is a property of `GridOptions`: connectivity, corner rule, agent size, algorithm (A\*, JPS, JPS+, Theta\*,
+Lazy Theta\*, HPA\*), heuristic, extra costs and blocked cells, and an iteration budget for time slicing.
+
+```csharp
+// quickstart: grid-options
+var wide = new Grid(64, 64);
+GridPath fast = wide.FindPath(new Cell(1, 1), new Cell(60, 50), new GridOptions { Algorithm = GridAlgorithm.JpsPlus });
+GridPath straight = wide.FindPath(new Cell(1, 1), new Cell(60, 50), new GridOptions { Algorithm = GridAlgorithm.ThetaStar });
+GridPath fat = wide.FindPath(new Cell(1, 1), new Cell(60, 50), GridOptions.ForAgentSize(3));
+GridPath avoid = wide.FindPath(new Cell(1, 1), new Cell(60, 50), new GridOptions { Blocked = c => c.X == 30 && c.Y < 60 });
+```
+
+**Hex grid.** The same calls, with a layout for the offset array.
+
+```csharp
+// quickstart: hex
+var hex = HexGrid.FromText("""
+    ......
+    ..##..
+    ..#...
+    ......
+    """, HexLayout.PointyOddRow);
+GridPath hexPath = hex.FindPath(new Cell(0, 0), new Cell(5, 3));
+```
+
+**Voxel grid.** Six-, 18- or 26-connected moves in a dense or mostly-empty block.
+
+```csharp
+// quickstart: voxel
+var voxels = new VoxelGrid(32, 32, 32);
+for (int y = 0; y < 32; y++)
+{
+    for (int z = 0; z < 32; z++)
+    {
+        voxels.SetWalkable(16, y, z, y == 5 && z == 5);   // a wall with one hole
+    }
+}
+VoxelPath flight = voxels.FindPath(new VoxelCell(0, 0, 0), new VoxelCell(31, 31, 31), VoxelOptions.SixConnected);
+```
+
+**Graphs.** Weighted graphs, and point graphs that link nearby points. Landmarks (ALT) speed up repeated queries.
+
+```csharp
+// quickstart: graph
+var graph = Graph.From(new[] { new GraphEdge(0, 1, 4.0), new GraphEdge(1, 2, 1.5), new GraphEdge(0, 2, 7.0) });
+GraphPath route = graph.FindPath(0, 2);   // route.Nodes is 0, 1, 2 and route.Cost is 5.5
+Landmarks landmarks = graph.BuildLandmarks();
+GraphPath fastRoute = graph.FindPath(0, 2, GraphOptions.WithLandmarks(landmarks));
+
+var points = PointGraph.From(new[] { new Point3(0, 0), new Point3(1, 0), new Point3(2, 0), new Point3(2, 1) }, new PointGraphOptions { MaxDistance = 1.1 });
+GraphPath walk = points.FindPath(new Point3(0, 0), new Point3(2, 1));
+```
+
+**Replanning.** A replanner keeps its search state between edits and repairs only what changed (D\* Lite by default).
+
+```csharp
+// quickstart: replan
+var yard = new Grid(8, 8);
+using GridReplanner replanner = yard.CreateReplanner(new Cell(0, 0), new Cell(7, 0));
+GridPath straightRoute = replanner.Replan();
+yard.SetRect(3, 0, 1, 7, AreaCosts.Wall);   // a wall appears
+GridPath detour = replanner.Replan();
+replanner.MoveStart(new Cell(1, 1));        // the agent moved
+GridPath onward = replanner.Replan();
+```
+
+**Flow fields.** One field serves any number of agents heading for the same goal.
+
+```csharp
+// quickstart: flow-field
+var field = new Grid(16, 16);
+using GridFlowField toGoal = field.CreateFlowField(new Cell(15, 15));
+double cost = toGoal.GetCost(new Cell(0, 0));          // least cost from a cell to the goal
+if (toGoal.TryGetNext(new Cell(0, 0), out Cell next))  // the step a unit on that cell takes
+{
+    // move from (0, 0) to next
+}
+```
+
+**Navigation mesh from a tile map** (a mesh from outlines, `NavMesh.Build2D(outlines)`, works the same way).
+
+```csharp
+// quickstart: navmesh-2d
+var open = new bool[40 * 40];
+Array.Fill(open, true);
+NavMesh mesh = NavMesh.Build2D(open, 40, 40, 1.0, new Vector2D(0, 0));
+PathResult route2D = mesh.FindPath(new Vector3D(3, 0, 3), new Vector3D(36, 0, 36));
+// route2D.HasPath, route2D.Points (the string-pulled path), route2D.Length
+```
+
+The snippets above are compiled and run by `tests/OnePath.Tests/ReadmeQuickstartTests.cs`.
 
 ## Layout
 

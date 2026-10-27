@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 using Xunit;
 
@@ -45,7 +46,7 @@ public class JpsTests
                     Assert.Equal(alg, p.Algorithm);
                     if (double.IsPositiveInfinity(expect))
                     {
-                        Assert.Equal(PathStatus.NoPath, p.Status);
+                        Assert.Equal(PathOutcome.NoPath, p.Status);
                     }
                     else
                     {
@@ -142,8 +143,8 @@ public class JpsTests
         Assert.True(same.Found);
         Assert.Equal(0.0, same.Cost);
         Assert.Single(same.Cells.ToArray());
-        Assert.Equal(PathStatus.GoalInvalid, g.FindPath(new Cell(0, 0), new Cell(2, 2), Options(GridAlgorithm.Jps)).Status);
-        Assert.Equal(PathStatus.StartInvalid, g.FindPath(new Cell(9, 0), new Cell(1, 1), Options(GridAlgorithm.Jps)).Status);
+        Assert.Equal(PathOutcome.GoalInvalid, g.FindPath(new Cell(0, 0), new Cell(2, 2), Options(GridAlgorithm.Jps)).Status);
+        Assert.Equal(PathOutcome.StartInvalid, g.FindPath(new Cell(9, 0), new Cell(1, 1), Options(GridAlgorithm.Jps)).Status);
     }
 
     [Fact]
@@ -306,7 +307,7 @@ public class JpsTests
         GridOptions o = Options(GridAlgorithm.Jps);
         o.IterationBudget = 1;
         GridPath p = g.FindPath(new Cell(0, 0), new Cell(63, 0), o);
-        Assert.Equal(PathStatus.BudgetExhausted, p.Status);
+        Assert.Equal(PathOutcome.BudgetExhausted, p.Status);
     }
 
     [Fact]

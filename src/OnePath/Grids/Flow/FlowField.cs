@@ -4,19 +4,6 @@ using System.Threading;
 
 namespace RecursiveAI.OnePath.Grids;
 
-/// <summary>Where a (possibly sliced) flow-field computation stands.</summary>
-public enum FlowFieldStatus
-{
-    /// <summary>No computation has begun.</summary>
-    NotStarted = 0,
-
-    /// <summary>Work is left; call <c>Step</c> again.</summary>
-    Running = 1,
-
-    /// <summary>The integration field and the direction field are complete.</summary>
-    Complete = 2,
-}
-
 /// <summary>
 /// A flow field for many agents heading to one goal set: the <b>integration field</b> holds the exact least cost from
 /// every cell to the nearest goal (Dijkstra's algorithm run outwards from the goals, the integration step of

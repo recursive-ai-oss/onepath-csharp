@@ -1,6 +1,7 @@
 using System;
+using RecursiveAI.OnePath.Grids;
 
-namespace RecursiveAI.OnePath.Grids;
+namespace RecursiveAI.OnePath;
 
 /// <summary>
 /// Keeps a shortest path on a <see cref="HexGrid"/> up to date while the grid changes and the agent moves (tier 1): the hex
@@ -135,21 +136,21 @@ public sealed class HexReplanner : IGridBatchListener, IDisposable
         {
             _search = Build(Start, Goal);
         }
-        PathStatus status;
+        PathOutcome status;
         if (_options.Blocked?.Invoke(Start) == true)
         {
-            status = PathStatus.StartInvalid;
+            status = PathOutcome.StartInvalid;
         }
         else if (_options.Blocked?.Invoke(Goal) == true)
         {
-            status = PathStatus.GoalInvalid;
+            status = PathOutcome.GoalInvalid;
         }
         else
         {
             status = _search.Replan(iterationBudget);
         }
         int expanded = _search.LastExpanded;
-        if (status != PathStatus.Found)
+        if (status != PathOutcome.Found)
         {
             return new GridPath(status, double.PositiveInfinity, null, expanded, null, null) { Algorithm = _algorithm };
         }
@@ -163,7 +164,7 @@ public sealed class HexReplanner : IGridBatchListener, IDisposable
         {
             cells[i] = SearchRunner.ToCell(nodes[i], _grid.Width);
         }
-        return new GridPath(PathStatus.Found, cost, cells, expanded, null, null) { Algorithm = _algorithm };
+        return new GridPath(PathOutcome.Found, cost, cells, expanded, null, null) { Algorithm = _algorithm };
     }
 
     /// <inheritdoc/>

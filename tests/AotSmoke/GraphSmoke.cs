@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Graphs;
 
 /// <summary>A graph run used by the NativeAOT and WebAssembly smoke apps: tier-1 queries with delegates, point graphs, landmarks (build, serialize, read) and the struct-generic searches.</summary>
@@ -19,7 +20,7 @@ internal static class GraphSmoke
         ok &= hooked.Found && hooked.Cost == 14.0;
 
         // Landmarks: build, serialize, read back, search with them.
-        Landmarks lm = g.BuildLandmarks(2);
+        Landmarks lm = g.BuildLandmarks(new LandmarkOptions { Count = 2 });
         Landmarks back = Landmarks.Deserialize(lm.Serialize(), g.Compile());
         GraphPath alt = g.FindPath(0, 4, new GraphOptions { Landmarks = back, Algorithm = GraphAlgorithm.BidirectionalAStar });
         ok &= alt.Found && alt.Cost == 5.0;

@@ -1,4 +1,5 @@
 using System;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 
 /// <summary>Flow fields for the NativeAOT and WebAssembly smoke apps: tier-1 square and hex fields, repair after an edit, and the generic sliced field.</summary>

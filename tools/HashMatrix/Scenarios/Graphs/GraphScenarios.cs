@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Graphs;
 using RecursiveAI.OnePath.Grids;
 
@@ -81,7 +82,7 @@ internal static class GraphScenarios
     private static void Variants(ScenarioContext ctx)
     {
         (Point3[] pos, Graph g) = RoadLike(0x7001, 30, 30);
-        Landmarks lm = g.BuildLandmarks(8, LandmarkSelection.Avoid, 3);
+        Landmarks lm = g.BuildLandmarks(new LandmarkOptions { Count = 8, Selection = LandmarkSelection.Avoid, Seed = 3 });
         Func<int, int, double> euclid = (a, b) => pos[a].DistanceTo(pos[b]);
         var rng = new SeededRandom(0x7002);
         foreach (GraphAlgorithm alg in new[] { GraphAlgorithm.Dijkstra, GraphAlgorithm.AStar, GraphAlgorithm.BidirectionalDijkstra, GraphAlgorithm.BidirectionalAStar })
@@ -142,7 +143,7 @@ internal static class GraphScenarios
     private static void Threads(ScenarioContext ctx)
     {
         (_, Graph g) = RoadLike(0x7005, 25, 25);
-        Landmarks lm = g.BuildLandmarks(6, LandmarkSelection.Avoid, 11);
+        Landmarks lm = g.BuildLandmarks(new LandmarkOptions { Count = 6, Selection = LandmarkSelection.Avoid, Seed = 11 });
         g.Compile();
         const int Queries = 64;
         var results = new GraphPath[Queries];
@@ -163,7 +164,7 @@ internal static class GraphScenarios
         (_, Graph g) = RoadLike(0x7006, 18, 18);
         foreach (LandmarkSelection sel in new[] { LandmarkSelection.Avoid, LandmarkSelection.Farthest })
         {
-            Landmarks lm = g.BuildLandmarks(6, sel, 5);
+            Landmarks lm = g.BuildLandmarks(new LandmarkOptions { Count = 6, Selection = sel, Seed = 5 });
             ctx.Write(lm.Serialize());
             ctx.Write(unchecked((long)g.Compile().Fingerprint()));
         }

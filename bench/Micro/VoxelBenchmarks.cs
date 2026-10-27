@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using BenchmarkDotNet.Attributes;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 using RecursiveAI.OnePath.Grids.Voxel;
 

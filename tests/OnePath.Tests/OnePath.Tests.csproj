@@ -9,6 +9,9 @@
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The README snippets are checked against the quickstart tests. -->
+    <EmbeddedResource Include="../../README.md" LogicalName="README.md" />
+    <EmbeddedResource Include="ReadmeQuickstartTests.cs" LogicalName="ReadmeQuickstartTests.cs" />
     <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
     <!-- The scenario layouts are shared with the hash-matrix runner. -->
     <Compile Include="../../tools/HashMatrix/Scenarios/Orca/OrcaWorlds.cs" Link="Support/OrcaWorlds.cs" />

@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Threading;
 using System.Threading.Tasks;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 
 namespace RecursiveAI.OnePath.GridOptima;

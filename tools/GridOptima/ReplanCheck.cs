@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 
 namespace RecursiveAI.OnePath.GridOptima;

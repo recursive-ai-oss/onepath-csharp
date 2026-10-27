@@ -1,6 +1,8 @@
 using System;
+using RecursiveAI.OnePath.Grids;
+using RecursiveAI.OnePath.Grids.Voxel;
 
-namespace RecursiveAI.OnePath.Grids.Voxel;
+namespace RecursiveAI.OnePath;
 
 /// <summary>Which neighbour moves a voxel search may make.</summary>
 public enum VoxelConnectivity
@@ -86,7 +88,7 @@ public sealed class VoxelOptions
     public bool RecordExpansions { get; set; }
 
     /// <summary>
-    /// Most iterations (node expansions) a query may use before it gives up with <see cref="PathStatus.BudgetExhausted"/>;
+    /// Most iterations (node expansions) a query may use before it gives up with <see cref="PathOutcome.BudgetExhausted"/>;
     /// counts iterations, never time. Default unlimited. For a resumable search use <see cref="AStar{TTopology, TCost, THeuristic}"/>.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is below 1.</exception>
@@ -122,7 +124,7 @@ public sealed class VoxelPath
     private readonly VoxelCell[] _expanded;
     private readonly VoxelPoint[] _world;
 
-    internal VoxelPath(PathStatus status, double cost, VoxelCell[]? cells, int expandedCount, VoxelCell[]? expanded, VoxelPoint[]? world)
+    internal VoxelPath(PathOutcome status, double cost, VoxelCell[]? cells, int expandedCount, VoxelCell[]? expanded, VoxelPoint[]? world)
     {
         Status = status;
         Cost = cost;
@@ -133,10 +135,10 @@ public sealed class VoxelPath
     }
 
     /// <summary>How the query ended.</summary>
-    public PathStatus Status { get; }
+    public PathOutcome Status { get; }
 
     /// <summary>True when a path was found.</summary>
-    public bool Found => Status == PathStatus.Found;
+    public bool Found => Status == PathOutcome.Found;
 
     /// <summary>The path cost (+∞ when no path was found).</summary>
     public double Cost { get; }
@@ -153,7 +155,7 @@ public sealed class VoxelPath
     /// <summary>Debug data: the expanded voxels in order; empty unless <see cref="VoxelOptions.RecordExpansions"/> was set.</summary>
     public ReadOnlySpan<VoxelCell> ExpandedCells => _expanded;
 
-    internal static VoxelPath Invalid(PathStatus status) => new(status, double.PositiveInfinity, null, 0, null, null);
+    internal static VoxelPath Invalid(PathOutcome status) => new(status, double.PositiveInfinity, null, 0, null, null);
 }
 
 // Glue between the one-line queries and the generic search.
@@ -209,11 +211,11 @@ internal static class VoxelSearchRunner
         }
         if (status == SearchStatus.Running)
         {
-            return new VoxelPath(PathStatus.BudgetExhausted, double.PositiveInfinity, null, search.ExpandedCount, expanded, null);
+            return new VoxelPath(PathOutcome.BudgetExhausted, double.PositiveInfinity, null, search.ExpandedCount, expanded, null);
         }
         if (status == SearchStatus.NotFound)
         {
-            return new VoxelPath(PathStatus.NoPath, double.PositiveInfinity, null, search.ExpandedCount, expanded, null);
+            return new VoxelPath(PathOutcome.NoPath, double.PositiveInfinity, null, search.ExpandedCount, expanded, null);
         }
         int[] nodes = new int[search.PathLength()];
         search.CopyPath(nodes);
@@ -227,6 +229,6 @@ internal static class VoxelSearchRunner
                 world[i] = centre!(cells[i]);
             }
         }
-        return new VoxelPath(PathStatus.Found, search.PathCost, cells, search.ExpandedCount, expanded, world);
+        return new VoxelPath(PathOutcome.Found, search.PathCost, cells, search.ExpandedCount, expanded, world);
     }
 }

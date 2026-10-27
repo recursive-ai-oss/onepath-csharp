@@ -48,11 +48,11 @@ internal static class AnyAngleRunner
         }
         if (status == SearchStatus.Running)
         {
-            return new GridPath(PathStatus.BudgetExhausted, double.PositiveInfinity, null, search.ExpandedCount, expanded, null) { Algorithm = used };
+            return new GridPath(PathOutcome.BudgetExhausted, double.PositiveInfinity, null, search.ExpandedCount, expanded, null) { Algorithm = used };
         }
         if (status == SearchStatus.NotFound)
         {
-            return new GridPath(PathStatus.NoPath, double.PositiveInfinity, null, search.ExpandedCount, expanded, null) { Algorithm = used };
+            return new GridPath(PathOutcome.NoPath, double.PositiveInfinity, null, search.ExpandedCount, expanded, null) { Algorithm = used };
         }
         int[] nodes = new int[search.PathLength()];
         search.CopyPath(nodes);
@@ -66,6 +66,6 @@ internal static class AnyAngleRunner
                 world[i] = centre!(cells[i]);
             }
         }
-        return new GridPath(PathStatus.Found, search.PathCost, cells, search.ExpandedCount, expanded, world) { Algorithm = used };
+        return new GridPath(PathOutcome.Found, search.PathCost, cells, search.ExpandedCount, expanded, world) { Algorithm = used };
     }
 }

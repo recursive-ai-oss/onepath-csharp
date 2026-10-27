@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Grids;
 
 namespace RecursiveAI.OnePath.Fuzz;
@@ -233,7 +234,7 @@ internal static class GridTargets
             {
                 q = sliced.Replan(1 + (Next(data, ref pos) % 7));
             }
-            while (q.Status == PathStatus.BudgetExhausted);
+            while (q.Status == PathOutcome.BudgetExhausted);
             if (q.Status != p.Status || q.Cost != p.Cost || !q.Cells.SequenceEqual(p.Cells))
             {
                 throw new InvalidOperationException("sliced replan differs from the unsliced one");

@@ -1,6 +1,7 @@
 using System;
+using RecursiveAI.OnePath.Grids;
 
-namespace RecursiveAI.OnePath.Grids;
+namespace RecursiveAI.OnePath;
 
 /// <summary>
 /// Keeps a shortest path on a <see cref="Grid"/> up to date while the grid changes and the agent moves (tier 1):
@@ -141,7 +142,7 @@ public sealed class GridReplanner : IGridBatchListener, IDisposable
     public GridPath Replan() => Replan(int.MaxValue);
 
     /// <summary>
-    /// Like <see cref="Replan()"/> but spends at most <paramref name="iterationBudget"/> queue pops; on <see cref="PathStatus.BudgetExhausted"/>
+    /// Like <see cref="Replan()"/> but spends at most <paramref name="iterationBudget"/> queue pops; on <see cref="PathOutcome.BudgetExhausted"/>
     /// call again to continue. Any sequence of budgets ends with the result of one unsliced call.
     /// </summary>
     /// <param name="iterationBudget">At least 1.</param>
@@ -157,21 +158,21 @@ public sealed class GridReplanner : IGridBatchListener, IDisposable
         {
             _search = Build(Start, Goal);
         }
-        PathStatus status;
+        PathOutcome status;
         if (_options.Blocked?.Invoke(Start) == true)
         {
-            status = PathStatus.StartInvalid;
+            status = PathOutcome.StartInvalid;
         }
         else if (_options.Blocked?.Invoke(Goal) == true)
         {
-            status = PathStatus.GoalInvalid;
+            status = PathOutcome.GoalInvalid;
         }
         else
         {
             status = _search.Replan(iterationBudget);
         }
         int expanded = _search.LastExpanded;
-        if (status != PathStatus.Found)
+        if (status != PathOutcome.Found)
         {
             return new GridPath(status, double.PositiveInfinity, null, expanded, null, null) { Algorithm = _algorithm };
         }
@@ -185,7 +186,7 @@ public sealed class GridReplanner : IGridBatchListener, IDisposable
         {
             cells[i] = ToCell(nodes[i]);
         }
-        return new GridPath(PathStatus.Found, cost, cells, expanded, null, null) { Algorithm = _algorithm };
+        return new GridPath(PathOutcome.Found, cost, cells, expanded, null, null) { Algorithm = _algorithm };
     }
 
     /// <inheritdoc/>
