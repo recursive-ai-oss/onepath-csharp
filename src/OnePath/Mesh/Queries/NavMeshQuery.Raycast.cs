@@ -10,7 +10,7 @@ public sealed partial class NavMeshQuery
     /// follow the surface and are not tested). It leaves each polygon through the edge where the segment exits (Cyrus and Beck
     /// clipping against the convex outline) and continues into the neighbour if there is one the filter accepts, through an
     /// in-tile edge or a tile-portal link that covers the crossing point; otherwise the ray hits a wall there. Off-mesh links
-    /// are not crossed. When the segment passes exactly through a vertex, the lower edge index decides.
+    /// are not crossed. When it passes through a vertex (or along collinear edges) it goes on through whichever candidate edge leads to an accepted polygon, else the lowest edge index is the wall.
     /// </summary>
     /// <param name="startPoly">The polygon containing <paramref name="start"/>.</param>
     /// <param name="start">Start of the segment (within 1e-6 of the polygon outline).</param>
@@ -21,6 +21,74 @@ public sealed partial class NavMeshQuery
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
     public RaycastResult Raycast<TFilter>(PolyRef startPoly, Vector3D start, Vector3D end, in TFilter filter, Span<PolyRef> visited, out int visitedCount)
         where TFilter : struct, IQueryFilter => RaycastCore(startPoly, start, end, in filter, visited, out visitedCount, out _);
+
+    // Which edge the segment leaves the polygon through. Edges whose line the segment leaves at the same parameter (equal up to
+    // rounding) are candidates: consecutive collinear edges (a vertex in the middle of a side) and the two edges at a vertex the
+    // segment passes through. Of those, only the ones whose extent holds the crossing point count, and among them the first
+    // that leads to a polygon the filter accepts wins, so a segment that slips through a vertex into the next polygon
+    // continues; if none leads anywhere the lowest index is the wall that was hit.
+    private PolyRef PickExitEdge<TFilter>(PolyRef cur, NavTile t, int p, int b, int n, double sx, double sz, double dx, double dz, double tCross, double tmax, int first, in TFilter filter, out int edge)
+        where TFilter : struct, IQueryFilter
+    {
+        ReadOnlySpan<float> v = t.Vertices;
+        ReadOnlySpan<ushort> idx = t.PolyIndices;
+        double px = sx + (dx * tCross), pz = sz + (dz * tCross);
+        double tol = 1e-9 * (1.0 + Math.Abs(tmax));
+        double minD = double.PositiveInfinity;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            for (int e = 0; e < n; e++)
+            {
+                int a = idx[b + e], c = idx[b + ((e + 1) % n)];
+                double ax = v[3 * a], az = v[(3 * a) + 2];
+                double ex = v[3 * c] - ax, ez = v[(3 * c) + 2] - az;
+                double denom = (ez * dx) - (ex * dz);
+                if (denom <= 0 || (((ez * (ax - sx)) - (ex * (az - sz))) / denom) > tmax + tol)
+                {
+                    continue;
+                }
+                double len2 = (ex * ex) + (ez * ez);
+                double u = len2 > 0 ? Math.Clamp((((px - ax) * ex) + ((pz - az) * ez)) / len2, 0.0, 1.0) : 0.0;
+                double qx = ax + (ex * u) - px, qz = az + (ez * u) - pz;
+                double d = (qx * qx) + (qz * qz);
+                if (pass == 0)
+                {
+                    minD = Math.Min(minD, d);
+                }
+                else if (d <= minD + 1e-18)
+                {
+                    PolyRef next = CrossEdge(cur, t, p, e, t.OriginX + px, t.OriginZ + pz, in filter);
+                    if (next.IsSet)
+                    {
+                        edge = e;
+                        return next;
+                    }
+                }
+            }
+        }
+        // Nothing leads on: the wall hit is the first candidate edge in index order.
+        edge = first;
+        for (int e = 0; e < n; e++)
+        {
+            int a = idx[b + e], c = idx[b + ((e + 1) % n)];
+            double ax = v[3 * a], az = v[(3 * a) + 2];
+            double ex = v[3 * c] - ax, ez = v[(3 * c) + 2] - az;
+            double denom = (ez * dx) - (ex * dz);
+            if (denom <= 0 || (((ez * (ax - sx)) - (ex * (az - sz))) / denom) > tmax + tol)
+            {
+                continue;
+            }
+            double len2 = (ex * ex) + (ez * ez);
+            double u = len2 > 0 ? Math.Clamp((((px - ax) * ex) + ((pz - az) * ez)) / len2, 0.0, 1.0) : 0.0;
+            double qx = ax + (ex * u) - px, qz = az + (ez * u) - pz;
+            if ((qx * qx) + (qz * qz) <= minD + 1e-18)
+            {
+                edge = e;
+                break;
+            }
+        }
+        return PolyRef.Invalid;
+    }
 
     // The raycast proper; also reports the last polygon the ray was in (the visited buffer may be too short to tell).
     private RaycastResult RaycastCore<TFilter>(PolyRef startPoly, Vector3D start, Vector3D end, in TFilter filter, Span<PolyRef> visited, out int visitedCount, out PolyRef last)
@@ -89,7 +157,7 @@ public sealed partial class NavMeshQuery
             {
                 tmax = tmin;
             }
-            PolyRef next = CrossEdge(cur, t, p, edge, start.X + (dx * tmax), start.Z + (dz * tmax), in filter);
+            PolyRef next = PickExitEdge(cur, t, p, b, n, sx, sz, dx, dz, tmax, tmax, edge, in filter, out edge);
             if (!next.IsSet)
             {
                 int a = idx[b + edge], c = idx[b + ((edge + 1) % n)];

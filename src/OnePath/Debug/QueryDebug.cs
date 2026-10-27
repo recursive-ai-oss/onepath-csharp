@@ -62,7 +62,7 @@ public static class QueryDebug
         return new QueryDebugGeometry(visited, corridor, straight);
     }
 
-    private static DebugPolygon? Outline(TiledNavMesh mesh, PolyRef p)
+    internal static DebugPolygon? Outline(TiledNavMesh mesh, PolyRef p)
     {
         if (!mesh.TryGetPoly(p, out NavTile t, out int pi))
         {

@@ -44,6 +44,7 @@ public static class Program
         {
             NavMeshFuzz.WriteSeeds(args[1]);
             NavMeshSnapshotFuzz.WriteSeeds(System.IO.Path.Combine(args[1], "snapshot"));
+            CorridorFuzz.WriteSeeds(System.IO.Path.Combine(args[1], "corridor"));
             return 0;
         }
 
@@ -101,5 +102,6 @@ public static class Targets
         ["navmesh-query"] = NavMeshQueryFuzz.Run,
         ["grid-jps"] = GridTargets.Jps,
         ["navmesh-snapshot"] = NavMeshSnapshotFuzz.Run,
+        ["corridor-follow"] = CorridorFuzz.Run,
     };
 }

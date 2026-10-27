@@ -10,5 +10,6 @@
     <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
     <Compile Include="../AotSmoke/OrcaSmoke.cs" Link="OrcaSmoke.cs" />
     <Compile Include="../AotSmoke/NavMeshSmoke.cs" Link="NavMeshSmoke.cs" />
+    <Compile Include="../AotSmoke/CorridorSmoke.cs" Link="CorridorSmoke.cs" />
   </ItemGroup>
 </Project>
