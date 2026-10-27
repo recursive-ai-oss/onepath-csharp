@@ -9,7 +9,7 @@ using RecursiveAI.OnePath.Bar;
 //   <out>/rows.csv   every measurement, long format
 //   <out>/env.json   machine, CPU, cores, load before/during/after, SDK, runtime, reference pins
 //   <out>/report.md  one line per row: ours vs reference, ratio, memory, verdict
-// Usage: bar run --suite <file.tsv> [--out <dir>] [--reps N] [--only <substring>] [--home <dir>] [--machine <name>]
+// Usage: bar run --suite <file.tsv> [--ours-only 1] [--out <dir>] [--reps N] [--only <substring>] [--home <dir>] [--machine <name>]
 //        bar env
 // Heavy runs take the worker lock outside this program: tools/bench/locked-run.sh.
 return Cli.Execute(args);
@@ -65,6 +65,7 @@ internal static class Cli
         var during = new List<double?>();
         var results = new List<(SuiteRow Row, List<Row> Ours, List<Row> Ref)>();
         var failures = 0;
+        var oursOnly = opts.ContainsKey("ours-only");
         foreach (var row in rows)
         {
             Console.Error.WriteLine($"[{row.Id}] {row.Driver} x{reps}");
@@ -74,6 +75,12 @@ internal static class Cli
             {
                 try
                 {
+                    if (oursOnly)
+                    {
+                        refRuns.Add([]);
+                        throw new InvalidOperationException("ours-only");
+                    }
+
                     var res = RefRunner.Run(row, paths);
                     if (res.ExitCode == 0)
                     {
@@ -86,8 +93,11 @@ internal static class Cli
                 }
                 catch (Exception e) when (e is IOException or InvalidOperationException)
                 {
-                    Console.Error.WriteLine("  reference failed: " + e.Message);
-                    break;
+                    if (!oursOnly)
+                    {
+                        Console.Error.WriteLine("  reference failed: " + e.Message);
+                        break;
+                    }
                 }
 
                 during.Add(Env.Load1());

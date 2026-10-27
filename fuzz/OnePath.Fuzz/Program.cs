@@ -77,5 +77,6 @@ public static class Targets
         ["build2d-describe"] = Build2DFuzz.Describe,
         ["navmesh-mesh"] = NavMeshFuzz.Mesh,
         ["navmesh-tile"] = NavMeshFuzz.Tile,
+        ["navmesh-query"] = NavMeshQueryFuzz.Run,
     };
 }
