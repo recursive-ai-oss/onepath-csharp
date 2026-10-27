@@ -72,8 +72,8 @@ var navMesh = NavMesh.Build2D(new[] { new Outline(new[] { new Vector2D(0, 0), ne
 Console.WriteLine($"NavMesh.Build2D: {navMesh.Tiles.TileCount} tiles");
 ok = ok && navMesh.Tiles.TileCount == 8 && RecursiveAI.OnePath.Mesh.NavMeshValidator.Validate(navMesh.Tiles).Count == 0;
 var navPath = navMesh.FindPath(new Vector3D(5, 0, 5), new Vector3D(95, 0, 45));
-Console.WriteLine($"NavMesh.FindPath: {navPath.Status}, {navPath.Points.Length} points");
-ok = ok && navPath.Points.Length >= 2;
+Console.WriteLine($"NavMesh.FindPath: {navPath.Status}, {navPath.Points.Count} points");
+ok = ok && navPath.Points.Count >= 2;
 bool grids = GridSmoke.Run();
 Console.WriteLine($"Grids run: {(grids ? "ok" : "FAILED")}");
 return ok && orca && nav && grids && OnePathInfo.Version.Major >= 0 ? 0 : 1;

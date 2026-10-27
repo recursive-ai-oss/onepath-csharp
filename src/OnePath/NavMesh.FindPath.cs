@@ -1,5 +1,5 @@
 using RecursiveAI.OneMath;
-using RecursiveAI.OnePath.Mesh;
+using RecursiveAI.OnePath.Mesh.Queries;
 
 namespace RecursiveAI.OnePath;
 

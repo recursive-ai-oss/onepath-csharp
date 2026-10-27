@@ -5,6 +5,7 @@ using RecursiveAI.OneMath;
 using RecursiveAI.OneMath.Predicates;
 using RecursiveAI.OnePath.Mesh;
 using RecursiveAI.OnePath.Mesh.Build2D;
+using RecursiveAI.OnePath.Mesh.Queries;
 using Xunit;
 
 namespace RecursiveAI.OnePath.Tests.Build2D;
@@ -282,5 +283,17 @@ public class TileSliceTests
         // A 20 x 20 floor shrunk by 0.6 on every side is 18.8 x 18.8; the offset is rounded to the 2^-9 grid (0.6 -> 307/512).
         Assert.InRange(area / 2, 353.40, 353.50);
         Assert.Throws<ArgumentOutOfRangeException>(() => NavMesh.Build2D(cells, 20, 20, 1.0, new Vector2D(3e6, 0)));
+    }
+
+    [Fact]
+    public void Tier1_find_path_crosses_tile_boundaries()
+    {
+        var cells = new bool[40 * 10];
+        Array.Fill(cells, true);
+        NavMesh nav = NavMesh.Build2D(cells, 40, 10, 1.0, new Vector2D(0, 0), NavSettings.Humanoid with { TileSize = 8 });
+        PathResult r = nav.FindPath(new Vector3D(2, 0, 5), new Vector3D(38, 0, 5));
+        Assert.Equal(PathStatus.Success, r.Status);
+        Assert.True(r.Points.Count >= 2);
+        Assert.Equal(36.0, r.Points[^1].Position.X - r.Points[0].Position.X, 2);
     }
 }
