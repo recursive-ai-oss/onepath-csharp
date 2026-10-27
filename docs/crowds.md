@@ -103,6 +103,8 @@ Outcome:
 | `InProgress` (budget used up) | leads to the closest polygon so far | incomplete, replan requested |
 | cut to capacity | as above | incomplete, replan requested |
 
+In a `Crowd` step (not in `PathFollower.Step`), a replan requested only because the corridor was cut to capacity waits until the corridor holds at most three quarters of its capacity (the agent has walked a quarter of it; corridors of fewer than 16 polygons always extend at once); it is not repeated every step. A replan from start, or one after a mesh change that left a short corridor, runs at once.
+
 `CorridorReplan` splits one replan over calls: `Begin` then `Update(budget)` until not `InProgress`, then `Apply`. Total
 iterations across both searches are counted; the result after any split of the same work equals one unlimited call (tested for
 budgets 1, 2, 3, 5, 17, 100 against `int.MaxValue` on meshes with one-way links and edits, byte-exact). `PathCorridor.Replan(budget)`

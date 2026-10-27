@@ -247,7 +247,7 @@ public sealed class PathFollower
 
     // Steps 1 to 4 of a step: repairs the corridor, replans, shortcuts, and decides whether the agent arrives, starts an off-mesh
     // crossing, or walks. Returns true when it walks; `ci` is then the steering corner and `rem` the distance to a stop.
-    private bool PlanMoving(NavMeshQuery query, QueryFilter? filter, out int ci, out double rem, out bool known, out Vector3D start)
+    private bool PlanMoving(NavMeshQuery query, QueryFilter? filter, bool deferExtension, out int ci, out double rem, out bool known, out Vector3D start)
     {
         _steps++;
         start = _position;
@@ -260,7 +260,10 @@ public sealed class PathFollower
             return false;
         }
         // 2. Finish a pending replan (bounded per step).
-        if (_corr.NeedsReplan)
+        // In a crowd, a corridor cut at its capacity is extended once the agent has used up a quarter of it: extending it every
+        // step searches the whole remaining route only to cut it again.
+        bool deferred = deferExtension && !_corr.ReplanFromStart && _rounds == 0 && _corr.Capacity >= 16 && _corr.Count * 4 > _corr.Capacity * 3;
+        if (_corr.NeedsReplan && !deferred)
         {
             PathStatus s = ReplanRound(query, filter);
             if (_state != FollowerState.Moving)
@@ -328,7 +331,7 @@ public sealed class PathFollower
 
     private void StepMoving(NavMeshQuery query, double dt, QueryFilter? filter)
     {
-        if (!PlanMoving(query, filter, out int ci, out double rem, out bool known, out Vector3D start))
+        if (!PlanMoving(query, filter, deferExtension: false, out int ci, out double rem, out bool known, out Vector3D start))
         {
             return;
         }
@@ -402,7 +405,7 @@ public sealed class PathFollower
                 _velocity = default;
                 return false;
         }
-        if (!PlanMoving(query, filter, out int ci, out double rem, out bool known, out Vector3D start))
+        if (!PlanMoving(query, filter, deferExtension: true, out int ci, out double rem, out bool known, out Vector3D start))
         {
             return false;
         }
