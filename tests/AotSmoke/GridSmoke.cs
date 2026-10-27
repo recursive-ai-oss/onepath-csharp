@@ -47,6 +47,16 @@ internal static class GridSmoke
             GridPath jump = grid.FindPath(new Cell(0, 0), new Cell(0, 4), new GridOptions { Algorithm = algorithm });
             ok &= jump.Found && jump.Algorithm == algorithm && jump.Cost == 12.0;
         }
+        // HPA*: tier-1 option and the hierarchy with an incremental update after an edit.
+        GridPath hpa = grid.FindPath(new Cell(0, 0), new Cell(0, 4), new GridOptions { Algorithm = GridAlgorithm.Hpa, HpaChunkSize = 2 });
+        ok &= hpa.Found && hpa.Algorithm == GridAlgorithm.Hpa;
+        using var hierarchy = new HpaHierarchy(fromText, new HpaOptions { ChunkSize = 2 });
+        fromText.SetWalkable(1, 1, true);
+        var hpaSearch = new HpaSearch(hierarchy);
+        hpaSearch.Begin(0, 8);
+        ok &= hpaSearch.Run() == SearchStatus.Found && hpaSearch.PathCost >= 2.0 * GridMath.Sqrt2 && hpaSearch.PathCost <= 4.0;
+        fromText.SetWalkable(1, 1, false);
+
         using var index = new JpsPlusIndex(fromText);
         var plus = new JumpSearch<TableJumper, OctileHeuristic>(new TableJumper(index), new OctileHeuristic(3));
         plus.Begin(0, 8);

@@ -11,7 +11,7 @@ namespace RecursiveAI.OnePath.GridOptima;
 
 /// <summary>
 /// Checks path costs (A*, JPS or JPS+) against the published optimal lengths of Moving AI Lab scenario sets.
-/// Usage: <c>GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--alg astar|jps|jps+]</c>, where DIR holds
+/// Usage: <c>GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--alg astar|jps|jps+|hpa] [--chunk N] [--smooth 0|1]</c> (hpa reports suboptimality instead of mismatches), where DIR holds
 /// <c>NAME-map.zip</c> and <c>NAME-scen.zip</c> (as downloaded from the benchmark site; never committed) or a folder NAME of loose files.
 /// Prints one summary line: scenarios, mismatches, maximum absolute difference. Exit code 1 if any mismatch.
 /// Options: <c>--swamp 0|1</c>, <c>--water 0|1</c> choose how S and W terrain is read.
@@ -27,6 +27,8 @@ public static class Program
         double tolerance = 1e-6; // relative: the published lengths carry single-precision-class error
         double altSqrt2 = 0;
         string alg = "astar";
+        int hpaChunk = 16;
+        bool hpaSmooth = true;
         var options = new MovingAiOptions();
         for (int i = 0; i + 1 < args.Length; i += 2)
         {
@@ -38,6 +40,8 @@ public static class Program
                 case "--limit": limit = long.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
                 case "--tolerance": tolerance = double.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
                 case "--alg": alg = args[i + 1]; break;
+                case "--chunk": hpaChunk = int.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
+                case "--smooth": hpaSmooth = args[i + 1] != "0"; break;
                 case "--alt-sqrt2": altSqrt2 = double.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
                 case "--swamp": options.SwampWalkable = args[i + 1] == "1"; break;
                 case "--water": options.WaterWalkable = args[i + 1] == "1"; break;
@@ -46,7 +50,7 @@ public static class Program
         }
         if (dir is null || set is null)
         {
-            Console.Error.WriteLine("usage: GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--swamp 0|1] [--water 0|1] [--alt-sqrt2 X] [--alg astar|jps|jps+]");
+            Console.Error.WriteLine("usage: GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--swamp 0|1] [--water 0|1] [--alt-sqrt2 X] [--alg astar|jps|jps+|hpa] [--chunk N] [--smooth 0|1]");
             return 2;
         }
 
@@ -94,6 +98,11 @@ public static class Program
                 return 2;
             }
             jobs.Add((mapName, MovingAiScenarios.Parse(scenBytes), MovingAiMap.Parse(mapBytes)));
+        }
+
+        if (alg == "hpa")
+        {
+            return RunHpa(set, jobs, options, threads, limit, hpaChunk, hpaSmooth);
         }
 
         long total = 0;
@@ -177,6 +186,113 @@ public static class Program
         });
         Console.WriteLine($"{set}: maps {jobs.Count}, scenarios {total}, mismatches {mismatches}, max |delta| {maxDelta.ToString("E3", CultureInfo.InvariantCulture)}, max |delta|/max(1,length) {maxRel.ToString("E3", CultureInfo.InvariantCulture)}");
         return mismatches == 0 ? 0 : 1;
+    }
+
+    // HPA* is near optimal, so the published lengths are a yardstick, not an equality: every refined path must be valid
+    // (each step a legal move, the cost its own sum) and found whenever the scenario has a path; the report gives the mean
+    // and maximum percentage over the optimal length, as the HPA* paper does.
+    private static int RunHpa(string set, List<(string Name, ScenarioEntry[] Entries, MovingAiMap Map)> jobs, MovingAiOptions options, int threads, long limit, int chunk, bool smooth)
+    {
+        long total = 0;
+        long bad = 0;
+        long counted = 0;
+        double sumPct = 0;
+        double maxPct = 0;
+        double sumNodes = 0;
+        object sync = new();
+        long budget = limit;
+        var po = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, threads) };
+        Parallel.ForEach(jobs, po, job =>
+        {
+            Grid grid = job.Map.ToGrid(options);
+            using var hierarchy = new HpaHierarchy(grid, new HpaOptions { ChunkSize = chunk });
+            var search = new HpaSearch(hierarchy) { Smoothing = smooth };
+            SquareTopology topology = grid.CreateTopology();
+            long n = 0;
+            long invalid = 0;
+            long c = 0;
+            double pct = 0;
+            double worst = 0;
+            double nodes = 0;
+            foreach (ScenarioEntry e in job.Entries)
+            {
+                if (Interlocked.Decrement(ref budget) < 0)
+                {
+                    break;
+                }
+                n++;
+                if (!(e.MapWidth == grid.Width && e.MapHeight == grid.Height && grid.Contains(e.StartX, e.StartY) && grid.Contains(e.GoalX, e.GoalY)
+                    && grid.IsWalkable(e.StartX, e.StartY) && grid.IsWalkable(e.GoalX, e.GoalY)))
+                {
+                    invalid++;
+                    continue;
+                }
+                search.Begin((e.StartY * grid.Width) + e.StartX, (e.GoalY * grid.Width) + e.GoalX);
+                if (search.Run() != SearchStatus.Found || !PathIsValid(topology, search))
+                {
+                    invalid++;
+                    if (invalid <= 3)
+                    {
+                        Console.Error.WriteLine($"INVALID {job.Name} ({e.StartX},{e.StartY})->({e.GoalX},{e.GoalY})");
+                    }
+                    continue;
+                }
+                double over = e.OptimalLength > 0 ? ((search.PathCost - e.OptimalLength) / e.OptimalLength) * 100.0 : 0.0;
+                if (over < -1e-4)
+                {
+                    invalid++; // shorter than the published optimum: the path or the published length is wrong
+                    continue;
+                }
+                c++;
+                pct += over;
+                worst = Math.Max(worst, over);
+                nodes += search.ExpandedCount;
+            }
+            lock (sync)
+            {
+                total += n;
+                bad += invalid;
+                counted += c;
+                sumPct += pct;
+                maxPct = Math.Max(maxPct, worst);
+                sumNodes += nodes;
+            }
+        });
+        string f = "F3";
+        Console.WriteLine($"{set} hpa chunk {chunk} smoothing {(smooth ? 1 : 0)}: maps {jobs.Count}, scenarios {total}, invalid-or-missing {bad}, mean over optimal {(counted > 0 ? sumPct / counted : 0).ToString(f, CultureInfo.InvariantCulture)}%, max over optimal {maxPct.ToString(f, CultureInfo.InvariantCulture)}%, mean abstract expansions {(counted > 0 ? sumNodes / counted : 0).ToString("F1", CultureInfo.InvariantCulture)}");
+        return bad == 0 ? 0 : 1;
+    }
+
+    private static bool PathIsValid(SquareTopology topology, HpaSearch search)
+    {
+        int[] p = new int[search.PathLength()];
+        search.CopyPath(p);
+        double sum = 0;
+        for (int i = 1; i < p.Length; i++)
+        {
+            var finder = new StepFinder { Target = p[i], Cost = double.NaN };
+            topology.VisitNeighbors(p[i - 1], ref finder);
+            if (double.IsNaN(finder.Cost))
+            {
+                return false;
+            }
+            sum += finder.Cost;
+        }
+        return Math.Abs(sum - search.PathCost) <= 1e-6;
+    }
+
+    private struct StepFinder : INeighborVisitor
+    {
+        public int Target;
+        public double Cost;
+
+        public void Visit(int neighbor, double baseCost)
+        {
+            if (neighbor == Target)
+            {
+                Cost = baseCost;
+            }
+        }
     }
 
     /// <summary>One search per worker thread, whichever algorithm was asked for.</summary>

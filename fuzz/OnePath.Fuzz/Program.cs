@@ -100,6 +100,7 @@ public static class Targets
         ["grid-query"] = GridTargets.Query,
         ["navmesh-query"] = NavMeshQueryFuzz.Run,
         ["grid-jps"] = GridTargets.Jps,
+        ["grid-hpa"] = GridTargets.Hpa,
         ["navmesh-snapshot"] = NavMeshSnapshotFuzz.Run,
     };
 }

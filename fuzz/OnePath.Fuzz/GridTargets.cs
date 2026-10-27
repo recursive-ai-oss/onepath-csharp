@@ -175,6 +175,117 @@ internal static class GridTargets
         }
     }
 
+    // HPA* against A*: a grid up to 100 x 40 cells decoded from the bytes, a hierarchy with decoded chunk size, entrance threshold,
+    // agent size and moves, queries (found exactly when A* finds a path, legal steps, cost the sum of its steps and never below
+    // A*'s, sliced equal to whole), then edits after which the incrementally updated hierarchy must equal a fresh one.
+    internal static void Hpa(byte[] data)
+    {
+        if (data.Length < 16)
+        {
+            return;
+        }
+        int w = 1 + (data[0] % 100);
+        int h = 1 + (data[1] % 40);
+        int density = 1 + (data[2] % 9);
+        var g = new Grid(w, h);
+        for (int i = 0; i < w * h; i++)
+        {
+            byte b = (byte)(data[3 + (i % (data.Length - 3))] ^ (i * 31));
+            if ((b & 15) < density)
+            {
+                g.SetWalkable(i % w, i / w, false);
+            }
+        }
+        int pos = 3;
+        var options = new HpaOptions
+        {
+            ChunkSize = 2 + (Next(data, ref pos) % 12),
+            EntranceThreshold = 1 + (Next(data, ref pos) % 8),
+            AgentSize = 1 + (Next(data, ref pos) % 3),
+            Connectivity = (Next(data, ref pos) & 1) == 0 ? Connectivity.Eight : Connectivity.Four,
+            Diagonals = (Next(data, ref pos) & 1) == 0 ? DiagonalRule.NoCornerCutting : DiagonalRule.NoSqueezing,
+        };
+        using var hierarchy = new HpaHierarchy(g, options);
+        var search = new HpaSearch(hierarchy) { Smoothing = (Next(data, ref pos) & 1) == 0 };
+        SquareTopology topology = g.CreateTopology(options.AgentSize, options.Connectivity, options.Diagonals);
+        for (int round = 0; round < 4; round++)
+        {
+            for (int q = 0; q < 5; q++)
+            {
+                int a = (Next(data, ref pos) % h * w) + (Next(data, ref pos) % w);
+                int b = (Next(data, ref pos) % h * w) + (Next(data, ref pos) % w);
+                if (!topology.IsWalkable(a) || !topology.IsWalkable(b))
+                {
+                    continue;
+                }
+                var gridOptions = new GridOptions { AgentSize = options.AgentSize, Connectivity = options.Connectivity, Diagonals = options.Diagonals };
+                GridPath astar = g.FindPath(new Cell(a % w, a / w), new Cell(b % w, b / w), gridOptions);
+                search.Begin(a, b);
+                SearchStatus st = search.Run();
+                if ((st == SearchStatus.Found) != astar.Found)
+                {
+                    throw new InvalidOperationException($"HPA* says {st} but A* says {astar.Status} for {a} -> {b}");
+                }
+                if (st == SearchStatus.Found)
+                {
+                    var p = new int[search.PathLength()];
+                    search.CopyPath(p);
+                    double sum = 0;
+                    for (int i = 1; i < p.Length; i++)
+                    {
+                        var finder = new StepFinder { Target = p[i], Cost = double.NaN };
+                        topology.VisitNeighbors(p[i - 1], ref finder);
+                        if (double.IsNaN(finder.Cost))
+                        {
+                            throw new InvalidOperationException("HPA* path has an illegal step");
+                        }
+                        sum += finder.Cost;
+                    }
+                    if (p[0] != a || p[^1] != b || Math.Abs(sum - search.PathCost) > 1e-6 || search.PathCost < astar.Cost - 1e-6)
+                    {
+                        throw new InvalidOperationException("HPA* path endpoints or cost are wrong");
+                    }
+                    var sliced = new HpaSearch(hierarchy) { Smoothing = search.Smoothing };
+                    sliced.Begin(a, b);
+                    while (sliced.Step(3) == SearchStatus.Running)
+                    {
+                    }
+                    var p2 = new int[sliced.PathLength()];
+                    sliced.CopyPath(p2);
+                    if (!p.AsSpan().SequenceEqual(p2))
+                    {
+                        throw new InvalidOperationException("sliced HPA* differs from whole");
+                    }
+                }
+            }
+            int edits = Next(data, ref pos) % 9;
+            for (int e = 0; e < edits; e++)
+            {
+                g.SetWalkable(Next(data, ref pos) % w, Next(data, ref pos) % h, (Next(data, ref pos) & 3) == 0);
+            }
+            hierarchy.Refresh();
+            using var fresh = new HpaHierarchy(g, options);
+            if (!hierarchy.ContentEquals(fresh))
+            {
+                throw new InvalidOperationException("incremental HPA* hierarchy differs from a rebuild");
+            }
+        }
+    }
+
+    private struct StepFinder : INeighborVisitor
+    {
+        public int Target;
+        public double Cost;
+
+        public void Visit(int neighbor, double baseCost)
+        {
+            if (neighbor == Target)
+            {
+                Cost = baseCost;
+            }
+        }
+    }
+
     private static int Next(byte[] data, ref int pos)
     {
         int v = data[pos % data.Length];
