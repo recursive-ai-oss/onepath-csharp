@@ -8,3 +8,5 @@ warthog-jps	0.6.2	https://github.com/ShortestPathLab/warthog-jps/archive/refs/ta
 # Build tools, installed user-locally by tools/refs/refs.sh bootstrap.
 cmake-linux-x64	3.31.8	https://github.com/Kitware/CMake/releases/download/v3.31.8/cmake-3.31.8-linux-x86_64.tar.gz	630615d8e98ac33eba7fbe472626dff5c899c85af3c024585ae109166a6909d0	CMake (BSD-3-Clause)
 cmake-osx-arm64	3.31.8	https://github.com/Kitware/CMake/releases/download/v3.31.8/cmake-3.31.8-macos-universal.tar.gz	d1449f969c54d5c00886d5b643340d493dfb3c81cb39ee29b35453395c11ebf7	CMake (BSD-3-Clause)
+llvm-osx-arm64	22.1.5	https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.5/LLVM-22.1.5-macOS-ARM64.tar.xz	c4e5aa26d5bb9938237fa1626fe3b0506887b50026bac785b85dd3314be8d5e6	LLVM clang (Apache-2.0 with LLVM exceptions); macOS only, compiles libc++ and Warthog
+llvm-src	22.1.5	https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.5/llvm-project-22.1.5.src.tar.xz	7972b87b705a003ce70ab55f9f0fb495d156887cba0eb296d284731139118e2c	LLVM sources, only to build libc++ with its time-zone database enabled (macOS)

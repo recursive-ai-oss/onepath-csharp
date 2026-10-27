@@ -94,10 +94,20 @@ command line.
 | RVO2 | 2.0.2 | `bench/Harness/Native/rvo_harness.cpp`, from the library documentation | parallel with OpenMP where the compiler has it; rows set `OMP_NUM_THREADS=1` for the single-thread comparison and report `threads` |
 | DotRecast | 2026.3.1 (NuGet) | `bench/Harness/RefHarness` (C#), compiled against the package | same settings as Recast; per-polygon areas set after the build as in the native driver |
 | RVO2-CS | 2.0.1 | `bench/Harness/RefHarness`, library sources compiled as shipped by `bench/Harness/Rvo2CsLib` | not on NuGet; its own projects target an old .NET Framework |
-| Warthog (core, JPS) | 0.6.2 | the documented `warthog` and `warthog-jps` command lines on Moving AI scenario files | `search_time` sums the per-instance times the program prints; JPS+ preprocessing is not in it, so `wall_time` is reported too |
+| Warthog (core, JPS) | 0.6.2 | the documented `warthog` and `warthog-jps` command lines on Moving AI scenario files; on macOS built with a private LLVM 22.1.5 toolchain (below) | `search_time` sums the per-instance times the program prints; JPS+ preprocessing is not in it, so `wall_time` is reported too |
 
-Known gaps: Warthog does not build on macOS (Apple's C++ library lacks `std::chrono::current_zone`, which its logger
-uses), so grid rows have no arm64 reference. DotRecast's and Recast's `raycast_hits` differ on the same input (the
+**Warthog on macOS.** Warthog's logger calls `std::chrono::current_zone`, which Apple's C++ library does not have.
+`refs.sh` therefore builds a private toolchain under `$ONEPATH_HOME/tools` on macOS and compiles Warthog, unmodified,
+with it: the pinned LLVM 22.1.5 macOS release supplies clang, and the same release's runtimes source is built into a
+private libc++ with its time-zone database enabled (`-DLIBCXX_ENABLE_TIME_ZONE_DATABASE=ON`), which Warthog links
+through an rpath. One line of libc++'s own source needs a change, applied and checked by the script: its time-zone
+code names the zoneinfo folder for Linux only, and macOS keeps the same database at the same path
+(`/usr/share/zoneinfo`). The official LLVM macOS binaries ship libc++ with the database switched off, and the 21.x
+clang does not parse the macOS 27 SDK's `<math.h>`, which is why 22.1.5 is pinned. No Homebrew or system change;
+the toolchain adds about 1.5 GB of downloads and a few minutes of build to a first macOS setup. Warthog's search
+itself does not use time zones; only its log timestamps do.
+
+Known gaps: DotRecast's and Recast's `raycast_hits` differ on the same input (the
 meshes differ slightly, and ray semantics at the end of a path are not documented); raycast rows compare ours with
 Recast's.
 
@@ -119,4 +129,4 @@ tools/bench/locked-run.sh "bar references" 90 tools/bench/run-bar.sh references 
 ```
 
 The lock is taken inside the job and removed when it ends; the command fails at once if the lock is held. On an
-Apple-silicon Mac the same commands apply (grid rows will report "reference failed").
+Apple-silicon Mac the same commands apply, including the Warthog rows.

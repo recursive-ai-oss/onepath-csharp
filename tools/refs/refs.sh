@@ -34,7 +34,7 @@ fetch_one() { # <id> -> prints the archive path
   ver="$(row "$id" 2)"; url="$(row "$id" 3)"; sha="$(row "$id" 4)"
   [ -n "$ver" ] || { echo "no manifest row for $id" >&2; return 1; }
   mkdir -p "$H/refs/_dl"
-  file="$H/refs/_dl/$id-$ver.tar.gz"
+  file="$H/refs/_dl/$id-$ver.${url##*.}"   # .tar.gz or .tar.xz
   if [ ! -f "$file" ] || [ "$(sha256_of "$file")" != "$sha" ]; then
     echo "fetching $id $ver" >&2
     curl -fsSL --retry 3 -o "$file.part" "$url"
@@ -51,7 +51,7 @@ unpack() { # <id> -> prints the src dir
   if [ ! -f "$dir/.unpacked" ]; then
     file="$(fetch_one "$id")"
     rm -rf "$dir/src"; mkdir -p "$dir/src"
-    tar -xzf "$file" -C "$dir/src" --strip-components=1
+    tar -xf "$file" -C "$dir/src" --strip-components=1
     touch "$dir/.unpacked"
   fi
   echo "$dir"
@@ -69,7 +69,7 @@ bootstrap() {
     local id="cmake-$PLAT" file
     file="$(fetch_one "$id")"
     mkdir -p "$H/tools/cmake"
-    tar -xzf "$file" -C "$H/tools/cmake" --strip-components=1
+    tar -xf "$file" -C "$H/tools/cmake" --strip-components=1
   fi
   echo "cmake: $(cmake_bin)"
   if [ "$PLAT" = osx-arm64 ] && [ ! -x "$H/dotnet/dotnet" ]; then
@@ -108,11 +108,58 @@ build_rvo2() {
   touch "$dir/.built"
 }
 
+# macOS only: Warthog needs C++20 time-zone support (std::chrono::current_zone). Apple's libc++ lacks it, and the
+# official LLVM macOS binaries build libc++ with the time-zone database switched off. So: a pinned LLVM release gives
+# us clang, and the same release's runtimes source is built with LIBCXX_ENABLE_TIME_ZONE_DATABASE=ON into a private
+# libc++ that Warthog links (rpath), unmodified. Everything lives under $ONEPATH_HOME/tools; no system change.
+llvm_dir() { echo "$H/tools/llvm"; }
+# The LLVM binaries carry no default SDK path: point them at the installed macOS SDK (read-only use).
+use_sdk() { export SDKROOT="${SDKROOT:-$(xcrun --show-sdk-path)}"; }
+libcxx_dir() { echo "$H/tools/libcxx"; }
+
+bootstrap_llvm() {
+  [ "$PLAT" = osx-arm64 ] || return 0
+  use_sdk
+  if [ ! -x "$(llvm_dir)/bin/clang++" ]; then
+    local file; file="$(fetch_one llvm-osx-arm64)"
+    mkdir -p "$(llvm_dir)"
+    tar -xf "$file" -C "$(llvm_dir)" --strip-components=1
+  fi
+  if [ ! -f "$(libcxx_dir)/.built" ]; then
+    local src L cm; cm="$(cmake_bin)"; L="$(llvm_dir)"; src="$(unpack llvm-src)"
+    # libc++'s time-zone code names the zoneinfo folder for Linux only. macOS keeps the same IANA database at the same
+    # path, so this one-line change to the toolchain's own source (never to a reference) enables it there.
+    local tz="$src/src/libcxx/src/experimental/tzdb.cpp"
+    perl -0pi -e 's/(__libcpp_tzdb_directory\(\) \{\n#if defined\(__linux__\))/$1 || defined(__APPLE__)/' "$tz"
+    grep -q 'defined(__linux__) || defined(__APPLE__)' "$tz" || { echo "libc++ tzdb patch did not apply" >&2; return 1; }
+    "$cm" -S "$src/src/runtimes" -B "$src/build" -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER="$L/bin/clang" -DCMAKE_CXX_COMPILER="$L/bin/clang++" -DCMAKE_INSTALL_PREFIX="$(libcxx_dir)" \
+      -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi" -DLIBCXX_ENABLE_TIME_ZONE_DATABASE=ON -DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY=ON \
+      -DLIBCXXABI_USE_LLVM_UNWINDER=OFF -DLLVM_INCLUDE_TESTS=OFF -DLIBCXX_INCLUDE_TESTS=OFF -DLIBCXXABI_INCLUDE_TESTS=OFF -DLIBCXX_INCLUDE_BENCHMARKS=OFF
+    "$cm" --build "$src/build" -j "$JOBS" --target cxx cxxabi
+    "$cm" --build "$src/build" --target install-cxx install-cxxabi -j "$JOBS"
+    touch "$(libcxx_dir)/.built"
+  fi
+}
+
+WARTHOG_ARGS=()
+set_warthog_args() { # fills WARTHOG_ARGS with extra cmake arguments (empty off macOS)
+  WARTHOG_ARGS=()
+  [ "$PLAT" = osx-arm64 ] || return 0
+  local L X XLIB=""; L="$(llvm_dir)"; X="$(libcxx_dir)"
+  [ -f "$X/lib/libc++experimental.a" ] && XLIB="-lc++experimental"
+  WARTHOG_ARGS=("-DCMAKE_C_COMPILER=$L/bin/clang" "-DCMAKE_CXX_COMPILER=$L/bin/clang++"
+    "-DCMAKE_CXX_FLAGS=-stdlib=libc++ -fexperimental-library -nostdinc++ -isystem $X/include/c++/v1"
+    "-DCMAKE_EXE_LINKER_FLAGS=-L$X/lib $XLIB -Wl,-rpath,$X/lib")
+}
+
 build_warthog() {
   local core jps cm; cm="$(cmake_bin)"
+  bootstrap_llvm
+  set_warthog_args
   core="$(unpack warthog-core)"; jps="$(unpack warthog-jps)"
   if [ ! -f "$core/.built" ]; then
-    "$cm" -S "$core/src" -B "$core/build" -DCMAKE_BUILD_TYPE=Release
+    "$cm" -S "$core/src" -B "$core/build" -DCMAKE_BUILD_TYPE=Release ${WARTHOG_ARGS[@]+"${WARTHOG_ARGS[@]}"}
     "$cm" --build "$core/build" -j "$JOBS"
     touch "$core/.built"
   fi
@@ -121,7 +168,7 @@ build_warthog() {
     # so no network access is needed during the build.
     rm -rf "$jps/src/extern/warthog-core"; mkdir -p "$jps/src/extern"
     cp -R "$core/src" "$jps/src/extern/warthog-core"
-    "$cm" -S "$jps/src" -B "$jps/build" -DCMAKE_BUILD_TYPE=Release
+    "$cm" -S "$jps/src" -B "$jps/build" -DCMAKE_BUILD_TYPE=Release ${WARTHOG_ARGS[@]+"${WARTHOG_ARGS[@]}"}
     "$cm" --build "$jps/build" -j "$JOBS"
     touch "$jps/.built"
   fi
@@ -158,20 +205,11 @@ build_harness() {
   echo "harness binaries in $H/bin"
 }
 
-# Warthog needs C++20 time-zone support in the standard library (std::chrono::current_zone), which Apple's libc++
-# does not have yet; there the grid references are skipped with a warning and their bar rows report "reference failed".
-build_warthog_optional() {
-  if [ "$PLAT" != osx-arm64 ]; then build_warthog; return; fi
-  if ! ( build_warthog ); then
-    echo "WARNING: warthog did not build on this platform ($PLAT); grid reference rows will be unavailable here" >&2
-  fi
-}
-
 case "${1:-}" in
   bootstrap) bootstrap ;;
   fetch) fetch_all ;;
-  build) bootstrap; fetch_all; build_recast; build_rvo2; build_warthog_optional; build_rvo2cs ;;
+  build) bootstrap; fetch_all; build_recast; build_rvo2; build_warthog; build_rvo2cs ;;
   harness) build_harness ;;
-  all) bootstrap; fetch_all; build_recast; build_rvo2; build_warthog_optional; build_rvo2cs; build_harness ;;
+  all) bootstrap; fetch_all; build_recast; build_rvo2; build_warthog; build_rvo2cs; build_harness ;;
   *) sed -n '2,12p' "$0"; exit 2 ;;
 esac
