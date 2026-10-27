@@ -1,0 +1,26 @@
+# id	part	driver	metric	better	tolerance	args
+# Quality of the 3D builder against Recast: coverage and path lengths per level, one repetition (no timing claims). Placeholders as in references.tsv.
+quality/build/terraces-solo/recast	build	recast	coverage_area	higher	1.0	build --obj {geom}/terraces.obj --reps 1
+quality/query/terraces-solo/recast	query	recast	path_mean_length	lower	1.0	query --obj {geom}/terraces.obj --points {geom}/terraces.points --reps 1
+quality/build/terraces-tiled/recast	build	recast	coverage_area	higher	1.0	build --obj {geom}/terraces.obj --mode tiled --tile-size 64 --reps 1
+quality/query/terraces-tiled/recast	query	recast	path_mean_length	lower	1.0	query --obj {geom}/terraces.obj --points {geom}/terraces.points --mode tiled --tile-size 64 --reps 1
+quality/build/ramps-solo/recast	build	recast	coverage_area	higher	1.0	build --obj {geom}/ramps.obj --reps 1
+quality/query/ramps-solo/recast	query	recast	path_mean_length	lower	1.0	query --obj {geom}/ramps.obj --points {geom}/ramps.points --reps 1
+quality/build/ramps-tiled/recast	build	recast	coverage_area	higher	1.0	build --obj {geom}/ramps.obj --mode tiled --tile-size 64 --reps 1
+quality/query/ramps-tiled/recast	query	recast	path_mean_length	lower	1.0	query --obj {geom}/ramps.obj --points {geom}/ramps.points --mode tiled --tile-size 64 --reps 1
+quality/build/stairs-solo/recast	build	recast	coverage_area	higher	1.0	build --obj {geom}/stairs.obj --reps 1
+quality/query/stairs-solo/recast	query	recast	path_mean_length	lower	1.0	query --obj {geom}/stairs.obj --points {geom}/stairs.points --reps 1
+quality/build/stairs-tiled/recast	build	recast	coverage_area	higher	1.0	build --obj {geom}/stairs.obj --mode tiled --tile-size 64 --reps 1
+quality/query/stairs-tiled/recast	query	recast	path_mean_length	lower	1.0	query --obj {geom}/stairs.obj --points {geom}/stairs.points --mode tiled --tile-size 64 --reps 1
+quality/build/overlapping-solo/recast	build	recast	coverage_area	higher	1.0	build --obj {geom}/overlapping.obj --reps 1
+quality/query/overlapping-solo/recast	query	recast	path_mean_length	lower	1.0	query --obj {geom}/overlapping.obj --points {geom}/overlapping.points --reps 1
+quality/build/overlapping-tiled/recast	build	recast	coverage_area	higher	1.0	build --obj {geom}/overlapping.obj --mode tiled --tile-size 64 --reps 1
+quality/query/overlapping-tiled/recast	query	recast	path_mean_length	lower	1.0	query --obj {geom}/overlapping.obj --points {geom}/overlapping.points --mode tiled --tile-size 64 --reps 1
+quality/build/slivers-solo/recast	build	recast	coverage_area	higher	1.0	build --obj {geom}/slivers.obj --reps 1
+quality/query/slivers-solo/recast	query	recast	path_mean_length	lower	1.0	query --obj {geom}/slivers.obj --points {geom}/slivers.points --reps 1
+quality/build/slivers-tiled/recast	build	recast	coverage_area	higher	1.0	build --obj {geom}/slivers.obj --mode tiled --tile-size 64 --reps 1
+quality/query/slivers-tiled/recast	query	recast	path_mean_length	lower	1.0	query --obj {geom}/slivers.obj --points {geom}/slivers.points --mode tiled --tile-size 64 --reps 1
+quality/build/city-solo/recast	build	recast	coverage_area	higher	1.0	build --obj {geom}/city.obj --reps 1
+quality/query/city-solo/recast	query	recast	path_mean_length	lower	1.0	query --obj {geom}/city.obj --points {geom}/city.points --reps 1
+quality/build/city-tiled/recast	build	recast	coverage_area	higher	1.0	build --obj {geom}/city.obj --mode tiled --tile-size 64 --reps 1
+quality/query/city-tiled/recast	query	recast	path_mean_length	lower	1.0	query --obj {geom}/city.obj --points {geom}/city.points --mode tiled --tile-size 64 --reps 1

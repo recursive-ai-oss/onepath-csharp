@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using RecursiveAI.OnePath.Mesh.Queries;
 using RecursiveAI.OneMath;
 using RecursiveAI.OnePath;
 using RecursiveAI.OnePath.Mesh.Build3D;
@@ -74,6 +76,16 @@ ok = ok && navMesh.Tiles.TileCount == 8 && RecursiveAI.OnePath.Mesh.NavMeshValid
 var navPath = navMesh.FindPath(new Vector3D(5, 0, 5), new Vector3D(95, 0, 45));
 Console.WriteLine($"NavMesh.FindPath: {navPath.Status}, {navPath.Points.Count} points");
 ok = ok && navPath.Points.Count >= 2;
+// Tier 1, 3D: triangle soup -> tiled mesh with height detail -> path.
+var levelTris = new List<Triangle3D>
+{
+    new(new Vector3D(0, 0, 0), new Vector3D(0, 0, 40), new Vector3D(40, 0, 40)),
+    new(new Vector3D(0, 0, 0), new Vector3D(40, 0, 40), new Vector3D(40, 0, 0)),
+};
+NavMesh level = NavMesh.Build(levelTris, NavSettings.Humanoid with { TileSize = 16 });
+PathResult levelPath = level.FindPath(new Vector3D(3, 0, 3), new Vector3D(37, 0, 37));
+Console.WriteLine($"NavMesh.Build (3D): {level.Tiles.TileCount} tiles, path {levelPath.Status}");
+ok = ok && level.Tiles.TileCount == 9 && levelPath.Status == PathStatus.Success && RecursiveAI.OnePath.Mesh.NavMeshValidator.Validate(level.Tiles).Count == 0;
 bool grids = GridSmoke.Run();
 Console.WriteLine($"Grids run: {(grids ? "ok" : "FAILED")}");
 return ok && orca && nav && grids && OnePathInfo.Version.Major >= 0 ? 0 : 1;
