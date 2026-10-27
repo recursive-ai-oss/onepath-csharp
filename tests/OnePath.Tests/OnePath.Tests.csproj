@@ -10,5 +10,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
+    <!-- The scenario layouts are shared with the hash-matrix runner. -->
+    <Compile Include="../../tools/HashMatrix/Scenarios/Orca/OrcaWorlds.cs" Link="Support/OrcaWorlds.cs" />
   </ItemGroup>
 </Project>
