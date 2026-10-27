@@ -45,6 +45,10 @@ builds everything, including the WASM smoke app, which needs the `wasm-tools` wo
 - **Warnings are errors**, analyzers run at `latest-recommended`, and `BannedSymbols.txt` forbids in
   `src/` the calls that could make results machine-dependent (platform maths functions, fused
   multiply-add, `Vector<T>`, clocks, `Random`, processor count).
-- **Math package:** `RecursiveAI.OneMath` will be referenced by `src/OnePath`. Until it is published,
-  set `ONEMATH_FEED` to a folder containing its package and restore picks it up.
+- **Math package:** `src/OnePath` depends on `RecursiveAI.OneMath` (version in `Directory.Packages.props`),
+  its only runtime dependency. Until it is published, set `ONEMATH_FEED` to a folder containing the
+  `.nupkg` and restore picks it up; the `ci/` scripts default it to `~/onepath/feed` when that exists.
+  On a machine that cannot see the folder, `tools/install-feed.sh <folder-with-nupkg>` copies the package
+  into `~/onepath/feed`. (For a remote job runner that only syncs the git tree, ship the package with the
+  runner's per-file include option and run that script on the remote machine.)
 - `ONEPATH_DOTNET_ROOT`: scripts put this user-local SDK folder first on `PATH`.

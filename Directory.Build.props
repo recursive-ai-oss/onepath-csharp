@@ -4,6 +4,8 @@
   <PropertyGroup>
     <PackagePrefix>RecursiveAI</PackagePrefix>
     <VersionPrefix>0.0.1</VersionPrefix>
+    <!-- A package may not be stable while it depends on a prerelease. -->
+    <VersionSuffix Condition="'$(VersionSuffix)' == ''">dev</VersionSuffix>
     <Authors>Recursive AI, LLC</Authors>
     <Company>Recursive AI, LLC</Company>
     <Copyright>Copyright (c) Recursive AI, LLC</Copyright>

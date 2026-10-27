@@ -14,8 +14,8 @@
 
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />
-    <!-- The shared deterministic math package is added here once it is available from its feed:
-    <PackageReference Include="RecursiveAI.OneMath" /> -->
+    <!-- The one runtime dependency. Until it is published it restores from the folder in ONEMATH_FEED. -->
+    <PackageReference Include="RecursiveAI.OneMath" />
   </ItemGroup>
 
 </Project>

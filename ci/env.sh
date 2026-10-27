@@ -1,7 +1,7 @@
 # Sourced by the other ci scripts. Finds the repo root and the .NET SDK, and sets sane defaults.
 #   ONEPATH_DOTNET_ROOT  optional: folder of a user-local .NET SDK to put first on PATH
 #   ONEPATH_ARTIFACTS    optional: where bin/obj go (see Directory.Build.props)
-#   ONEMATH_FEED         optional: folder holding the RecursiveAI.OneMath package (once it is referenced)
+#   ONEMATH_FEED         folder holding the RecursiveAI.OneMath package; defaults to ~/onepath/feed when that exists
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,5 +22,9 @@ CORE_PROJECTS=(
   bench/Bar/Bar.csproj
   bench/Micro/Micro.csproj
 )
+
+if [ -z "${ONEMATH_FEED:-}" ] && [ -d "$HOME/onepath/feed" ]; then
+  export ONEMATH_FEED="$HOME/onepath/feed"
+fi
 
 cd "$REPO_ROOT"
