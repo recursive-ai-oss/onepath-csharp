@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using RecursiveAI.OneMath;
-using RecursiveAI.OnePath.NavMesh;
+using RecursiveAI.OnePath.Mesh;
 
 namespace RecursiveAI.OnePath.Debug;
 

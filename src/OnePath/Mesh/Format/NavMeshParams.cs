@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh;
+namespace RecursiveAI.OnePath.Mesh;
 
 /// <summary>
 /// The grid and agent parameters of one mesh. A mesh serves one agent class (radius, height, climb, slope): meshes

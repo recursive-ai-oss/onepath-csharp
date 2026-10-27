@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh.Build3D;
+namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>Erosion of the walkable area by the agent radius.</summary>
 public static class Erosion

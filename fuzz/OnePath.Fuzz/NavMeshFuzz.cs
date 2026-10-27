@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using RecursiveAI.OnePath.HashMatrix;
-using RecursiveAI.OnePath.NavMesh;
+using RecursiveAI.OnePath.Mesh;
 
 namespace RecursiveAI.OnePath.Fuzz;
 

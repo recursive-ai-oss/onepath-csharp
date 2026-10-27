@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using RecursiveAI.OneMath;
 using RecursiveAI.OneMath.Predicates;
-using RecursiveAI.OnePath.NavMesh.Build2D;
+using RecursiveAI.OnePath.Mesh.Build2D;
 using Xunit;
 
 namespace RecursiveAI.OnePath.Tests.Build2D;

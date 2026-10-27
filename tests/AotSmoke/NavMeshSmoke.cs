@@ -1,5 +1,5 @@
 using System;
-using RecursiveAI.OnePath.NavMesh;
+using RecursiveAI.OnePath.Mesh;
 
 /// <summary>Builds, stitches, serializes and re-reads a tiny two-tile mesh; used by the NativeAOT and WebAssembly smoke apps.</summary>
 internal static class NavMeshSmoke

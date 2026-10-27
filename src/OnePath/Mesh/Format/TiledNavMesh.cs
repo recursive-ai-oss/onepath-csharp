@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace RecursiveAI.OnePath.NavMesh;
+namespace RecursiveAI.OnePath.Mesh;
 
 /// <summary>
 /// A tiled navigation mesh: tiles keyed by (column, row, layer) in numbered slots, stable polygon references and

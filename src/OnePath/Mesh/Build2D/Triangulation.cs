@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using RecursiveAI.OneMath;
 
-namespace RecursiveAI.OnePath.NavMesh.Build2D;
+namespace RecursiveAI.OnePath.Mesh.Build2D;
 
 /// <summary>
 /// A triangulation of a <see cref="Region"/>: counter-clockwise triangles with adjacency. Vertices are sorted by

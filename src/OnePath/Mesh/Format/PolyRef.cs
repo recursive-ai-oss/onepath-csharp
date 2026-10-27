@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh;
+namespace RecursiveAI.OnePath.Mesh;
 
 /// <summary>
 /// A stable reference to a polygon: 24 bits of tile-slot generation (salt), 20 bits of tile slot and 20 bits of

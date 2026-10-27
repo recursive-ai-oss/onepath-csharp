@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh.Build3D;
+namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>
 /// Agent-dependent parameters of the span stage. All lengths are in cells (voxels): convert world sizes

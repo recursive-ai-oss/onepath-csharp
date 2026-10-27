@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh.Build3D;
+namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>One run of solid voxels in a column: rows <see cref="Min"/> up to but not including <see cref="Max"/>.</summary>
 public struct SolidSpan

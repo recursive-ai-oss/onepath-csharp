@@ -1,7 +1,7 @@
 using System;
 using RecursiveAI.OneMath.Predicates;
 
-namespace RecursiveAI.OnePath.NavMesh.Build2D;
+namespace RecursiveAI.OnePath.Mesh.Build2D;
 
 /// <summary>A point on the integer snap grid (coordinate = value × 2^-SnapBits).</summary>
 internal readonly struct P : IComparable<P>, IEquatable<P>

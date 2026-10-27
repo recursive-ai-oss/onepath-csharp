@@ -2,7 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 
-namespace RecursiveAI.OnePath.NavMesh;
+namespace RecursiveAI.OnePath.Mesh;
 
 /// <summary>
 /// Reads and writes tiles and whole meshes in the little-endian binary format described in

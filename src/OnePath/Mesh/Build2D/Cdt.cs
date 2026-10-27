@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace RecursiveAI.OnePath.NavMesh.Build2D;
+namespace RecursiveAI.OnePath.Mesh.Build2D;
 
 /// <summary>
 /// Constrained Delaunay triangulation of grid points with exact predicates.

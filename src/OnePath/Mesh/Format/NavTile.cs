@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using RecursiveAI.OneMath;
 using RecursiveAI.OneMath.Predicates;
 
-namespace RecursiveAI.OnePath.NavMesh;
+namespace RecursiveAI.OnePath.Mesh;
 
 /// <summary>
 /// One immutable, validated tile of a tiled navigation mesh: convex polygons over shared tile-local float32

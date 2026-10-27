@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace RecursiveAI.OnePath.NavMesh;
+namespace RecursiveAI.OnePath.Mesh;
 
 /// <summary>
 /// Builds a <see cref="NavTileData"/> from convex polygons given over world-space double vertices: the shape a

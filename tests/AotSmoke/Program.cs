@@ -1,8 +1,8 @@
 using System;
 using RecursiveAI.OneMath;
 using RecursiveAI.OnePath;
-using RecursiveAI.OnePath.NavMesh.Build3D;
-using RecursiveAI.OnePath.NavMesh.Build2D;
+using RecursiveAI.OnePath.Mesh.Build3D;
+using RecursiveAI.OnePath.Mesh.Build2D;
 
 // Exercises the public surface under NativeAOT and full trimming. Exit code 0 means it ran.
 Console.WriteLine($"OnePath {OnePathInfo.Version}");

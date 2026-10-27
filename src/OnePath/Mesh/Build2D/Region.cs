@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using RecursiveAI.OneMath;
 
-namespace RecursiveAI.OnePath.NavMesh.Build2D;
+namespace RecursiveAI.OnePath.Mesh.Build2D;
 
 /// <summary>Options shared by the 2D geometry stages.</summary>
 public sealed class Geometry2DOptions

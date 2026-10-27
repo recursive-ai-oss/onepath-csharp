@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh.Build3D;
+namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>A run of solid voxels of one material in a chunk column: rows <see cref="Start"/> up to <see cref="Start"/> + <see cref="Length"/>.</summary>
 /// <param name="Start">First solid row (0 or more).</param>

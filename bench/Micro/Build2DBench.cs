@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using BenchmarkDotNet.Attributes;
 using RecursiveAI.OneMath;
-using RecursiveAI.OnePath.NavMesh.Build2D;
+using RecursiveAI.OnePath.Mesh.Build2D;
 
 namespace RecursiveAI.OnePath.Bench;
 

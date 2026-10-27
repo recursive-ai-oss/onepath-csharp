@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using RecursiveAI.OnePath.NavMesh;
+using RecursiveAI.OnePath.Mesh;
 
 namespace RecursiveAI.OnePath.HashMatrix;
 

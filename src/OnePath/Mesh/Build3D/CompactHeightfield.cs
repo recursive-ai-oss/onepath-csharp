@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh.Build3D;
+namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>One open span of the compact heightfield: the free space above a walkable floor.</summary>
 public struct CompactSpan

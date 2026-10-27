@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh.Build3D;
+namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>
 /// A convex prism that sets the area id of the walkable spans inside it: a convex polygon in the xz plane between two heights.

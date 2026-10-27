@@ -1,6 +1,6 @@
 # 2D geometry for the exact navmesh builder
 
-Normative description of `RecursiveAI.OnePath.NavMesh.Build2D`: outlines and tile maps → regions → boolean
+Normative description of `RecursiveAI.OnePath.Mesh.Build2D`: outlines and tile maps → regions → boolean
 operations and offsetting → constrained Delaunay triangulation → convex polygons with adjacency. A later port that
 follows this text produces the same output, bit for bit.
 

@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh;
+namespace RecursiveAI.OnePath.Mesh;
 
 /// <summary>Constants of the tiled navigation mesh format (see <c>docs/navmesh-format.md</c>).</summary>
 public static class NavMeshFormat

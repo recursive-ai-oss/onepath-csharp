@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace RecursiveAI.OnePath.NavMesh;
+namespace RecursiveAI.OnePath.Mesh;
 
 /// <summary>
 /// Mesh-level consistency checks that go beyond what <see cref="NavTile.Create"/> guarantees per tile: stitched

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace RecursiveAI.OnePath.NavMesh.Build2D;
+namespace RecursiveAI.OnePath.Mesh.Build2D;
 
 /// <summary>Thrown when an internal invariant of the geometry pipeline fails; this indicates a defect, never bad input.</summary>
 public sealed class GeometryException : InvalidOperationException

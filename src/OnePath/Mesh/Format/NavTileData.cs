@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh;
+namespace RecursiveAI.OnePath.Mesh;
 
 /// <summary>
 /// The plain, mutable description of one tile that builders fill and <see cref="NavTile.Create"/> validates and

@@ -1,6 +1,6 @@
 using System;
 using RecursiveAI.OnePath;
-using RecursiveAI.OnePath.NavMesh;
+using RecursiveAI.OnePath.Mesh;
 using SharpFuzz;
 
 namespace RecursiveAI.OnePath.Fuzz;

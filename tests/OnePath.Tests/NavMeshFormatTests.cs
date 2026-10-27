@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using RecursiveAI.OnePath.Debug;
 using RecursiveAI.OnePath.HashMatrix;
-using RecursiveAI.OnePath.NavMesh;
+using RecursiveAI.OnePath.Mesh;
 using Xunit;
 
 namespace RecursiveAI.OnePath.Tests;

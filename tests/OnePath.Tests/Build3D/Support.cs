@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using RecursiveAI.OnePath.NavMesh.Build3D;
+using RecursiveAI.OnePath.Mesh.Build3D;
 
 namespace RecursiveAI.OnePath.Tests.Build3D;
 

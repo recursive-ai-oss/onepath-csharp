@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using RecursiveAI.OnePath.NavMesh.Build3D;
+using RecursiveAI.OnePath.Mesh.Build3D;
 using Xunit;
 
 namespace RecursiveAI.OnePath.Tests.Build3D;
