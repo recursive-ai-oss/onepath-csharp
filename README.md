@@ -20,6 +20,7 @@ Licensed under either of MIT ([LICENSE-MIT](LICENSE-MIT)) or Apache-2.0
 | `bench/Bar/` | the bar runner: time, memory and quality rows as CSV |
 | `bench/Micro/` | BenchmarkDotNet micro-benchmarks |
 | `fuzz/OnePath.Fuzz/` | SharpFuzz / libFuzzer targets |
+| `tools/HashMatrix/` | hash-matrix runner and `tools/hash-matrix.sh` (see `docs/hash-matrix.md`) |
 | `ci/` | the build, test and smoke scripts CI runs; run them locally the same way |
 
 ## Building

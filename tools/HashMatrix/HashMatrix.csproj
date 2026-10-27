@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>RecursiveAI.OnePath.HashMatrix</RootNamespace>
+    <AssemblyName>HashMatrix</AssemblyName>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Built with the same switches as the library so the AOT and trim columns test the same code shapes. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <!-- browser-wasm column: published with -r browser-wasm and run under Node. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'browser-wasm'">
+    <WasmMainJSPath>main.mjs</WasmMainJSPath>
+    <WasmEmitSymbolMap>false</WasmEmitSymbolMap>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'browser-wasm'">
+    <WasmExtraFilesToDeploy Include="main.mjs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
+  </ItemGroup>
+
+</Project>
