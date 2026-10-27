@@ -22,7 +22,7 @@ public enum CorridorStatus
 /// The polygon path of one agent from where it stands to where it is going, kept valid while the agent moves, the target
 /// moves and the mesh changes. The agent's position is always inside the first polygon; polygons the agent has passed are
 /// trimmed away, so the corridor is the part of the route still ahead. Corners are found by string pulling
-/// (<see cref="NavMeshQuery.FindStraightPath"/>). The idea is the path corridor of Mononen's public talks and writing; the
+/// (<c>NavMeshQuery.FindStraightPath</c>). The idea is the path corridor of Mononen's public talks and writing; the
 /// exact rules for merging, validating and repairing are in <c>docs/crowds.md</c>.
 /// <para>
 /// All state is plain data (<see cref="Write"/> and <see cref="Read"/> give a byte-exact form). A corridor is not thread-safe

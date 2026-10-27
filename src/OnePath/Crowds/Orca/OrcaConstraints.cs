@@ -81,6 +81,60 @@ public static class OrcaConstraints
         u = new Vector2D(-d * normal.X, -d * normal.Y);
     }
 
+    /// <summary>
+    /// The half-plane of velocities permitted to an agent next to one stretch of the boundary of its walkable area, where the agent's
+    /// centre may touch the boundary (the area was already shrunk by the agent's radius). It is the one-sided form of section 5.4:
+    /// the agent must not cross the line of the stretch within <paramref name="timeHorizon"/>, so <c>v . n &gt;= -(d - clearance) / timeHorizon</c>
+    /// with <c>n</c> the unit normal pointing to the walkable side and <c>d</c> the signed distance of the agent from the line (negative when it is
+    /// already across). Moving along the wall is never restricted. Only stretches the agent faces are described (one it is behind, further than 1e-6 beyond its line, is skipped): when the agent is beside the
+    /// stretch, that is its projection on the line is within <paramref name="clearance"/> (plus 1e-6) of an end or beyond it, there is no half-plane, because grazing a corner is not a
+    /// collision and corners are handled by the surface the agent moves on.
+    /// </summary>
+    /// <param name="a">Start of the stretch minus the agent's position. The walkable side is to the left of <c>a</c> to <c>b</c> (the winding of a counter-clockwise polygon).</param>
+    /// <param name="b">End of the stretch minus the agent's position.</param>
+    /// <param name="clearance">Distance to keep from the line; at least 0.</param>
+    /// <param name="timeHorizon">Look-ahead time; greater than 0.</param>
+    /// <param name="halfPlane">The constraint, when the result is true.</param>
+    /// <returns>False (no constraint) when the stretch is degenerate or the agent does not project strictly inside it.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">An argument is out of range.</exception>
+    public static bool ForBoundary(Vector2D a, Vector2D b, double clearance, double timeHorizon, out HalfPlane halfPlane)
+    {
+        if (!(clearance >= 0 && double.IsFinite(clearance)))
+        {
+            throw new ArgumentOutOfRangeException(nameof(clearance), clearance, "The clearance must be finite and at least 0.");
+        }
+        if (!(timeHorizon > 0 && double.IsFinite(timeHorizon)))
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeHorizon), timeHorizon, "The time horizon must be finite and greater than 0.");
+        }
+        halfPlane = default;
+        Vector2D e = b - a;
+        double ee = Vector2D.Dot(e, e);
+        if (!(ee > 0))
+        {
+            return false;
+        }
+        double len = Math.Sqrt(ee);
+        // Within the clearance of an end the agent is beside the stretch: a path that grazes a corner (as the taut string does) must not be
+        // blocked by the wall it passes.
+        double s = -Vector2D.Dot(a, e) / ee;
+        double margin = (clearance + 1e-6) / len;
+        if (!(s > margin && s < 1 - margin))
+        {
+            return false;
+        }
+        var n = new Vector2D(-e.Y / len, e.X / len);
+        // Signed distance of the agent (the origin) from the line, positive on the walkable side.
+        double d = -Vector2D.Dot(a, n);
+        if (d < -1e-6)
+        {
+            // Behind the stretch (it faces away, as the far side of a thin wall does): it is not this agent's wall.
+            return false;
+        }
+        halfPlane = new HalfPlane(new Vector2D(-n.X * ((d - clearance) / timeHorizon), -n.Y * ((d - clearance) / timeHorizon)), n);
+        return true;
+    }
+
     /// <summary>The squared distance from the origin to the segment <paramref name="a"/>-<paramref name="b"/>.</summary>
     public static double SegmentDistanceSquared(Vector2D a, Vector2D b)
     {

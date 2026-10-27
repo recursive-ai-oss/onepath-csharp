@@ -18,5 +18,6 @@
     <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshWorlds.cs" Link="Support/NavMeshWorlds.cs" />
     <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshMutations.cs" Link="Support/NavMeshMutations.cs" />
     <Compile Include="../../tools/HashMatrix/Scenarios/Crowds/CorridorWorlds.cs" Link="Support/CorridorWorlds.cs" />
+    <Compile Include="../../tools/HashMatrix/Scenarios/Crowds/CrowdWorlds.cs" Link="Support/CrowdWorlds.cs" />
   </ItemGroup>
 </Project>

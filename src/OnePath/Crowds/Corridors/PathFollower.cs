@@ -245,14 +245,19 @@ public sealed class PathFollower
 
     // --- stepping ---
 
-    private void StepMoving(NavMeshQuery query, double dt, QueryFilter? filter)
+    // Steps 1 to 4 of a step: repairs the corridor, replans, shortcuts, and decides whether the agent arrives, starts an off-mesh
+    // crossing, or walks. Returns true when it walks; `ci` is then the steering corner and `rem` the distance to a stop.
+    private bool PlanMoving(NavMeshQuery query, QueryFilter? filter, out int ci, out double rem, out bool known, out Vector3D start)
     {
         _steps++;
-        Vector3D start = _position;
+        start = _position;
+        ci = 0;
+        rem = 0;
+        known = false;
         // 1. The mesh may have changed under the corridor.
         if (!KeepCorridorValid(query, filter))
         {
-            return;
+            return false;
         }
         // 2. Finish a pending replan (bounded per step).
         if (_corr.NeedsReplan)
@@ -261,26 +266,26 @@ public sealed class PathFollower
             if (_state != FollowerState.Moving)
             {
                 _velocity = default;
-                return;
+                return false;
             }
             if (s == PathStatus.NoEndNearby)
             {
                 _state = FollowerState.NoPath;
                 _velocity = default;
-                return;
+                return false;
             }
             if (s == PathStatus.InvalidStartPoly)
             {
                 // The corridor's polygons were unusable: put the agent back on the mesh and plan again next step.
                 Recover(query, filter);
-                return;
+                return false;
             }
         }
         // 3. Shortcuts, on their step schedule.
         if (!FindCorners(query, filter))
         {
             _velocity = default;
-            return;
+            return false;
         }
         bool optimized = false;
         if (_opt.OptimizeInterval > 0 && _steps % _opt.OptimizeInterval == 0 && _cornerCount > 2)
@@ -294,15 +299,15 @@ public sealed class PathFollower
         if (optimized && !FindCorners(query, filter))
         {
             _velocity = default;
-            return;
+            return false;
         }
         // 4. Arrival and off-mesh entry.
-        int ci = SteeringCorner();
-        double rem = RemainingToStop(out bool known);
+        ci = SteeringCorner();
+        rem = RemainingToStop(out known);
         if (OffMeshEntry(out int entry))
         {
             BeginOffMesh(entry);
-            return;
+            return false;
         }
         StraightPathPoint c = _corners[ci];
         bool last = ci == _cornerCount - 1;
@@ -313,11 +318,21 @@ public sealed class PathFollower
                 // The corridor ends short of the destination and a replan is still extending it: wait at its end.
                 _velocity = default;
                 ResetProgress();
-                return;
+                return false;
             }
             Arrive();
+            return false;
+        }
+        return true;
+    }
+
+    private void StepMoving(NavMeshQuery query, double dt, QueryFilter? filter)
+    {
+        if (!PlanMoving(query, filter, out int ci, out double rem, out bool known, out Vector3D start))
+        {
             return;
         }
+        StraightPathPoint c = _corners[ci];
         // 5. Steer: Reynolds' arrival speed, limited acceleration, then walk the corners.
         double wanted = _opt.MaxSpeed;
         if (_opt.SlowRadius > 0 && known)
@@ -359,6 +374,130 @@ public sealed class PathFollower
         // 6. Stuck detection.
         UpdateStuck(dt, known && rem <= _opt.SlowRadius);
     }
+
+    // --- crowd stepping: the follower plans, the crowd's avoidance picks the velocity, the follower applies it ---
+
+    private int _crowdCorner;
+    private double _crowdRemaining;
+    private bool _crowdKnown;
+    private Vector3D _crowdStart;
+
+    /// <summary>
+    /// First half of a crowd step. Runs the corridor upkeep of <see cref="Step"/> (validation, replans, shortcuts, arrival) and
+    /// returns the velocity the agent would like in the horizontal plane (Reynolds' arrival speed toward the steering corner, no
+    /// acceleration limit). Off-mesh crossings run whole here. Returns false when the agent does not walk this step (it
+    /// arrived, is crossing, waits, or has no path); the crowd then steers it to rest.
+    /// </summary>
+    internal bool PlanCrowd(NavMeshQuery query, double dt, QueryFilter? filter, out double wantedX, out double wantedZ)
+    {
+        wantedX = wantedZ = 0;
+        switch (_state)
+        {
+            case FollowerState.OffMeshLink:
+                StepOffMesh(query, dt, filter);
+                return false;
+            case FollowerState.Moving:
+                break;
+            default:
+                _velocity = default;
+                return false;
+        }
+        if (!PlanMoving(query, filter, out int ci, out double rem, out bool known, out Vector3D start))
+        {
+            return false;
+        }
+        StraightPathPoint c = _corners[ci];
+        double wanted = _opt.MaxSpeed;
+        if (_opt.SlowRadius > 0 && known)
+        {
+            wanted = Math.Max(_opt.MaxSpeed * Math.Min(1.0, rem / _opt.SlowRadius), _opt.ArrivalMinSpeed);
+        }
+        double dx = c.Position.X - _position.X, dz = c.Position.Z - _position.Z;
+        double dist = Math.Sqrt((dx * dx) + (dz * dz));
+        if (!(dist > 0))
+        {
+            return false;
+        }
+        wantedX = dx / dist * wanted;
+        wantedZ = dz / dist * wanted;
+        _crowdCorner = ci;
+        _crowdRemaining = rem;
+        _crowdKnown = known;
+        _crowdStart = start;
+        return true;
+    }
+
+    /// <summary>
+    /// Second half of a crowd step after <see cref="PlanCrowd"/> returned true: moves along the surface by <paramref name="vx"/>,
+    /// <paramref name="vz"/> times dt (never past the end of the path or an off-mesh entry), reports velocity and remaining
+    /// distance, and arrives or counts stuck time as <see cref="Step"/> does.
+    /// </summary>
+    internal void ApplyCrowd(NavMeshQuery query, double dt, QueryFilter? filter, double vx, double vz)
+    {
+        int ci = _crowdCorner;
+        StraightPathPoint c = _corners[ci];
+        double dx = c.Position.X - _position.X, dz = c.Position.Z - _position.Z;
+        double toCorner = Math.Sqrt((dx * dx) + (dz * dz));
+        bool stop = ci == _cornerCount - 1 || (c.Flags & StraightPathMarks.OffMeshConnection) != 0;
+        double length = Math.Sqrt((vx * vx) + (vz * vz)) * dt;
+        bool landedEnd = false;
+        if (length > 0)
+        {
+            Vector3D to;
+            if (stop && length >= toCorner && vx * dx + vz * dz > 0)
+            {
+                // Never walk past the end or an off-mesh entry: land on it.
+                to = c.Position;
+                landedEnd = ci == _cornerCount - 1 && (c.Flags & StraightPathMarks.End) != 0;
+            }
+            else
+            {
+                to = new Vector3D(_position.X + (vx * dt), _position.Y, _position.Z + (vz * dt));
+            }
+            if (!_corr.MoveAlong(query, to, LegLimit(c.Poly)) && !_corr.MovePosition(query, to, filter))
+            {
+                Recover(query, filter);
+                landedEnd = false;
+            }
+            _position = _corr.Position;
+        }
+        if (_state != FollowerState.Moving)
+        {
+            return;
+        }
+        Vector3D moved = _position - _crowdStart;
+        _velocity = moved / dt;
+        _remaining = _crowdKnown ? Math.Max(0.0, _crowdRemaining - Math.Sqrt((moved.X * moved.X) + (moved.Z * moved.Z))) : double.PositiveInfinity;
+        if (landedEnd && !(!_corr.IsComplete && _corr.NeedsReplan))
+        {
+            Arrive();
+            return;
+        }
+        UpdateStuck(dt, _crowdKnown && _crowdRemaining <= _opt.SlowRadius);
+    }
+
+    /// <summary>
+    /// Pushes an agent that is not walking (idle, arrived, stuck) along the surface by <paramref name="vx"/>, <paramref name="vz"/> times dt,
+    /// sliding along walls, and reports the velocity that resulted.
+    /// </summary>
+    internal void Nudge(NavMeshQuery query, double dt, QueryFilter? filter, double vx, double vz)
+    {
+        if (_corr.Count == 0 || (vx == 0 && vz == 0))
+        {
+            _velocity = default;
+            return;
+        }
+        Vector3D before = _position;
+        var to = new Vector3D(_position.X + (vx * dt), _position.Y, _position.Z + (vz * dt));
+        if (_corr.MovePosition(query, to, filter))
+        {
+            _position = _corr.Position;
+        }
+        _velocity = (_position - before) / dt;
+    }
+
+    /// <summary>Sets the follower's reported velocity (used by the crowd for agents it does not move).</summary>
+    internal void ClearVelocity() => _velocity = default;
 
     // Moves along the corners for `length` of horizontal distance, landing exactly on a corner that is reached; returns true if
     // the agent landed on the end corner. A corner that is the end or an off-mesh entry is never passed.
