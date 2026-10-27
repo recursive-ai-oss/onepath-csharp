@@ -325,6 +325,54 @@ Tier 1: `grid.CreateReplanner(start, goal, options)` (`GridOptions.Algorithm` = 
 (`HexReplanner`) that listens to the grid: `Replan()`, `MoveStart`, `SetGoal`, `Invalidate`, `Dispose`. Tier 2: `ReplanSearch<,,>` over any `IGridTopology`
 with struct cost and heuristic. Tier 3: `ReplanOpenSet`, the node-level `MarkChanged`/`Replan`/`ExtractPath`. A one-off `FindPath` with
 `LpaStar` or `DStarLite` runs A\*.
+## HPA* (hierarchical path-finding over chunks)
+
+Botea, Müller & Schaeffer 2004, one level. `GridAlgorithm.Hpa` (tier 1; `HpaChunkSize` default 16, `HpaSmoothing` default true),
+`HpaHierarchy` and `HpaSearch` (tier 2), the per-chunk data through `ClusterNodes`, `IntraCost`, `GetInterEdges` (tier 3).
+
+**Scope.** Square grids, four or eight moves, rules `NoCornerCutting` and `NoSqueezing`, any agent size, area costs. Not supported
+(the query runs as A* and `GridPath.Algorithm` says so): step-cost or blocking callbacks, `AllowAll` with eight moves. The
+heuristic options and weight are ignored. Hex grids are not covered. No multi-level hierarchy. Clearance: one hierarchy is
+built over the cells walkable for one agent size (true clearance); tier 1 caches a hierarchy per (chunk size, agent size, moves, rule), at most eight, oldest dropped first.
+The paper's annotated variant (one graph for all sizes) is not used.
+
+**Chunks.** Side C; chunk `(cx, cy)` holds cells `[cx·C, min(W, cx·C+C)) × [cy·C, min(H, cy·C+C))`, indexed `cy · ClustersX + cx`.
+
+**Entrances and transitions.** For two chunks sharing a border, border position `p` is open when the two cells facing each other are
+both walkable. A maximal run `[lo, hi]` of open positions is an entrance. Width `hi-lo+1 ≥ T` (`EntranceThreshold`, default 6) and
+`hi ≠ lo`: two transitions at `lo` and `hi`; otherwise one at `lo + (width-1)/2`. A transition is the pair (cell in chunk A, cell
+in chunk B); both cells are abstract nodes joined by inter-edges in both directions at the move cost `(m[a] + m[b]) · 0.5`. Diagonal border moves
+get no entrances of their own: under both supported rules a diagonal crossing implies a walkable straight crossing beside it, and the
+cells of one run are connected inside each chunk, so abstract connectivity equals real connectivity.
+
+**Intra-edges.** For every ordered pair of nodes of a chunk, the cost of the cheapest path that stays inside the chunk (Dijkstra over the
+topology's own moves, targets settled early; open order as in `OpenSet`, with the chunk-local cell index as last tie-break). +∞ when
+none. Moves between two cells of a chunk read only cells of that chunk, so a chunk's edges depend on its cells alone.
+
+**Canonical form.** A chunk's nodes are sorted by cell index; its inter-edges by (node, target cell). The graph is a function of cells,
+costs and options only: `ContentEquals` and `GetContentHash` (FNV-1a 64 over node cells, cost bits and inter-edges in chunk order) compare it.
+
+**Query.** Insertion: from the start, one chunk-restricted Dijkstra gives the cost to every node of its chunk (and to the goal when
+in the same chunk); the same from the goal gives the cost of the edges into the goal (move costs are symmetric). Abstract A* runs with
+cells as node ids (open order: smaller f, larger g, smaller cell index), the octile (eight moves) or Manhattan heuristic times the
+smallest area cost, and edges expanded in the order: start edges or intra-edges by node index, edge to the goal, inter-edges by target. One iteration
+is one pop of the abstract open set; `IterationBudget` and `Step(n)` count these. The abstract path is refined by repeating the
+chunk-restricted search that priced each intra-edge (so the cells match the edge's cost); a border crossing is one step.
+
+**Smoothing** (paper section 5, on by default). Walking from path position `i` in each allowed direction (order: N, E, S, W, NE, SE, SW, NW) while moves are legal,
+a walk that meets a later path cell `j > i+1` and costs less than the path from `i` to `j` by more than 1e-9 is a candidate. The
+candidate with the largest `j` wins, then the lower cost, then the lower direction; the path continues from `j`. A cell visited twice by the path maps to its last position.
+`GridPath.Cost` is always the sum of the final cells' move costs.
+
+**Guarantees.** A path is found exactly when A* finds one; each step is a legal move; the cost is never below the optimum. It is not optimal:
+the paper reports a few percent over; Moving AI measurements are under Verification.
+
+**Incremental update.** The hierarchy is an `IGridChangeListener`. A cell edit at `(x, y)` marks every chunk intersecting
+`[x-(S-1)-1, x+1] × [y-(S-1)-1, y+1]` (`S` the agent size: the edit changes clearance up and left by `S-1`, and entrances read the
+neighbouring chunk's cell), clipped to the grid. `Refresh` (called by every query) rebuilds marked chunks in index order; the result equals a full rebuild. Edits to
+the area cost table (`AreaCosts.Version`) mark everything. `Grid` notifies listeners on every edit, so batches of edits cost one `Refresh`.
+
+**Cost model.** Build: one Dijkstra per node over at most C² cells; node count per chunk is roughly `4·C/T` to `4·C/2`. Memory: `n²` doubles per chunk.
 
 ## Moving AI files
 
@@ -363,3 +411,10 @@ allocated.
   area costs, cell and tile edits, start moves) the replanned cost equals an independent O(n^2) Dijkstra and the library's A\*, and paths are legal
   and sum to their cost; hex layouts the same; sliced equals unsliced; incremental clearance and JPS+ tables after tile edits equal a full
   recompute. On Moving AI dao and room (`GridOptima --replan lpa|dstar`): random wall toggles along the current path, costs equal fresh A\*.
+- HPA*: refined paths are checked move by move against the brute-force move rules and priced independently on 10^4+ random grids
+  (chunk 2-7, thresholds 1-8, both connectivities and rules, agent sizes 1-2, area costs): found exactly when Dijkstra reaches
+  the goal, never cheaper than it, smoothing never longer; the hierarchy after random edit batches (agent sizes 1-3, area
+  edits) equals a rebuild bit for bit; sliced equals whole for budgets 1-17. `GridOptima --alg hpa [--chunk N] [--smooth 0|1]` checks every
+  Moving AI scenario's path and reports the mean and maximum percentage over the published optimum (chunk 16, smoothing on, 8-connected: dao 0.40% mean,
+  bg512 0.33%, sc1 0.22%, room 0.08%; unsmoothed 4.9%, 4.1%, 3.2%, 1.6%; zero invalid or missing paths). Maxima are large only for very short
+  scenarios (a few cells), where one detour through a transition is a big fraction. Fuzz target `grid-hpa`.

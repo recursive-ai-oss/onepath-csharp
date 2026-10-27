@@ -46,6 +46,15 @@ public enum GridAlgorithm
     /// changes. The replanner's default. A one-off <c>FindPath</c> with this value runs A*.
     /// </summary>
     DStarLite = 9,
+
+    /// <summary>
+    /// HPA* (Botea, Müller &amp; Schaeffer 2004): a hierarchy of chunks, near-optimal paths (optionally smoothed), updated incrementally
+    /// when cells change (see <see cref="HpaHierarchy"/>; tuned by <see cref="GridOptions.HpaChunkSize"/> and <see cref="GridOptions.HpaSmoothing"/>).
+    /// Needs no cost or blocking callbacks and not <see cref="DiagonalRule.AllowAll"/> on eight-connected grids; it ignores the
+    /// heuristic options. Any other query runs as <see cref="AStar"/> and <see cref="GridPath.Algorithm"/> says so.
+    /// The first query for an agent size and chunk size builds the hierarchy.
+    /// </summary>
+    Hpa = 5,
 }
 
 /// <summary>

@@ -104,6 +104,7 @@ public static class Targets
         ["graph-query"] = GraphTargets.Query,
         ["graph-landmarks"] = GraphTargets.LandmarkData,
         ["graph-points"] = GraphTargets.PointInput,
+        ["grid-hpa"] = GridTargets.Hpa,
         ["navmesh-snapshot"] = NavMeshSnapshotFuzz.Run,
         ["grid-theta"] = ThetaTarget.Run,
         ["grid-flow"] = FlowTargets.Run,

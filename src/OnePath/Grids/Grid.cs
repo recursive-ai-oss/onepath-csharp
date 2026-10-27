@@ -39,6 +39,7 @@ public sealed class Grid
     private GridSearchBuffers? _spare;
     private JpsPlusIndex? _jpsPlus;
     private BlockMap? _blockMap;
+    private readonly List<HpaHierarchy> _hpa = [];
 
     /// <summary>Creates a grid of walkable cells (area 0).</summary>
     /// <param name="width">Columns; at least 1.</param>
@@ -390,7 +391,11 @@ public sealed class Grid
                 _spare = any;
             }
         }
-        if (o.Algorithm is GridAlgorithm.Jps or GridAlgorithm.JpsPlus && JumpSearchApplies(o, out double unitCost))
+        if (o.Algorithm == GridAlgorithm.Hpa && o.StepCost is null && o.Blocked is null && !(o.Connectivity == Connectivity.Eight && o.Diagonals == DiagonalRule.AllowAll))
+        {
+            return FindPathHpa(start, goal, o, world);
+        }
+        if ((o.Algorithm == GridAlgorithm.Jps || o.Algorithm == GridAlgorithm.JpsPlus) && JumpSearchApplies(o, out double unitCost))
         {
             return FindPathJump(start, goal, o, unitCost, world);
         }
@@ -495,6 +500,56 @@ public sealed class Grid
         {
             _spare = buffers;
         }
+    }
+
+    private GridPath FindPathHpa(Cell start, Cell goal, GridOptions o, bool world)
+    {
+        HpaHierarchy hierarchy;
+        lock (_sync)
+        {
+            hierarchy = GetHpa(o);
+            hierarchy.Refresh();
+        }
+        int a = (start.Y * Width) + start.X;
+        int b = (goal.Y * Width) + goal.X;
+        HpaSearch search = hierarchy.TakeSpareSearch() ?? new HpaSearch(hierarchy);
+        try
+        {
+            search.Smoothing = o.HpaSmoothing;
+            search.Buffers.RecordExpansions = o.RecordExpansions;
+            return HpaRunner.Run(search, a, b, o, world ? CellCenter : null);
+        }
+        finally
+        {
+            hierarchy.ReturnSpareSearch(search);
+        }
+    }
+
+    // Hierarchies are cached per (chunk size, agent size, moves, diagonal rule); the oldest goes when more than eight exist.
+    private HpaHierarchy GetHpa(GridOptions o)
+    {
+        foreach (HpaHierarchy h in _hpa)
+        {
+            if (h.ChunkSize == o.HpaChunkSize && h.AgentSize == o.AgentSize && h.Connectivity == o.Connectivity
+                && (o.Connectivity == Connectivity.Four || h.Diagonals == o.Diagonals))
+            {
+                return h;
+            }
+        }
+        if (_hpa.Count >= 8)
+        {
+            _hpa[0].Dispose();
+            _hpa.RemoveAt(0);
+        }
+        var created = new HpaHierarchy(this, new HpaOptions
+        {
+            ChunkSize = o.HpaChunkSize,
+            AgentSize = o.AgentSize,
+            Connectivity = o.Connectivity,
+            Diagonals = o.Connectivity == Connectivity.Four ? DiagonalRule.NoCornerCutting : o.Diagonals,
+        });
+        _hpa.Add(created);
+        return created;
     }
 
     private void EnsureClearance()

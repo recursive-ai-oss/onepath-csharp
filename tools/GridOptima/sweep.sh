@@ -2,7 +2,7 @@
 # Checks A*, JPS, JPS+ or flow-field costs against the published optimal lengths of Moving AI Lab scenario sets.
 #   tools/GridOptima/sweep.sh [--lock] [set ...]      (default sets: all nine 2D sets)
 # Environment: MAPS (folder with <set>/*.map and *.map.scen, or <set>-map.zip / <set>-scen.zip; default ~/onepath/maps),
-#              THREADS (default 6), ALG (astar, jps, jps+ or flow; default astar; flow runs a whole-map field per scenario, so set LIMIT), LIMIT (scenarios per set; default all).
+#              THREADS (default 6), ALG (astar, jps, jps+, flow or hpa; default astar; flow runs a whole-map field per scenario, so set LIMIT), CHUNK and SMOOTH (hpa only), LIMIT (scenarios per set; default all).
 # The street and maze sets need well over 30 minutes of CPU: on a shared host pass --lock, which holds the host's
 # benchmark lock file (~/WORKER-BENCH.lock) for the whole run and releases it on exit.
 source "$(dirname "${BASH_SOURCE[0]}")/../../ci/env.sh"
@@ -19,6 +19,6 @@ dotnet build tools/GridOptima/GridOptima.csproj -c Release -v quiet -clp:NoSumma
 out="$(dotnet msbuild tools/GridOptima/GridOptima.csproj -p:Configuration=Release -getProperty:OutDir | tr -d '\r')"
 status=0
 for s in "${sets[@]}"; do
-  /usr/bin/time -f "$s wall %es cpu %Us rss %MKB" dotnet "${out}GridOptima.dll" --maps "${MAPS:-$HOME/onepath/maps}" --set "$s" --threads "${THREADS:-6}" --alg "${ALG:-astar}" ${LIMIT:+--limit "$LIMIT"} || status=1
+  /usr/bin/time -f "$s wall %es cpu %Us rss %MKB" dotnet "${out}GridOptima.dll" --maps "${MAPS:-$HOME/onepath/maps}" --set "$s" --threads "${THREADS:-6}" --alg "${ALG:-astar}" ${CHUNK:+--chunk "$CHUNK"} ${SMOOTH:+--smooth "$SMOOTH"} ${LIMIT:+--limit "$LIMIT"} || status=1
 done
 exit $status

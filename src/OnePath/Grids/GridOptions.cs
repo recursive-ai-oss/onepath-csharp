@@ -12,6 +12,7 @@ public sealed class GridOptions
     private int _agentSize = 1;
     private double _heuristicWeight = 1.0;
     private int _iterationBudget = int.MaxValue;
+    private int _hpaChunkSize = 16;
 
     /// <summary>The moves allowed on a square grid. Default <see cref="Grids.Connectivity.Eight"/>. Ignored on hex grids (always six).</summary>
     public Connectivity Connectivity { get; set; } = Connectivity.Eight;
@@ -72,6 +73,22 @@ public sealed class GridOptions
     /// and <see cref="GridPath.Algorithm"/> reports it) but may return a different path of that cost.
     /// </summary>
     public GridAlgorithm Algorithm { get; set; } = GridAlgorithm.AStar;
+
+    /// <summary>Chunk side in cells for <see cref="GridAlgorithm.Hpa"/> (2..1024). Default 16.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value is outside 2..1024.</exception>
+    public int HpaChunkSize
+    {
+        get => _hpaChunkSize;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 2);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 1024);
+            _hpaChunkSize = value;
+        }
+    }
+
+    /// <summary>Whether <see cref="GridAlgorithm.Hpa"/> smooths the refined path (see <see cref="HpaSearch"/>). Default true.</summary>
+    public bool HpaSmoothing { get; set; } = true;
 
     /// <summary>When true the result lists the expanded cells in order (debug data). Default false.</summary>
     public bool RecordExpansions { get; set; }
