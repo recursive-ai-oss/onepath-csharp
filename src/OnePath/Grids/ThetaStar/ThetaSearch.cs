@@ -43,7 +43,7 @@ public enum ThetaVariant
 /// <para>Not thread-safe; the grid must not be edited during a search. No allocation during a search once the buffers exist.</para>
 /// </summary>
 /// <typeparam name="THeuristic">The distance estimate, admissible for straight-line movement at <c>unitCost</c> per cell.</typeparam>
-public sealed class ThetaSearch<THeuristic>
+public sealed partial class ThetaSearch<THeuristic>
     where THeuristic : struct, IHeuristic
 {
     private static readonly int[] Dx = [0, 1, 0, -1, 1, 1, -1, -1];

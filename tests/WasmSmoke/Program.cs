@@ -19,4 +19,6 @@ bool orca = OrcaSmoke.Run();
 Console.WriteLine($"ORCA run: {(orca ? "ok" : "FAILED")}");
 bool grids = GridSmoke.Run();
 Console.WriteLine($"Grids run: {(grids ? "ok" : "FAILED")}");
-return ok && orca && nav && grids && OnePathInfo.Version.Major >= 0 ? 0 : 1;
+bool state = StateSmoke.Run();
+Console.WriteLine($"Grid state run: {(state ? "ok" : "FAILED")}");
+return ok && orca && nav && grids && state && OnePathInfo.Version.Major >= 0 ? 0 : 1;

@@ -12,7 +12,7 @@ namespace RecursiveAI.OnePath.Graphs;
 /// </summary>
 /// <typeparam name="TCost">Edge pricing; a struct so the call inlines.</typeparam>
 /// <typeparam name="THeuristic">The estimate; a struct so the call inlines.</typeparam>
-public sealed class GraphAStar<TCost, THeuristic>
+public sealed partial class GraphAStar<TCost, THeuristic>
     where TCost : struct, IGraphCost
     where THeuristic : struct, IGraphHeuristic
 {

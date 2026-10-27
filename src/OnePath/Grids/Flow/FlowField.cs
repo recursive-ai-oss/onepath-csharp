@@ -30,7 +30,7 @@ namespace RecursiveAI.OnePath.Grids;
 /// </summary>
 /// <typeparam name="TTopology">The graph.</typeparam>
 /// <typeparam name="TCost">The cost hook (<see cref="DefaultStepCost"/> for none).</typeparam>
-public sealed class FlowField<TTopology, TCost>
+public sealed partial class FlowField<TTopology, TCost>
     where TTopology : struct, IGridTopology
     where TCost : struct, IStepCost
 {

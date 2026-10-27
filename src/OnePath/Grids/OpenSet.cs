@@ -14,7 +14,7 @@ namespace RecursiveAI.OnePath.Grids;
 /// heap at most once, so the order never depends on insertion history. The arity is an implementation
 /// detail and does not affect the pop order.
 /// </summary>
-public sealed class OpenSet
+public sealed partial class OpenSet
 {
     private struct Entry
     {

@@ -474,3 +474,8 @@ allocated.
   on larger blocks across chunk borders, and the heuristic equals the empty-grid distance; edits equal rebuilds; sliced equals
   unsliced for budgets 1, 2, 7 and 50. Fuzz targets `voxel-map`, `voxel-scen`, `voxel-query`; hash scenarios `grids/voxel/*`;
   the Warframe set via `tools/GridOptima/voxel-sweep.sh` (`GridOptima --voxel`).
+
+## Host hooks
+
+Snapshot and restore of grids, voxel grids, graphs, replanners, flow fields and sliced searches, the byte format, what one
+iteration of each family's budget is, and the debug geometry types are specified in `grids-state.md`.

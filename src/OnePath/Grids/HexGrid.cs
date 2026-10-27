@@ -16,7 +16,7 @@ namespace RecursiveAI.OnePath;
 /// <c>((√3/2) q, r + q/2) * size</c>.
 /// </para>
 /// </summary>
-public sealed class HexGrid
+public sealed partial class HexGrid
 {
     private static readonly GridOptions DefaultOptions = new();
 

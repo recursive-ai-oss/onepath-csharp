@@ -14,7 +14,7 @@ namespace RecursiveAI.OnePath;
 /// Reading is safe from several threads once no thread edits the grid. Edits (<see cref="SetArea"/>) must not overlap queries.
 /// </para>
 /// </summary>
-public sealed class Grid
+public sealed partial class Grid
 {
     /// <summary>The largest number of cells a grid may have (2^28).</summary>
     public const int MaxCells = 1 << 28;

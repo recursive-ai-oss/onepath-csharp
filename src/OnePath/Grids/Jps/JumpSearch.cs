@@ -17,7 +17,7 @@ namespace RecursiveAI.OnePath.Grids;
 /// </summary>
 /// <typeparam name="TJumper">How jump points are found.</typeparam>
 /// <typeparam name="THeuristic">The distance estimate.</typeparam>
-public sealed class JumpSearch<TJumper, THeuristic>
+public sealed partial class JumpSearch<TJumper, THeuristic>
     where TJumper : struct, IJumper
     where THeuristic : struct, IHeuristic
 {

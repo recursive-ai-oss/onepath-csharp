@@ -18,7 +18,7 @@ namespace RecursiveAI.OnePath.Grids;
 /// <typeparam name="TTopology">The graph.</typeparam>
 /// <typeparam name="TCost">The cost hook.</typeparam>
 /// <typeparam name="THeuristic">The distance estimate.</typeparam>
-public sealed class AStar<TTopology, TCost, THeuristic>
+public sealed partial class AStar<TTopology, TCost, THeuristic>
     where TTopology : struct, IGridTopology
     where TCost : struct, IStepCost
     where THeuristic : struct, IHeuristic
