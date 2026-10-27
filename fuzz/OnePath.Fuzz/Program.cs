@@ -44,6 +44,7 @@ public static class Program
         {
             NavMeshFuzz.WriteSeeds(args[1]);
             NavMeshSnapshotFuzz.WriteSeeds(System.IO.Path.Combine(args[1], "snapshot"));
+            GraphTargets.WriteSeeds(System.IO.Path.Combine(args[1], "graph-landmarks"));
             return 0;
         }
 
@@ -100,6 +101,9 @@ public static class Targets
         ["grid-query"] = GridTargets.Query,
         ["navmesh-query"] = NavMeshQueryFuzz.Run,
         ["grid-jps"] = GridTargets.Jps,
+        ["graph-query"] = GraphTargets.Query,
+        ["graph-landmarks"] = GraphTargets.LandmarkData,
+        ["graph-points"] = GraphTargets.PointInput,
         ["navmesh-snapshot"] = NavMeshSnapshotFuzz.Run,
     };
 }

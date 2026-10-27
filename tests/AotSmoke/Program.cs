@@ -76,4 +76,6 @@ Console.WriteLine($"NavMesh.FindPath: {navPath.Status}, {navPath.Points.Count} p
 ok = ok && navPath.Points.Count >= 2;
 bool grids = GridSmoke.Run();
 Console.WriteLine($"Grids run: {(grids ? "ok" : "FAILED")}");
-return ok && orca && nav && grids && OnePathInfo.Version.Major >= 0 ? 0 : 1;
+bool graphs = GraphSmoke.Run();
+Console.WriteLine($"Graphs run: {(graphs ? "ok" : "FAILED")}");
+return ok && orca && nav && grids && graphs && OnePathInfo.Version.Major >= 0 ? 0 : 1;

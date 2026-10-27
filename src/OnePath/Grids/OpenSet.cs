@@ -106,6 +106,17 @@ public sealed class OpenSet
         return _heap[0].Node;
     }
 
+    /// <summary>The <c>f</c> key of the node that <see cref="Pop"/> would return (bidirectional searches compare the two open sets' best keys).</summary>
+    /// <exception cref="InvalidOperationException">The set is empty.</exception>
+    public double PeekF()
+    {
+        if (_count == 0)
+        {
+            throw new InvalidOperationException("The open set is empty.");
+        }
+        return _heap[0].F;
+    }
+
     /// <summary>Removes and returns the best node.</summary>
     /// <param name="node">The node.</param>
     /// <param name="f">Its priority.</param>
