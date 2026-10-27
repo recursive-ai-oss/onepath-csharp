@@ -1,4 +1,5 @@
 using System;
+using RecursiveAI.OneMath;
 
 namespace RecursiveAI.OnePath.Mesh.Build3D;
 
@@ -11,12 +12,45 @@ public sealed class SpanSettings
     /// <summary>The area id the voxelizer gives to walkable surfaces (63). Area 0 means not walkable.</summary>
     public const byte WalkableArea = 63;
 
+    private float _slopeCosine = 0.70710677f;
+    private float _slopeDegrees = 45f;
+
     /// <summary>
     /// Minimum y component of a unit surface normal for a triangle to count as walkable: the cosine of the
-    /// steepest walkable slope. Default 0.70710677f (45 degrees). Taken as a cosine so the span stage needs no
-    /// transcendental function. A value of 1 or more accepts nothing; a value of 0 or less accepts walls.
+    /// steepest walkable slope. Default 0.70710677f (45 degrees). A value of 1 or more accepts nothing; a value of 0
+    /// or less accepts walls. This is the value the span stage uses; <see cref="WalkableSlopeDegrees"/> is a
+    /// convenient way to set it. Whichever of the two was set last wins, and setting the cosine makes
+    /// <see cref="WalkableSlopeDegrees"/> read NaN, since no angle was given.
     /// </summary>
-    public float WalkableSlopeCosine { get; set; } = 0.70710677f;
+    public float WalkableSlopeCosine
+    {
+        get => _slopeCosine;
+        set
+        {
+            _slopeCosine = value;
+            _slopeDegrees = float.NaN;
+        }
+    }
+
+    /// <summary>
+    /// The steepest walkable slope in degrees, 0 to 90 (default 45). Setting it stores the correctly rounded cosine of
+    /// the angle (computed with OneMath, so every platform gets the same bits) in <see cref="WalkableSlopeCosine"/>;
+    /// 90 gives exactly 0 and 45 gives exactly 0.70710677f. Reads NaN after <see cref="WalkableSlopeCosine"/> was set directly.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value is NaN, infinite or outside 0 to 90.</exception>
+    public float WalkableSlopeDegrees
+    {
+        get => _slopeDegrees;
+        set
+        {
+            if (!(value >= 0f && value <= 90f))
+            {
+                throw new ArgumentOutOfRangeException(nameof(WalkableSlopeDegrees), value, "The walkable slope must be 0 to 90 degrees.");
+            }
+            _slopeCosine = value == 90f ? 0f : (float)Math64.Cos(value * (Math.PI / 180.0));
+            _slopeDegrees = value;
+        }
+    }
 
     /// <summary>Clearance an agent needs above a floor, in voxel rows (default 10: 2.0 units at a cell height of 0.2). At least 1.</summary>
     public int WalkableHeight { get; set; } = 10;

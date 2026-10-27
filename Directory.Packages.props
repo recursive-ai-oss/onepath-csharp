@@ -9,7 +9,7 @@
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.4" />
     <PackageVersion Include="SharpFuzz" Version="2.2.0" />
-    <PackageVersion Include="RecursiveAI.OneMath" Version="0.1.0-preview.2" />
+    <PackageVersion Include="RecursiveAI.OneMath" Version="0.1.0-preview.4" />
     <!-- Comparison libraries for bench/Harness only (black-box reference rows). -->
     <PackageVersion Include="DotRecast.Core" Version="2026.3.1" />
     <PackageVersion Include="DotRecast.Recast" Version="2026.3.1" />
