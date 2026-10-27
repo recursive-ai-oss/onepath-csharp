@@ -99,5 +99,6 @@ public static class Targets
         ["grid-query"] = GridTargets.Query,
         ["navmesh-query"] = NavMeshQueryFuzz.Run,
         ["grid-jps"] = GridTargets.Jps,
+        ["grid-theta"] = ThetaTarget.Run,
     };
 }

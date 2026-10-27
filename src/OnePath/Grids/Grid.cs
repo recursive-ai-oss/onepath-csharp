@@ -313,7 +313,20 @@ public sealed class Grid
         {
             return new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
         }
-        if (o.Algorithm != GridAlgorithm.AStar && JumpSearchApplies(o, out double unitCost))
+        if (o.Algorithm is GridAlgorithm.ThetaStar or GridAlgorithm.LazyThetaStar && AnyAngleRunner.Applies(this, o, out double anyAngleCost))
+        {
+            GridSearchBuffers? any = Interlocked.Exchange(ref _spare, null);
+            any ??= new GridSearchBuffers(CellCount);
+            try
+            {
+                return AnyAngleRunner.Run(this, any, (start.Y * Width) + start.X, (goal.Y * Width) + goal.X, o, anyAngleCost, world ? CellCenter : null);
+            }
+            finally
+            {
+                _spare = any;
+            }
+        }
+        if (o.Algorithm is GridAlgorithm.Jps or GridAlgorithm.JpsPlus && JumpSearchApplies(o, out double unitCost))
         {
             return FindPathJump(start, goal, o, unitCost, world);
         }
@@ -339,6 +352,7 @@ public sealed class Grid
                 {
                     GridHeuristic.Zero => SearchRunner.Run(topology, cost, default(ZeroHeuristic), buffers, Width, a, b, o, centre),
                     GridHeuristic.Manhattan => SearchRunner.Run(topology, cost, new ManhattanHeuristic(Width, scale), buffers, Width, a, b, o, centre),
+                    GridHeuristic.Euclidean => SearchRunner.Run(topology, cost, new EuclideanHeuristic(Width, scale), buffers, Width, a, b, o, centre),
                     _ => SearchRunner.Run(topology, cost, new OctileHeuristic(Width, scale), buffers, Width, a, b, o, centre),
                 };
             }
@@ -349,6 +363,7 @@ public sealed class Grid
                 {
                     GridHeuristic.Zero => SearchRunner.Run(topology, cost, default(ZeroHeuristic), buffers, Width, a, b, o, centre),
                     GridHeuristic.Manhattan => SearchRunner.Run(topology, cost, new ManhattanHeuristic(Width, scale), buffers, Width, a, b, o, centre),
+                    GridHeuristic.Euclidean => SearchRunner.Run(topology, cost, new EuclideanHeuristic(Width, scale), buffers, Width, a, b, o, centre),
                     _ => SearchRunner.Run(topology, cost, new OctileHeuristic(Width, scale), buffers, Width, a, b, o, centre),
                 };
             }

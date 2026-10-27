@@ -57,6 +57,20 @@ internal static class GridSmoke
         var block = new JumpSearch<BlockJumper, OctileHeuristic>(new BlockJumper(new BlockMap(fromText)), new OctileHeuristic(3));
         block.Begin(0, 8);
         ok &= block.Run() == SearchStatus.Found && block.PathCost == 2.0 * GridMath.Sqrt2;
+
+        // Any-angle searches: tier-1 option and the generic search.
+        var open = new Grid(30, 30);
+        foreach (GridAlgorithm algorithm in new[] { GridAlgorithm.ThetaStar, GridAlgorithm.LazyThetaStar })
+        {
+            GridPath any = open.FindPath(new Cell(1, 2), new Cell(25, 17), new GridOptions { Algorithm = algorithm });
+            ok &= any.Found && any.Algorithm == algorithm && any.Cells.Length == 2 && any.Cost == Math.Sqrt((24.0 * 24.0) + (15.0 * 15.0));
+        }
+        var theta = new ThetaSearch<EuclideanHeuristic>(fromText, new EuclideanHeuristic(3), ThetaVariant.LazyRequeue);
+        theta.Begin(0, 8);
+        while (theta.Step(1) == SearchStatus.Running)
+        {
+        }
+        ok &= theta.Status == SearchStatus.Found && theta.PathCost == 2.0 * GridMath.Sqrt2 && GridLineOfSight.Test(fromText, new Cell(0, 0), new Cell(2, 2));
         return ok;
     }
 }

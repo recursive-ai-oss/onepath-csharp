@@ -8,5 +8,7 @@
     <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
     <!-- Seed meshes come from the same generator the tests use. -->
     <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshWorlds.cs" Link="Support/NavMeshWorlds.cs" />
+    <!-- The independent exact visibility test the unit tests use. -->
+    <Compile Include="../../tests/OnePath.Tests/Grids/AnyAngleOracle.cs" Link="Support/AnyAngleOracle.cs" />
   </ItemGroup>
 </Project>
