@@ -27,6 +27,10 @@ public static class Program
         {
             return AnyAngleQuality.Run(args);
         }
+        if (Array.IndexOf(args, "--voxel") >= 0)
+        {
+            return VoxelOptima.Run(args);
+        }
         string? dir = null;
         string? set = null;
         int threads = 1;

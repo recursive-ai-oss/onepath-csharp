@@ -373,6 +373,54 @@ neighbouring chunk's cell), clipped to the grid. `Refresh` (called by every quer
 the area cost table (`AreaCosts.Version`) mark everything. `Grid` notifies listeners on every edit, so batches of edits cost one `Refresh`.
 
 **Cost model.** Build: one Dijkstra per node over at most C² cells; node count per chunk is roughly `4·C/T` to `4·C/2`. Memory: `n²` doubles per chunk.
+## 3D voxel grids
+
+`VoxelGrid` (`RecursiveAI.OnePath.Grids.Voxel`) is a bounded block of voxels, one byte each: an area id 0..254 or
+255 for solid, the same ids and `AreaCosts` table as the square grid. It is searched by the same `AStar` through
+`VoxelTopology`.
+
+**Storage (normative).** The block is cut into 16 x 16 x 16 chunks. The chunk table is dense, `ceil(sx/16) * ceil(sy/16) *
+ceil(sz/16)` slots, slot index `cx + ChunksX * (cy + ChunksY * cz)`. A slot is null (every voxel of the chunk has the grid's
+default area, fixed at construction: 0 for open space, 255 for a solid block to carve) or a 4096-byte array indexed
+`(x & 15) | ((y & 15) << 4) | ((z & 15) << 8)`. An edit that differs from the default allocates the chunk, which then stays.
+Padding voxels past the size in an edge chunk are never read. At most 2^30 voxels.
+
+**Search nodes.** A voxel's node is `x + sx * (y + sy * z)`. Search buffers are dense: 20 bytes per voxel (cost 8,
+parent 4, mark 4, open-set position 4), so a 518-million-voxel block needs about 10 GB for a search; storage of a sparse
+world is cheap, searching one is not (a sparse search state is a possible later change).
+
+**Moves and costs.** 6 (faces), 18 (+ edges) or 26 (+ corners) neighbours; the order is faces, then edges, then corners, each
+by z, then y, then x ascending from -1 to 1 (an 18- or 6-move view uses a prefix). Face moves have length 1, edge moves
+`GridMath.Sqrt2`, corner moves `VoxelMath.Sqrt3` (the double nearest the true root, 1.7320508075688772). The cost of a move is
+`length * ((m[from] + m[to]) * 0.5)`. The destination must be open.
+
+**Corner rule** (`VoxelCornerRule`) for edge and corner moves. The swept cells are those inside the move's cube other than
+the start and the destination: two face cells for an edge move; three face cells and three edge cells for a corner move.
+`NoCornerCutting` (default, the Moving AI voxel convention): all swept cells open. `NoSqueezing`: some monotone route of face
+steps from start to destination through open cells exists (an edge move needs one of its two face cells; a corner move needs
+a face cell and an edge cell containing it). `AllowAll`: the destination only.
+
+**Heuristic.** The exact empty-grid distance of the connectivity times `AreaCosts.MinCost`, so it is admissible and
+consistent. With sorted absolute offsets a <= b <= c and m = a + b + c: six moves, m; 26 moves, `a*sqrt3 + (b-a)*sqrt2 + (c-b)`;
+18 moves, `e*sqrt2 + (m - 2e)` with `e = min(floor(m/2), a + b)`. A* tie-breaking and the open list are those of the square grid
+(`OpenSet`: smaller f, then larger g, then smaller node index, as documented above).
+
+**Changes.** `SetArea`/`SetWalkable` notify `IVoxelChangeListener`s and bump `Version`; topologies read the live chunk table,
+so a query after an edit equals a query on a grid built from scratch with the final contents (tested). There is no cached
+state to repair.
+
+**API tiers.** Tier 1: `grid.FindPath(VoxelCell|VoxelPoint, ..., VoxelOptions?)` with plain options and delegates
+(`StepCost`, `Blocked`), presets `VoxelOptions.Default/SixConnected/EighteenConnected`. Tier 2:
+`AStar<VoxelTopology, TCost, VoxelHeuristic>` with struct cost hooks, resumable `Step(budget)` equal to the unsliced run.
+Tier 3: `VoxelGrid.GetChunk`, `VoxelTopology`, `VoxelHeuristic`, `GridSearchBuffers`. World positions are doubles within
++-2^21 (`VoxelSpace`: origin and cell size, voxel (i,j,k) spans `origin + (i,j,k) * size`); anything beyond throws
+`ArgumentOutOfRangeException` naming the value; a position outside the block gives `StartInvalid`/`GoalInvalid`.
+
+**Moving AI voxel files.** `VoxelMap.Parse` reads `.3dmap` (`voxel X Y Z`, then one `x y z` line per *solid* voxel);
+`VoxelScenarios.Parse` reads `.3dscen` (`version 1`, the map name, then `sx sy sz gx gy gz length ratio`). Malformed input
+throws `GridFormatException` with the line. The published lengths of the Warframe set equal 26-move, no-corner-cutting
+costs with the constants above: the check allows an absolute 1e-6 (observed differences are below 1e-7: the files print eight
+decimals); the two looser rules give different costs on 95% of the first 2000 scenarios of Simple.
 
 ## Moving AI files
 
@@ -418,3 +466,8 @@ allocated.
   Moving AI scenario's path and reports the mean and maximum percentage over the published optimum (chunk 16, smoothing on, 8-connected: dao 0.40% mean,
   bg512 0.33%, sc1 0.22%, room 0.08%; unsmoothed 4.9%, 4.1%, 3.2%, 1.6%; zero invalid or missing paths). Maxima are large only for very short
   scenarios (a few cells), where one detour through a transition is a big fraction. Fuzz target `grid-hpa`.
+- Voxel grids: costs equal an independent O(n²) Dijkstra (moves enumerated from the definition, corner rules evaluated
+  over the move's bounding box) on 10^4 random blocks per connectivity (all three corner rules, area costs, both heuristics),
+  on larger blocks across chunk borders, and the heuristic equals the empty-grid distance; edits equal rebuilds; sliced equals
+  unsliced for budgets 1, 2, 7 and 50. Fuzz targets `voxel-map`, `voxel-scen`, `voxel-query`; hash scenarios `grids/voxel/*`;
+  the Warframe set via `tools/GridOptima/voxel-sweep.sh` (`GridOptima --voxel`).
