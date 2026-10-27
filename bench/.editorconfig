@@ -1,0 +1,3 @@
+[*.cs]
+# BenchmarkDotNet benchmarks must be instance methods.
+dotnet_diagnostic.CA1822.severity = none

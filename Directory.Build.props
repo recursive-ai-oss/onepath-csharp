@@ -1,0 +1,61 @@
+<Project>
+
+  <!-- Package naming: the one place the package-ID prefix lives. -->
+  <PropertyGroup>
+    <PackagePrefix>RecursiveAI</PackagePrefix>
+    <VersionPrefix>0.0.1</VersionPrefix>
+    <Authors>Recursive AI, LLC</Authors>
+    <Company>Recursive AI, LLC</Company>
+    <Copyright>Copyright (c) Recursive AI, LLC</Copyright>
+    <PackageLicenseExpression>MIT OR Apache-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <!--
+    Build output (bin, obj, packages) goes outside the working tree: $(ONEPATH_ARTIFACTS) when set,
+    otherwise a per-checkout folder under the user's temp directory.
+  -->
+  <PropertyGroup>
+    <OnePathCheckoutName>$([System.IO.Path]::GetFileName($(MSBuildThisFileDirectory.TrimEnd('/\'))))</OnePathCheckoutName>
+    <OnePathArtifactsRoot>$(ONEPATH_ARTIFACTS)</OnePathArtifactsRoot>
+    <OnePathArtifactsRoot Condition="'$(OnePathArtifactsRoot)' == ''">$([System.IO.Path]::Combine($([System.IO.Path]::GetTempPath()), 'onepath-artifacts', $(OnePathCheckoutName)))</OnePathArtifactsRoot>
+    <ArtifactsPath>$(OnePathArtifactsRoot)</ArtifactsPath>
+  </PropertyGroup>
+
+  <!-- Configurations. Checked = optimized code with the CHECKED symbol: unsafe accessors become bounds-checked. -->
+  <PropertyGroup>
+    <Configurations>Debug;Release;Checked</Configurations>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Checked'">
+    <Optimize>true</Optimize>
+    <DebugType>portable</DebugType>
+    <DefineConstants>$(DefineConstants);CHECKED</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true' or '$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <MSBuildTreatWarningsAsErrors>true</MSBuildTreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <!-- Floating-point results must not depend on the machine: no unchecked fast-math style options exist in .NET, keep it that way. -->
+    <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+  </PropertyGroup>
+
+  <!--
+    The RecursiveAI.OneMath package comes from a local feed until it is published. Point ONEMATH_FEED at
+    the feed folder (an environment variable; nothing machine-specific is tracked).
+  -->
+  <PropertyGroup Condition="'$(ONEMATH_FEED)' != ''">
+    <RestoreAdditionalProjectSources>$(ONEMATH_FEED)</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+
+</Project>

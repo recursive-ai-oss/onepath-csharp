@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>OnePath.Micro</AssemblyName>
+    <RootNamespace>RecursiveAI.OnePath.Micro</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+    <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>$(PackagePrefix).OnePath</PackageId>
+    <AssemblyName>$(PackagePrefix).OnePath</AssemblyName>
+    <RootNamespace>$(PackagePrefix).OnePath</RootNamespace>
+    <Description>Deterministic pathfinding and navigation: grids, graphs, navmeshes and crowds.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <!-- The shared deterministic math package is added here once it is available from its feed:
+    <PackageReference Include="RecursiveAI.OneMath" /> -->
+  </ItemGroup>
+
+</Project>

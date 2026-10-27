@@ -1,0 +1,30 @@
+# Allowlist: ignore everything at the top level, then list tracked paths.
+/*
+!/.gitignore
+!/.editorconfig
+!/.github
+!/README.md
+!/LICENSE-MIT
+!/LICENSE-APACHE
+!/THIRD-PARTY-NOTICES.md
+!/global.json
+!/NuGet.config
+!/Directory.Build.props
+!/Directory.Build.targets
+!/Directory.Packages.props
+!/OnePath.slnx
+!/BannedSymbols.txt
+!/src
+!/tests
+!/fuzz
+!/bench
+!/ci
+!/tools
+!/docs
+!/testdata
+
+# Build output normally goes outside the tree; belt and braces for stray output.
+bin/
+obj/
+artifacts/
+BenchmarkDotNet.Artifacts/

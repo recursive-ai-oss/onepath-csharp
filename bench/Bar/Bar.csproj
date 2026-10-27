@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>OnePath.Bar</AssemblyName>
+    <RootNamespace>RecursiveAI.OnePath.Bar</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
+  </ItemGroup>
+</Project>

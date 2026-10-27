@@ -1,0 +1,23 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+    <BuildType Name="Checked" />
+    <Platform Name="Any CPU" />
+  </Configurations>
+  <Folder Name="/bench/">
+    <Project Path="bench/Bar/Bar.csproj" />
+    <Project Path="bench/Micro/Micro.csproj" />
+  </Folder>
+  <Folder Name="/fuzz/">
+    <Project Path="fuzz/OnePath.Fuzz/OnePath.Fuzz.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/OnePath/OnePath.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AotSmoke/AotSmoke.csproj" />
+    <Project Path="tests/OnePath.Tests/OnePath.Tests.csproj" />
+    <Project Path="tests/WasmSmoke/WasmSmoke.csproj" />
+  </Folder>
+</Solution>

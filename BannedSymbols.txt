@@ -1,0 +1,69 @@
+# APIs the library may not call: their results can differ between platforms or runs.
+# Transcendental functions come from the shared deterministic math package instead.
+
+T:System.MathF;Single-precision math functions differ between platforms; use the deterministic math package
+M:System.Math.Sin(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Cos(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Tan(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Asin(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Acos(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Atan(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Atan2(System.Double,System.Double);Transcendental: use the deterministic math package
+M:System.Math.Sinh(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Cosh(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Tanh(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Asinh(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Acosh(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Atanh(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Exp(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Log(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Log(System.Double,System.Double);Transcendental: use the deterministic math package
+M:System.Math.Log2(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Log10(System.Double);Transcendental: use the deterministic math package
+M:System.Math.Pow(System.Double,System.Double);Transcendental: use the deterministic math package
+M:System.Math.Cbrt(System.Double);Transcendental: use the deterministic math package
+M:System.Math.SinCos(System.Double);Transcendental: use the deterministic math package
+M:System.Math.FusedMultiplyAdd(System.Double,System.Double,System.Double);Fused multiply-add changes rounding
+M:System.Double.Sin(System.Double);Transcendental: use the deterministic math package
+M:System.Double.Cos(System.Double);Transcendental: use the deterministic math package
+M:System.Double.Tan(System.Double);Transcendental: use the deterministic math package
+M:System.Double.Atan2(System.Double,System.Double);Transcendental: use the deterministic math package
+M:System.Double.Exp(System.Double);Transcendental: use the deterministic math package
+M:System.Double.Log(System.Double);Transcendental: use the deterministic math package
+M:System.Double.Pow(System.Double,System.Double);Transcendental: use the deterministic math package
+M:System.Double.FusedMultiplyAdd(System.Double,System.Double,System.Double);Fused multiply-add changes rounding
+M:System.Single.Sin(System.Single);Transcendental: use the deterministic math package
+M:System.Single.Cos(System.Single);Transcendental: use the deterministic math package
+M:System.Single.Atan2(System.Single,System.Single);Transcendental: use the deterministic math package
+M:System.Single.Exp(System.Single);Transcendental: use the deterministic math package
+M:System.Single.Pow(System.Single,System.Single);Transcendental: use the deterministic math package
+M:System.Single.FusedMultiplyAdd(System.Single,System.Single,System.Single);Fused multiply-add changes rounding
+M:System.Double.ReciprocalEstimate(System.Double);Estimates differ between CPUs
+M:System.Double.ReciprocalSqrtEstimate(System.Double);Estimates differ between CPUs
+M:System.Single.ReciprocalEstimate(System.Single);Estimates differ between CPUs
+M:System.Single.ReciprocalSqrtEstimate(System.Single);Estimates differ between CPUs
+M:System.Double.MultiplyAddEstimate(System.Double,System.Double,System.Double);May or may not fuse
+M:System.Single.MultiplyAddEstimate(System.Single,System.Single,System.Single);May or may not fuse
+M:System.Math.ScaleB(System.Double,System.Int32);Use exact bit manipulation or the deterministic math package
+
+T:System.Runtime.Intrinsics.X86.Fma;Fused multiply-add changes rounding
+T:System.Numerics.Vector`1;Width depends on the CPU; use Vector128/Vector256
+P:System.Numerics.Vector.IsHardwareAccelerated;Results may not depend on hardware support
+P:System.Runtime.Intrinsics.Vector128.IsHardwareAccelerated;Results may not depend on hardware support
+P:System.Runtime.Intrinsics.Vector256.IsHardwareAccelerated;Results may not depend on hardware support
+
+T:System.Diagnostics.Stopwatch;Budgets count iterations, never time
+P:System.DateTime.Now;Results must not depend on the clock
+P:System.DateTime.UtcNow;Results must not depend on the clock
+P:System.DateTimeOffset.Now;Results must not depend on the clock
+P:System.DateTimeOffset.UtcNow;Results must not depend on the clock
+P:System.Environment.TickCount;Results must not depend on the clock
+P:System.Environment.TickCount64;Results must not depend on the clock
+P:System.Environment.ProcessorCount;Results must not depend on the thread or core count
+T:System.Random;Use the library's own seeded generator
+T:System.HashCode;Hash codes are randomized per process
+M:System.Object.GetHashCode();Hash codes must not decide results
+M:System.String.GetHashCode();Hash codes are randomized per process
+T:System.Reflection.Emit.DynamicMethod;Not AOT/trim compatible
+T:System.Linq.Expressions.Expression;Not AOT/trim compatible
+M:System.Runtime.InteropServices.NativeLibrary.Load(System.String);No native code
