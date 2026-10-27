@@ -64,14 +64,34 @@ carries the net number of operand-0 and operand-1 input edges running A→B minu
    `GeometryException` is thrown (a defect, never bad input).
 5. Fragments are merged by endpoints; the vertex set is sorted by (x, y).
 
+**Finding crossings and nearby pixels.** Steps 2 to 4 only need *candidates*: every pair or pixel that could
+matter. Each candidate is then decided by the exact tests above, so the way candidates are found never changes a
+result. Both searches use a uniform grid of square cells (side 2^s grid units, s ≥ 1, the least power of two at
+least the mean fragment extent `max(|dx|, |dy|)`, raised until there are at most about 2n cells): fragments are listed
+in every cell their segment passes through (a row range per column, from exact integer floor divisions), hot pixels in
+the one cell holding them. A fragment's crossing partners are the other fragments in its cells; the pixels it may
+meet are those in the cells it visits and their eight neighbours (a pixel within one unit of the segment sits in a
+neighbouring cell because cells are at least two units wide). When the cell counts show clustered input (the sum
+over cells of count² exceeding 32 × the number of items), the grids are not used and the older searches take over:
+a sweep in increasing minimum x with an active list for crossings, and a binary search of the x range of the
+sorted pixels for pixels. Time is then linear in the input plus the number of candidates for evenly spread input and
+what the sweep costs otherwise.
+
 Distortion: a segment can move by up to one grid unit near other geometry (every vertex captures the segments passing
 through its pixel). With the default grid that is about 1.5e-5 units.
 
 ## Labelling
 
-The vertices are triangulated (below) with the arrangement's segments as constraints. Winding numbers (per operand)
-are 0 on the unbounded face and change across a constraint running u→v from its right to its left by the segment's
-net delta in direction u→v. A face is inside according to the operation:
+Winding numbers (per operand) are 0 on the unbounded face and change across a segment running u→v (u before v in
+(x, y) order) from its right to its left by the segment's net delta in direction u→v. They come from a plane sweep over
+the non-crossing segments, vertices visited in (x, y) order (which treats vertical segments as if the sweep line were
+tilted by an infinitesimal angle). The status is the list of segments cut by the sweep line, bottom to top, with the
+winding just above each. At a vertex v: binary search of the status with the exact orientation of v against each segment
+finds the block of segments ending at v; the winding below the block is that of the segment under it (0 if none); the
+block is removed; the segments starting at v are sorted bottom to top by the exact cross product of their directions
+and inserted in its place, each getting winding-above = winding-below + its net delta. Every segment is therefore
+labelled with the windings on both sides. The status is a plain list, so insertion and removal move memory
+proportional to its length (a few hundred entries for tile-sized input). A face is inside according to the operation:
 
 | Operation | Inside when (w0, w1 windings) |
 |---|---|
@@ -81,8 +101,9 @@ net delta in direction u→v. A face is inside according to the operation:
 | difference (operand 0 minus 1) | w0 > 0 and w1 ≤ 0 |
 | symmetric difference | exactly one of w0 > 0, w1 > 0 |
 
-Constraints separating inside from outside form the boundary, directed with the inside on the left; they are chained
-into rings as above.
+Segments separating inside from outside form the boundary, directed with the inside on the left; they are chained
+into rings as above. (`Region.Triangulate` still labels triangles by flooding the constrained Delaunay triangulation
+from the unbounded face; both methods give the same windings.)
 
 ## Offsetting
 
@@ -102,6 +123,26 @@ every boundary edge, so thin features vanish and narrow gaps close exactly. Let 
   squares of half-side `max(1, round(r))` centred on its two endpoints: the Minkowski sum of the region with an
   axis-aligned square.
 - Offset geometry beyond ±2^21 + 2^20 throws `ArgumentOutOfRangeException`.
+
+### Shrinking for the build (`Mesh2DPipeline.Shrink`)
+
+The agent-radius shrink in the build pipeline removes `S` with fewer pieces. A point of the region that is within `r`
+of the boundary is within `r` of an edge or of a vertex that is reflex for the interior; a convex vertex is never the
+nearest boundary point of an interior point. So only the interior side of each edge and only the reflex vertices are
+swept:
+
+- per boundary edge `a→b` (interior on the left, `n` as above): the rectangle `a, b, b + r·n, a + r·n`, the two
+  far corners rounded to the grid;
+- per vertex `a` where `prev→a→b` turns right: the circular sector from the outgoing edge's normal direction
+  counter-clockwise to the incoming edge's normal direction (less than a half turn), as the polygon `a`, the tip
+  `a + r·n_out`, the vertices of the circumscribed m-gon strictly inside the sector in counter-clockwise order, the tip
+  `a + r·n_in`. The tips are rounded by the same expression as the rectangles' corners, so a sector's straight sides
+  coincide exactly with the rectangles' end sides; the m-gon is the one used for round offsets above.
+
+Collinear and left-turning vertices have no sector. The removed set equals the round offset's in exact arithmetic;
+the polygonal arcs stay within the arc tolerance of the circle, and the rings can differ from `Region.Offset` by that
+much (about 0.2% of the area on a dense noisy tile map). The pipeline passes `arcTolerance =
+CellSize / 4` (the mesh cannot resolve finer), so a circle of radius two to four cells has 8 or 16 vertices. `Region.Offset` itself is unchanged.
 
 ## Constrained Delaunay triangulation
 
@@ -145,6 +186,6 @@ the polygon holding the reversed edge, or −1.
 - Results depend only on the **set** of input edges (not on outline order, ring order, start vertex or direction of a
   ring's even-odd reading) and on `SnapBits` / limits, and are identical on every platform and thread count.
 - Operations are exact on the snapped input; the distortion bound above is the only approximation.
-- Costs: noding compares edges whose x-ranges overlap (a sweep with an active list) and each fragment against the hot
-  pixels in its x-range, so very long near-horizontal segments over very many vertices are quadratic; tile-sized inputs
-  are the intended scale.
+- Costs: for evenly spread input noding, labelling and tracing take time near linear in the number of edges and
+  candidates; input that crowds into few grid cells (a handful of enormous segments over
+  many tiny ones) falls back to the sweep and the x-range search, which are quadratic in the worst case.

@@ -17,6 +17,9 @@ public class Build2DBench
     private List<Outline> _outlines = new();
     private Region _map = Region.Empty();
     private Region _other = Region.Empty();
+    private bool[] _barCells = Array.Empty<bool>();
+    private int _barTiles;
+    private readonly NavSettings _barSettings = NavSettings.Humanoid with { CellSize = 0.25, AgentRadius = 0.5f, TileSize = 32 };
 
     [GlobalSetup]
     public void Setup()
@@ -38,9 +41,15 @@ public class Build2DBench
             }
             _outlines.Add(new Outline(pts));
         }
+        _barCells = RecursiveAI.OnePath.Bench.TileMapWorld.Generate(256, 1, out _barTiles);
         _map = Region.FromTileMap(_cells, 128, 128, 1.0, new Vector2D(0, 0));
         _other = Region.FromOutlines(_outlines);
     }
+
+    /// <summary>The bar row's footprint (128 x 128 tiles of 2 units, about 60% floor) through the whole 2D builder.</summary>
+    [Benchmark]
+    public NavMesh BuildTileMap128() =>
+        NavMesh.Build2D(_barCells, _barTiles, _barTiles, RecursiveAI.OnePath.Bench.TileMapWorld.TileUnits, new Vector2D(0, 0), _barSettings);
 
     [Benchmark]
     public Region TileMapToRegion() => Region.FromTileMap(_cells, 128, 128, 1.0, new Vector2D(0, 0));

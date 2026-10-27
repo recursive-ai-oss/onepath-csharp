@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using RecursiveAI.OneMath.Predicates;
 
 namespace RecursiveAI.OnePath.Mesh.Build2D;
@@ -37,8 +38,20 @@ internal static class Geo
     /// <summary>Largest absolute grid coordinate any stage produces; keeps every 128-bit product below 2^127.</summary>
     public const long MaxGrid = 1L << 39;
 
-    public static int Orient(P a, P b, P c) =>
-        ExactPredicates.Orient2D(a.X, a.Y, b.X, b.Y, c.X, c.Y);
+    public static int Orient(P a, P b, P c)
+    {
+        // Grid points are small in practice: with every coordinate below 2^29 the determinant fits a long exactly, which
+        // is the same sign the exact predicate returns without its floating-point filter.
+        const long Bound = 1L << 29;
+        if ((ulong)(a.X + Bound) < (2UL * Bound) && (ulong)(a.Y + Bound) < (2UL * Bound)
+            && (ulong)(b.X + Bound) < (2UL * Bound) && (ulong)(b.Y + Bound) < (2UL * Bound)
+            && (ulong)(c.X + Bound) < (2UL * Bound) && (ulong)(c.Y + Bound) < (2UL * Bound))
+        {
+            long det = ((b.X - a.X) * (c.Y - a.Y)) - ((b.Y - a.Y) * (c.X - a.X));
+            return det > 0 ? 1 : det < 0 ? -1 : 0;
+        }
+        return ExactPredicates.Orient2D(a.X, a.Y, b.X, b.Y, c.X, c.Y);
+    }
 
     /// <summary>+1 when d is inside the circle through counter-clockwise a, b, c.</summary>
     public static int InCircle(P a, P b, P c, P d) =>
@@ -141,5 +154,23 @@ internal static class Geo
         int o3 = Orient(c, d, a);
         int o4 = Orient(c, d, b);
         return o3 * o4 < 0;
+    }
+}
+
+/// <summary>
+/// Hashing for dictionaries keyed by a pair of vertex indices packed into a long (high half, low half). The default
+/// hash of a long xors the halves, which sends neighbouring index pairs to a handful of buckets; this mixes them. The
+/// dictionaries are only ever looked up, never enumerated, so the hash cannot change a result.
+/// </summary>
+internal sealed class EdgeKeyComparer : IEqualityComparer<long>
+{
+    public static readonly EdgeKeyComparer Instance = new();
+
+    public bool Equals(long x, long y) => x == y;
+
+    public int GetHashCode(long key)
+    {
+        ulong z = (ulong)key * 0x9E3779B97F4A7C15UL;
+        return (int)(z >> 32);
     }
 }

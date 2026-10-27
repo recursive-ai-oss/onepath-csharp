@@ -360,7 +360,27 @@ public sealed class Region
     /// <param name="arcTolerance">For round joins, the largest distance the polygonal arc may lie outside the true circle.
     /// Values not above zero choose |distance| / 128; the effective minimum is one grid unit.</param>
     /// <exception cref="ArgumentOutOfRangeException">The distance is not finite or too large, or the result would leave ±2^21.</exception>
-    public Region Offset(double distance, JoinStyle join = JoinStyle.Round, double arcTolerance = 0)
+    public Region Offset(double distance, JoinStyle join = JoinStyle.Round, double arcTolerance = 0) =>
+        OffsetCore(distance, join, arcTolerance, oneSided: false);
+
+    /// <summary>
+    /// Shrinks by <paramref name="distance"/> (positive, round joins) with only the pieces that can change the result:
+    /// a rectangle on the interior side of each edge and, at each reflex vertex, the circular sector between the two edge
+    /// normals. Every point of the region nearest to the boundary at a convex vertex is nearer to an adjacent edge, so the
+    /// removed set is the same in exact arithmetic; the polygonal arcs and snap rounding see fewer, differently placed
+    /// pieces, so the rings can differ from <see cref="Offset"/> by up to the arc tolerance. About a tenth of the edges, so
+    /// the noding is that much cheaper.
+    /// </summary>
+    internal Region ShrinkOneSided(double distance, double arcTolerance = 0)
+    {
+        if (!(distance > 0))
+        {
+            throw new ArgumentOutOfRangeException(nameof(distance), distance, "Shrink distance must be positive.");
+        }
+        return OffsetCore(-distance, JoinStyle.Round, arcTolerance, oneSided: true);
+    }
+
+    private Region OffsetCore(double distance, JoinStyle join, double arcTolerance, bool oneSided)
     {
         if (!double.IsFinite(distance) || Math.Abs(distance) > 1048576.0)
         {
@@ -378,7 +398,9 @@ public sealed class Region
         double radius = Math.Abs(distance) * unit; // in grid units
         var edges = new List<InEdge>();
         AppendEdges(edges, 0);
-        List<P[]> pieces = join == JoinStyle.Square ? SquarePieces(radius) : RoundPieces(radius, arcTolerance * unit);
+        List<P[]> pieces = join == JoinStyle.Square ? SquarePieces(radius)
+            : oneSided ? RoundPiecesOneSided(radius, arcTolerance * unit)
+            : RoundPieces(radius, arcTolerance * unit);
         foreach (P[] piece in pieces)
         {
             for (int i = 0; i < piece.Length; i++)
@@ -394,17 +416,19 @@ public sealed class Region
         return Resolve(edges, distance > 0 ? BoolOp.Union : BoolOp.Difference, SnapBits);
     }
 
-    private List<P[]> RoundPieces(double radius, double tol)
+    // Round pieces for shrinking: the interior side (left) of each edge. At each vertex that is reflex for the interior,
+    // the swept disc only matters between the two edge normals, so the piece is that circular sector (its two straight
+    // sides are the rectangles' end sides, rounded by the same expression, so the pieces meet exactly).
+    private List<P[]> RoundPiecesOneSided(double radius, double tol)
     {
         var pieces = new List<P[]>();
-        // Rectangles along each edge, discs at each vertex: together the stadium swept by a disc along the edge.
-        var verts = new List<P>();
+        double[] disc = DiscUnitVectors(radius, tol, out int m);
+        var selected = new List<int>(m);
         foreach (P[] r in _rings)
         {
             for (int i = 0; i < r.Length; i++)
             {
-                P a = r[i], b = r[(i + 1) % r.Length];
-                verts.Add(a);
+                P prev = r[(i + r.Length - 1) % r.Length], a = r[i], b = r[(i + 1) % r.Length];
                 double dx = b.X - a.X, dy = b.Y - a.Y;
                 double len = Math.Sqrt((dx * dx) + (dy * dy));
                 if (len == 0)
@@ -412,12 +436,71 @@ public sealed class Region
                     continue;
                 }
                 double nx = -dy / len * radius, ny = dx / len * radius;
-                pieces.Add(new[]
+                pieces.Add(new[] { a, b, Round(b.X + nx, b.Y + ny), Round(a.X + nx, a.Y + ny) });
+
+                // Interior on the left: a right turn is reflex for the interior.
+                if (Geo.Orient(prev, a, b) >= 0)
                 {
-                    Round(a.X - nx, a.Y - ny), Round(b.X - nx, b.Y - ny), Round(b.X + nx, b.Y + ny), Round(a.X + nx, a.Y + ny),
-                });
+                    continue;
+                }
+                double pdx = a.X - prev.X, pdy = a.Y - prev.Y;
+                double plen = Math.Sqrt((pdx * pdx) + (pdy * pdy));
+                if (plen == 0)
+                {
+                    continue;
+                }
+                double inx = -pdy / plen * radius, iny = pdx / plen * radius; // normal of the edge arriving at a
+                // Sector directions, counter-clockwise from the outgoing normal to the incoming one (less than a half turn).
+                double fx = nx, fy = ny, tx = inx, ty = iny;
+                selected.Clear();
+                for (int k = 0; k < m; k++)
+                {
+                    double wx = disc[2 * k], wy = disc[(2 * k) + 1];
+                    if (((fx * wy) - (fy * wx)) > 0 && ((wx * ty) - (wy * tx)) > 0)
+                    {
+                        selected.Add(k);
+                    }
+                }
+                // The selected vectors are consecutive around the circle; start at the one after the gap.
+                int first = 0;
+                for (int q = 0; q < selected.Count; q++)
+                {
+                    if (((selected[(q + selected.Count - 1) % selected.Count] + 1) % m) != selected[q])
+                    {
+                        first = q;
+                        break;
+                    }
+                }
+                var poly = new List<P>(selected.Count + 3) { a };
+                void Push(P q)
+                {
+                    if (poly[^1] != q)
+                    {
+                        poly.Add(q);
+                    }
+                }
+                Push(Round(a.X + fx, a.Y + fy));
+                for (int q = 0; q < selected.Count; q++)
+                {
+                    int k = selected[(first + q) % selected.Count];
+                    Push(Round(a.X + disc[2 * k], a.Y + disc[(2 * k) + 1]));
+                }
+                Push(Round(a.X + tx, a.Y + ty));
+                if (poly.Count > 1 && poly[^1] == poly[0])
+                {
+                    poly.RemoveAt(poly.Count - 1);
+                }
+                if (poly.Count >= 3)
+                {
+                    pieces.Add(poly.ToArray());
+                }
             }
         }
+        return pieces;
+    }
+
+    private static void AddDiscs(List<P[]> pieces, List<P> verts, double radius, double tol)
+    {
         verts.Sort(static (x, y) => x.CompareTo(y));
         double[] disc = DiscUnitVectors(radius, tol, out int m);
         for (int i = 0; i < verts.Count; i++)
@@ -444,6 +527,33 @@ public sealed class Region
                 pieces.Add(poly.ToArray());
             }
         }
+    }
+
+    private List<P[]> RoundPieces(double radius, double tol)
+    {
+        var pieces = new List<P[]>();
+        // Rectangles along each edge, discs at each vertex: together the stadium swept by a disc along the edge.
+        var verts = new List<P>();
+        foreach (P[] r in _rings)
+        {
+            for (int i = 0; i < r.Length; i++)
+            {
+                P a = r[i], b = r[(i + 1) % r.Length];
+                verts.Add(a);
+                double dx = b.X - a.X, dy = b.Y - a.Y;
+                double len = Math.Sqrt((dx * dx) + (dy * dy));
+                if (len == 0)
+                {
+                    continue;
+                }
+                double nx = -dy / len * radius, ny = dx / len * radius;
+                pieces.Add(new[]
+                {
+                    Round(a.X - nx, a.Y - ny), Round(b.X - nx, b.Y - ny), Round(b.X + nx, b.Y + ny), Round(a.X + nx, a.Y + ny),
+                });
+            }
+        }
+        AddDiscs(pieces, verts, radius, tol);
         return pieces;
     }
 
@@ -573,7 +683,7 @@ public sealed class Region
         P[] va = verts.ToArray();
         var cmp = Comparer<P>.Create(static (x, y) => x.CompareTo(y));
         var segs = new List<(int A, int B)>();
-        var sign = new Dictionary<long, int>();
+        var sign = new Dictionary<long, int>(EdgeKeyComparer.Instance);
         foreach (P[] r in _rings)
         {
             for (int i = 0; i < r.Length; i++)
@@ -654,7 +764,7 @@ public sealed class Region
         }
         Arrangement arr = Arrangement.Build(edges);
         var constraints = new List<(int, int)>(arr.SegA.Length);
-        var index = new Dictionary<long, int>(arr.SegA.Length);
+        var index = new Dictionary<long, int>(arr.SegA.Length, EdgeKeyComparer.Instance);
         for (int i = 0; i < arr.SegA.Length; i++)
         {
             constraints.Add((arr.SegA[i], arr.SegB[i]));

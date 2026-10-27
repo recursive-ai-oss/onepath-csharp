@@ -22,6 +22,10 @@ internal static class OurScenarios
             // One set of rows per scenario: the reference rows of other drivers (DotRecast) compare against the same ours rows.
             return OursQueries.Run(row, paths);
         }
+        if (OursBuild2D.Handles(row))
+        {
+            return OursBuild2D.Run(row, paths);
+        }
         return row.Part == "grid" ? GridBar.Run(row, paths) : null;
     }
 }

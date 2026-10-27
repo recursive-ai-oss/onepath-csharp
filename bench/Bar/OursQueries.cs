@@ -44,6 +44,10 @@ internal static class OursQueries
         var raw = new List<Vector3D>();
         foreach (string line in File.ReadLines(pointsFile))
         {
+            if (line.StartsWith('#'))
+            {
+                continue; // the generator's header comment
+            }
             string[] f = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (f.Length >= 3)
             {
@@ -51,8 +55,25 @@ internal static class OursQueries
             }
         }
         double x0 = raw.Min(p => p.X), x1 = raw.Max(p => p.X), z0 = raw.Min(p => p.Z), z1 = raw.Max(p => p.Z);
-        TiledNavMesh mesh = NavMeshWorlds.RandomMesh(7, -4, -4, 8, 8, 1, detail: false, offMesh: 0);
-        var pts = raw.Select(p => new Vector3D(-47 + ((p.X - x0) / Math.Max(1e-9, x1 - x0) * 62), 0.2, -47 + ((p.Z - z0) / Math.Max(1e-9, z1 - z0) * 62))).ToList();
+        TiledNavMesh mesh;
+        List<Vector3D> pts;
+        string meshSource;
+        int objIndex = Array.IndexOf(t, "--obj");
+        if (objIndex >= 0 && objIndex + 1 < t.Length && t[objIndex + 1].Contains("tilemap", StringComparison.Ordinal))
+        {
+            // The tile-map level: the mesh is ours built from the same tiles, the query points are the level's own.
+            bool[] cells = RecursiveAI.OnePath.Bench.TileMapWorld.FromObj(t[objIndex + 1], out int tiles, out _);
+            NavSettings settings = OursBuild2D.SettingsFor(t, tiles * RecursiveAI.OnePath.Bench.TileMapWorld.TileUnits);
+            mesh = NavMesh.Build2D(cells, tiles, tiles, RecursiveAI.OnePath.Bench.TileMapWorld.TileUnits, new Vector2D(0, 0), settings).Tiles;
+            pts = raw;
+            meshSource = "NavMesh.Build2D from the level's tiles; the level's own query points";
+        }
+        else
+        {
+            mesh = NavMeshWorlds.RandomMesh(7, -4, -4, 8, 8, 1, detail: false, offMesh: 0);
+            pts = raw.Select(p => new Vector3D(-47 + ((p.X - x0) / Math.Max(1e-9, x1 - x0) * 62), 0.2, -47 + ((p.Z - z0) / Math.Max(1e-9, z1 - z0) * 62))).ToList();
+            meshSource = "format test generator (8x8 tiles); points scaled onto it";
+        }
 
         var q = new NavMeshQuery(mesh);
         var filter = new PlainFilterStruct();
@@ -149,7 +170,7 @@ internal static class OursQueries
             R("nearest_time_best", tNear.Min(), "ms"),
             R("nearest_per_sec", pts.Count / (tNear.Min() / 1000.0), "1/s"),
             R("peak_rss", Process.GetCurrentProcess().PeakWorkingSet64 / (1024.0 * 1024.0), "MB"),
-            new Row(row.Part, id, side, "mesh_source", "format test generator (8x8 tiles); points scaled onto it", "text"),
+            new Row(row.Part, id, side, "mesh_source", meshSource, "text"),
         };
     }
 

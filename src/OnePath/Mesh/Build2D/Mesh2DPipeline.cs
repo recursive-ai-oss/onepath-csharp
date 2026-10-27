@@ -19,11 +19,15 @@ public static class Mesh2DPipeline
         return new Geometry2DOptions { SnapBits = settings.SnapBits ?? TileSlicer.FinestSnapBits(settings.CellSize) };
     }
 
-    /// <summary>Shrinks the walkable area by the agent radius (round joins); a radius of zero returns the region.</summary>
-    public static Region Shrink(Region walkable, double agentRadius)
+    /// <summary>
+    /// Shrinks the walkable area by the agent radius (round joins); a radius of zero returns the region. The polygonal
+    /// arcs stay within <paramref name="arcTolerance"/> of the true circle (default: a sixteenth of the agent radius,
+    /// far below a navigation cell); only the pieces that can change the result are built.
+    /// </summary>
+    public static Region Shrink(Region walkable, double agentRadius, double arcTolerance = 0)
     {
         ArgumentNullException.ThrowIfNull(walkable);
-        return agentRadius > 0 ? walkable.Offset(-agentRadius) : walkable;
+        return agentRadius > 0 ? walkable.ShrinkOneSided(agentRadius, arcTolerance > 0 ? arcTolerance : agentRadius / 16.0) : walkable;
     }
 
     /// <summary>
@@ -83,7 +87,7 @@ public static class Mesh2DPipeline
         ArgumentNullException.ThrowIfNull(settings);
         NavMeshParams p = settings.ToParams();
         NavMeshParams.CheckWorld(settings.Height, nameof(settings.Height));
-        Region shrunk = Shrink(walkable, settings.AgentRadius);
+        Region shrunk = Shrink(walkable, settings.AgentRadius, settings.CellSize / 4);
         var tiles = new List<NavTileData>();
         foreach (TilePartition t in TileSlicer.Slice(shrunk, p))
         {

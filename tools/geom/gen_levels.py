@@ -3,7 +3,7 @@
 
     tools/geom/gen_levels.py <out_dir> [--size 128] [--seed 1] [--points 2000] [level ...]
 
-Levels: terraces, ramps, stairs, overlapping, slivers, city. Each writes <name>.obj and <name>.points
+Levels: terraces, ramps, stairs, overlapping, slivers, city, tilemap. Each writes <name>.obj and <name>.points
 (one "x y z" per line: random points on upward-facing surfaces, to be paired up as path queries).
 Output depends only on the arguments (own LCG, no platform randomness); the sine terrain in some levels
 can differ in the last printed digit between C libraries, so benchmark rows record the generated file's SHA-256.
@@ -216,7 +216,37 @@ def level_city(size, seed):
     return m
 
 
+TILEMAP_CELL = 2.0     # world units per tile
+TILEMAP_SOLID = 0.6    # fraction of tiles that are floor
+
+
+def tilemap_cells(size, seed):
+    """Row-major (z, then x) solidity of the noisy tile map; bench/Shared/TileMapWorld.cs repeats this exactly."""
+    n = int(size / TILEMAP_CELL)
+    r = Lcg(seed * 1000003 + 77)
+    return n, [[r.next() < TILEMAP_SOLID for _ in range(n)] for _ in range(n)]
+
+
+def level_tilemap(size, seed):
+    """A square of size/2 by size/2 tiles (2 units each), about 60% flat floor in noise: the footprint of a tile map
+    extruded to flat triangles. Every grid vertex is written so the bounds are the whole square."""
+    m = Mesh()
+    n, solid = tilemap_cells(size, seed)
+    idx = {}
+    for i in range(n + 1):
+        for j in range(n + 1):
+            idx[(i, j)] = m.vert(i * TILEMAP_CELL, 0.0, j * TILEMAP_CELL)
+    for j in range(n):
+        for i in range(n):
+            if solid[j][i]:
+                a, b, c, d = idx[(i, j)], idx[(i + 1, j)], idx[(i + 1, j + 1)], idx[(i, j + 1)]
+                m.tri(a, d, c)
+                m.tri(a, c, b)
+    return m
+
+
 LEVELS = {
+    "tilemap": level_tilemap,
     "terraces": level_terraces, "ramps": level_ramps, "stairs": level_stairs,
     "overlapping": level_overlapping, "slivers": level_slivers, "city": level_city,
 }

@@ -8,5 +8,6 @@
     <PackageReference Include="BenchmarkDotNet" />
     <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
     <Compile Include="../../tools/HashMatrix/Scenarios/Orca/OrcaWorlds.cs" Link="OrcaWorlds.cs" />
+    <Compile Include="../Shared/TileMapWorld.cs" Link="TileMapWorld.cs" />
   </ItemGroup>
 </Project>
