@@ -90,6 +90,8 @@ public static class Targets
         ["info"] = _ => GC.KeepAlive(OnePathInfo.Version),
         ["build3d"] = Build3DTarget.Run,
         ["build3d-contours"] = Build3DTarget.RunContours,
+        ["mesh-build"] = MeshBuildFuzz.Run,
+        ["mesh-build-smoke"] = MeshBuildFuzz.Smoke,
         ["build2d"] = Build2DFuzz.Run,
         ["build2d-smoke"] = Build2DFuzz.Smoke,
         ["build2d-tiles"] = Build2DFuzz.RunTiles,

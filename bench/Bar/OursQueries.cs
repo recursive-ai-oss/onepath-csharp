@@ -15,7 +15,7 @@ namespace RecursiveAI.OnePath.Bar;
 /// Our side of the navmesh query rows: the same measurements, metric names and query-point handling as the reference
 /// driver's <c>query</c> command (points paired as (0,1), (2,3), ...; every point snapped with extents (2, 4, 2); a path per
 /// pair as a corridor plus a straight path, ending at the closest point of the last polygon when partial; a raycast per pair;
-/// a nearest-polygon query per point). Until a builder can build the suite's OBJ levels, the mesh is the format test
+/// a nearest-polygon query per point). With an <c>--obj</c> level the mesh is our 3D builder's on the reference settings and the points are used as they are; without one, the mesh is the format test
 /// generator's (8 by 8 tiles, one layer, about 64 by 64 units) and the points file is mapped onto it by scaling its X/Z bounding box;
 /// the <c>mesh_source</c> row says so. Rows are therefore comparable in method, not yet in geometry.
 /// </summary>
@@ -25,6 +25,9 @@ internal static class OursQueries
     {
         string[] t = paths.Expand(row.Args).Split(' ', StringSplitOptions.RemoveEmptyEntries);
         string? pointsFile = null;
+        string? objFile = OursBuild.Arg(t, "--obj");
+        bool tiled = OursBuild.Arg(t, "--mode") == "tiled";
+        int tileCells = int.Parse(OursBuild.Arg(t, "--tile-size") ?? "64", CultureInfo.InvariantCulture);
         int reps = 5;
         for (int i = 0; i + 1 < t.Length; i++)
         {
@@ -45,14 +48,29 @@ internal static class OursQueries
         foreach (string line in File.ReadLines(pointsFile))
         {
             string[] f = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (f.Length >= 3)
+            if (f.Length >= 3 && f[0][0] != (char)35)
             {
                 raw.Add(new Vector3D(double.Parse(f[0], CultureInfo.InvariantCulture), double.Parse(f[1], CultureInfo.InvariantCulture), double.Parse(f[2], CultureInfo.InvariantCulture)));
             }
         }
         double x0 = raw.Min(p => p.X), x1 = raw.Max(p => p.X), z0 = raw.Min(p => p.Z), z1 = raw.Max(p => p.Z);
-        TiledNavMesh mesh = NavMeshWorlds.RandomMesh(7, -4, -4, 8, 8, 1, detail: false, offMesh: 0);
-        var pts = raw.Select(p => new Vector3D(-47 + ((p.X - x0) / Math.Max(1e-9, x1 - x0) * 62), 0.2, -47 + ((p.Z - z0) / Math.Max(1e-9, z1 - z0) * 62))).ToList();
+        TiledNavMesh mesh;
+        List<Vector3D> pts;
+        string meshSource;
+        if (objFile is not null && File.Exists(objFile))
+        {
+            // The level's own mesh, built with the reference settings, and the points as they are.
+            (double[] ov, int[] oi) = OursBuild.LoadObj(objFile);
+            mesh = OursBuild.Build(ov, oi, tiled, tileCells).Tiles;
+            pts = raw;
+            meshSource = "3D builder, " + OursBuild.Describe(tiled, tileCells);
+        }
+        else
+        {
+            mesh = NavMeshWorlds.RandomMesh(7, -4, -4, 8, 8, 1, detail: false, offMesh: 0);
+            pts = raw.Select(p => new Vector3D(-47 + ((p.X - x0) / Math.Max(1e-9, x1 - x0) * 62), 0.2, -47 + ((p.Z - z0) / Math.Max(1e-9, z1 - z0) * 62))).ToList();
+            meshSource = "format test generator (8x8 tiles); points scaled onto it";
+        }
 
         var q = new NavMeshQuery(mesh);
         var filter = new PlainFilterStruct();
@@ -149,7 +167,7 @@ internal static class OursQueries
             R("nearest_time_best", tNear.Min(), "ms"),
             R("nearest_per_sec", pts.Count / (tNear.Min() / 1000.0), "1/s"),
             R("peak_rss", Process.GetCurrentProcess().PeakWorkingSet64 / (1024.0 * 1024.0), "MB"),
-            new Row(row.Part, id, side, "mesh_source", "format test generator (8x8 tiles); points scaled onto it", "text"),
+            new Row(row.Part, id, side, "mesh_source", meshSource, "text"),
         };
     }
 

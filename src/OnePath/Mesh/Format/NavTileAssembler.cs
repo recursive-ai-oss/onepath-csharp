@@ -83,6 +83,56 @@ public static class NavTileAssembler
             verts[(3 * i) + 2] = Snap(z - oz, snap, ts);
         }
 
+        return FromLocalPolygons(p, tileX, tileZ, layer, originY, verts, polyVertexCounts, polyIndices, areas, flags);
+    }
+
+    /// <summary>
+    /// Like <see cref="FromPolygons"/> for a builder that already holds tile-local float32 vertices (so the stored values are exactly the
+    /// ones it computed, with no round trip through world doubles). Vertices on a tile boundary must hold the boundary coordinate exactly.
+    /// </summary>
+    /// <param name="p">Mesh parameters.</param>
+    /// <param name="tileX">Tile column.</param>
+    /// <param name="tileZ">Tile row.</param>
+    /// <param name="layer">Layer.</param>
+    /// <param name="originY">World Y that is tile-local Y zero.</param>
+    /// <param name="verts">Tile-local vertices, three float32 per vertex.</param>
+    /// <param name="polyVertexCounts">Vertex count of each polygon.</param>
+    /// <param name="polyIndices">Vertex indices of all polygons, concatenated; clockwise polygons are reversed.</param>
+    /// <param name="areas">Area of each polygon (null: all 0).</param>
+    /// <param name="flags">Flags of each polygon (null: all 0).</param>
+    /// <returns>Tile data.</returns>
+    /// <exception cref="NavMeshFormatException">The input lists are inconsistent.</exception>
+    public static NavTileData FromLocalPolygons(
+        NavMeshParams p,
+        int tileX,
+        int tileZ,
+        int layer,
+        double originY,
+        float[] verts,
+        ReadOnlySpan<int> polyVertexCounts,
+        ReadOnlySpan<int> polyIndices,
+        ReadOnlySpan<byte> areas = default,
+        ReadOnlySpan<ushort> flags = default)
+    {
+        ArgumentNullException.ThrowIfNull(p);
+        ArgumentNullException.ThrowIfNull(verts);
+        int np = polyVertexCounts.Length;
+        int nv = verts.Length / 3;
+        float ts = (float)p.TileSize;
+        if (verts.Length % 3 != 0 || (areas.Length != 0 && areas.Length != np) || (flags.Length != 0 && flags.Length != np))
+        {
+            throw new NavMeshFormatException("vertices must hold 3 floats each; areas and flags must be empty or hold one entry per polygon.");
+        }
+        long sum = 0;
+        foreach (int c in polyVertexCounts)
+        {
+            sum += c;
+        }
+        if (sum != polyIndices.Length)
+        {
+            throw new NavMeshFormatException($"polyIndices holds {polyIndices.Length} entries but the polygon vertex counts sum to {sum}.");
+        }
+
         var idx = new ushort[polyIndices.Length];
         for (int i = 0; i < idx.Length; i++)
         {
