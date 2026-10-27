@@ -203,13 +203,22 @@ public sealed class Grid
     public void AddListener(IGridChangeListener listener)
     {
         ArgumentNullException.ThrowIfNull(listener);
-        _listeners.Add(listener);
+        lock (_sync)
+        {
+            _listeners.Add(listener); // locked so several flow fields may be created on different threads
+        }
     }
 
     /// <summary>Unregisters a listener.</summary>
     /// <param name="listener">The listener.</param>
     /// <returns>True if it was registered.</returns>
-    public bool RemoveListener(IGridChangeListener listener) => _listeners.Remove(listener);
+    public bool RemoveListener(IGridChangeListener listener)
+    {
+        lock (_sync)
+        {
+            return _listeners.Remove(listener);
+        }
+    }
 
     /// <summary>
     /// True clearance of a cell: the side of the largest square of walkable cells whose top-left corner is this cell
@@ -477,6 +486,14 @@ public sealed class Grid
             }
         }
     }
+
+    /// <summary>Computes a flow field: the least cost from every cell to the nearest of the goal cells, and the step each cell takes.</summary>
+    /// <param name="goals">Goal cells; at least one, all inside the grid. A goal the agent cannot stand on seeds nothing.</param>
+    /// <param name="options">Options; null means <see cref="GridOptions.Default"/>. Heuristic, algorithm and recording do not apply.</param>
+    /// <returns>The field, complete unless <see cref="GridOptions.IterationBudget"/> stopped it.</returns>
+    /// <exception cref="ArgumentException">No goals.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A goal is outside the grid.</exception>
+    public GridFlowField CreateFlowField(ReadOnlySpan<Cell> goals, GridOptions? options = null) => new(this, goals, options ?? DefaultOptions);
 
     private void CheckCell(int x, int y)
     {

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Checks A*, JPS or JPS+ costs against the published optimal lengths of Moving AI Lab scenario sets.
+# Checks A*, JPS, JPS+ or flow-field costs against the published optimal lengths of Moving AI Lab scenario sets.
 #   tools/GridOptima/sweep.sh [--lock] [set ...]      (default sets: all nine 2D sets)
 # Environment: MAPS (folder with <set>/*.map and *.map.scen, or <set>-map.zip / <set>-scen.zip; default ~/onepath/maps),
-#              THREADS (default 6), ALG (astar, jps or jps+; default astar), LIMIT (scenarios per set; default all).
+#              THREADS (default 6), ALG (astar, jps, jps+ or flow; default astar; flow runs a whole-map field per scenario, so set LIMIT), LIMIT (scenarios per set; default all).
 # The street and maze sets need well over 30 minutes of CPU: on a shared host pass --lock, which holds the host's
 # benchmark lock file (~/WORKER-BENCH.lock) for the whole run and releases it on exit.
 source "$(dirname "${BASH_SOURCE[0]}")/../../ci/env.sh"

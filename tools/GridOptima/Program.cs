@@ -10,8 +10,8 @@ using RecursiveAI.OnePath.Grids;
 namespace RecursiveAI.OnePath.GridOptima;
 
 /// <summary>
-/// Checks path costs (A*, JPS or JPS+) against the published optimal lengths of Moving AI Lab scenario sets.
-/// Usage: <c>GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--alg astar|jps|jps+]</c>, where DIR holds
+/// Checks path costs (A*, JPS, JPS+ or a flow field) against the published optimal lengths of Moving AI Lab scenario sets.
+/// Usage: <c>GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--alg astar|jps|jps+|flow]</c>, where DIR holds
 /// <c>NAME-map.zip</c> and <c>NAME-scen.zip</c> (as downloaded from the benchmark site; never committed) or a folder NAME of loose files.
 /// Prints one summary line: scenarios, mismatches, maximum absolute difference. Exit code 1 if any mismatch.
 /// Options: <c>--swamp 0|1</c>, <c>--water 0|1</c> choose how S and W terrain is read.
@@ -51,7 +51,7 @@ public static class Program
         }
         if (dir is null || set is null)
         {
-            Console.Error.WriteLine("usage: GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--swamp 0|1] [--water 0|1] [--alt-sqrt2 X] [--alg astar|jps|jps+]  |  --alg theta|lazytheta (--random N | --maps DIR --set NAME), a quality report");
+            Console.Error.WriteLine("usage: GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--swamp 0|1] [--water 0|1] [--alt-sqrt2 X] [--alg astar|jps|jps+|flow]  |  --alg theta|lazytheta (--random N | --maps DIR --set NAME), a quality report");
             return 2;
         }
 
@@ -234,8 +234,20 @@ public static class Program
                         Path = () => { int[] p = new int[j.PathLength()]; j.CopyPath(p); return p; },
                     };
                 }
+                case "flow":
+                {
+                    // Flow field to the scenario's goal: the integration cost at the start must equal the published optimum.
+                    var f = new FlowField<SquareTopology, DefaultStepCost>(grid.CreateTopology(), default);
+                    int start = 0;
+                    return new Searcher
+                    {
+                        Run = (s, g) => { start = s; f.Begin([g]); f.Run(); return !double.IsPositiveInfinity(f.Cost(s)); },
+                        Cost = () => f.Cost(start),
+                        Path = () => throw new NotSupportedException("--alt-sqrt2 needs a path-returning algorithm"),
+                    };
+                }
                 default:
-                    throw new ArgumentException($"unknown algorithm '{alg}' (astar, jps or jps+)");
+                    throw new ArgumentException($"unknown algorithm '{alg}' (astar, jps, jps+ or flow)");
             }
         }
     }

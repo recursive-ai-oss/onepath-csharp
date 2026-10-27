@@ -228,6 +228,44 @@ grid moves in the order north, east, south, west, north-east, south-east, south-
 
 The papers prove no optimality; paths are short, not shortest. Length lies between the visibility-graph optimum (shortest path turning
 only at cell centres) and, in all checks, the A* length.
+## Flow fields (many agents, one goal set)
+
+Integration step of flow-field pathfinding (Emerson 2013, *Crowd Pathfinding and Steering Using Flow Field Tiles*;
+Pentheny 2013): Dijkstra's algorithm run outwards from the goals. Code: `Grids/Flow/` (`FlowField<TTopology, TCost>` tier 2/3,
+`GridFlowField` tier 1 via `Grid.CreateFlowField` and `HexGrid.CreateFlowField`).
+
+- **Integration field** `cost[n]` (double, +∞ = unreachable or not walkable). Goals (sorted, deduplicated; a goal the agent
+  cannot stand on is inactive) cost 0. Every other node costs `min over neighbours u of (cost[u] + move(n, u))`, `move(n, u)` being
+  the cost of the move *out of* `n` (the topology's move cost passed through the cost hook; the same cost in both directions
+  is required because the wave runs backwards along the neighbour lists). Sums are IEEE doubles formed as `cost[u] + move`.
+  Square grids use the same neighbour set, diagonal rule, agent clearance and `(m[from] + m[to]) / 2` costs as A*; hex grids
+  the six hex moves. The tier-1 blocked filter isolates a cell (no move into or out of it); the step-cost delegate sees `(from, to, grid cost)`.
+- **Settling order.** The open list is `OpenSet` with `f = g = cost`, so ties on cost pop by smaller node index. The
+  field does not depend on that order: a node's final cost is the minimum, over neighbours, of the same rounded sums of their
+  final costs (rounding is monotone and moves cost ≥ 0, so a neighbour settled later never beats one settled earlier).
+- **Direction field** `next[n]` (node index, −1 for goals and unreachable nodes): the **first** neighbour in the topology's neighbour
+  order (square: N, E, S, W, NE, SE, SW, NW; hex: axial order) that attains the minimum of `cost[u] + move(n, u)`. It is eight-way
+  (six-way on hex), not a continuous gradient: `GetDirection` returns the unit vector from this cell's centre to the next one's,
+  and following `next` from any reachable cell reaches a goal with total move cost equal to `cost[n]` (exactly, in the same
+  arithmetic, up to the order of addition: a sum taken from the cell towards the goal can differ from the wave's sum in the last bits
+  when move costs are not dyadic, because √2 is rounded). A continuous gradient and a line-of-sight shortcut near the goal are not provided.
+- **Iteration budget.** One iteration pops one node and relaxes its neighbours. `Step(n)` does at most `n`; a sliced field
+  equals an unsliced one and reports the same `Settled`. `GridOptions.IterationBudget` bounds the constructor's run; call `Step`/`Run` to finish.
+- **Incremental repair.** `Refresh()` after cell edits (found through `IGridChangeListener`) recomputes only the affected region
+  (Ramalingam & Reps 1996 style): the *dirty* nodes — the 3x3 block around an edited cell, widened up and left by the agent size − 1
+  for agents wider than one cell (hex: the cell and its neighbours) — are invalidated together with every node whose chosen next node is invalid, then each invalid node is seeded
+  from its still-valid neighbours and the wave refills the region (improvements spread beyond it). Directions are recomputed for every node whose cost changed
+  and its neighbours. The result is bit-identical to a field computed from scratch (cost bits and `next`). A change to an area
+  multiplier, or `Recompute()`, recomputes everything. Changes the grid cannot report (a delegate answering differently) need `Recompute()`.
+- **Threads.** A field is computed on one thread. Fields for different goal sets may be computed concurrently over one grid that is
+  not being edited (listener registration is locked); results do not depend on the thread count. Nothing in the flow-field code uses
+  thread-count-dependent scheduling.
+- **Verification.** Integration field equals a per-cell O(n²) Dijkstra over 10^4 random square grids (4- and 8-connected, all three
+  diagonal rules, agent sizes 1 and 2, area costs, 1–3 goals; bit-exact for four-connected where the costs are dyadic, 1e-9 relative with √2) and 600 hex grids (bit-exact); following the direction field from
+  every cell reaches a goal at the field's cost; repair equals recompute (bit-exact cost and `next`) over 600 edit sequences including agent sizes 2–3, hex and area-cost
+  changes; sliced equals unsliced for budgets 1–50; fields on 8 threads equal sequential ones. On Moving AI maps `GridOptima --alg flow` (`ALG=flow LIMIT=n sweep.sh`)
+  computes the whole-map field to each scenario's goal and checks the start's cost against the published optimum (relative 1e-6): dao, sc1, bg512 and room, 4000 scenarios each, 0 mismatches.
+  Hash scenarios `grids/flow/*`; fuzz target `grid-flow`.
 
 ## Moving AI files
 

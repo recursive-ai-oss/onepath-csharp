@@ -102,5 +102,6 @@ public static class Targets
         ["grid-jps"] = GridTargets.Jps,
         ["navmesh-snapshot"] = NavMeshSnapshotFuzz.Run,
         ["grid-theta"] = ThetaTarget.Run,
+        ["grid-flow"] = FlowTargets.Run,
     };
 }
