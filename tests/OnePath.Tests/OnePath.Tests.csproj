@@ -17,5 +17,6 @@
     <Compile Include="../../tools/HashMatrix/Scenarios/Orca/OrcaWorlds.cs" Link="Support/OrcaWorlds.cs" />
     <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshWorlds.cs" Link="Support/NavMeshWorlds.cs" />
     <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshMutations.cs" Link="Support/NavMeshMutations.cs" />
+    <Compile Include="../../tools/HashMatrix/Scenarios/Crowds/CorridorWorlds.cs" Link="Support/CorridorWorlds.cs" />
   </ItemGroup>
 </Project>

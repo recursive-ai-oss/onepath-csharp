@@ -111,8 +111,11 @@ X/Z (tests compare with a visibility-graph oracle).
 ## Raycast
 
 `Raycast(startPoly, start, end, filter, visited)` follows the segment across the surface in the X/Z plane. In each polygon the exit
-edge is found by clipping the segment against the convex outline: the leaving edge with the least parameter *t* (lowest edge index on
-ties, e.g. through a vertex). If *t* ≥ 1 the segment ends inside: `Hit = false`, `T = 1`. Otherwise the ray crosses into the neighbour
+edge is found by clipping the segment against the convex outline: the least parameter *t* at which it leaves an edge's line. Edges whose
+lines it leaves at the same *t* (equal within 1e-9·(1+t): consecutive collinear edges, or the two edges at a vertex the segment passes
+through) are candidates; of those, the ones whose extent is nearest the crossing point (squared distance within 1e-18 of the smallest) are
+tried in index order and the first that leads to a polygon the filter accepts is taken, so a segment slipping through a vertex into the
+next polygon goes on; if none leads anywhere, the lowest index of them is the wall that was hit. If *t* ≥ 1 the segment ends inside: `Hit = false`, `T = 1`. Otherwise the ray crosses into the neighbour
 across the edge if there is one the filter accepts: an in-tile neighbour, or a tile-portal link of that edge whose range
 (`RangeMin − 1 .. RangeMax + 1` in 1/255ths of the edge) contains the crossing point. Otherwise it hits a wall there: `Hit = true`,
 `T`, the outward unit normal of the edge in the X/Z plane (`Y = 0`), `HitPoly`, `HitEdge`. Off-mesh links are not crossed. Heights are

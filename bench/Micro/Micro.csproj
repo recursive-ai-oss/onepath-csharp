@@ -8,5 +8,8 @@
     <PackageReference Include="BenchmarkDotNet" />
     <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
     <Compile Include="../../tools/HashMatrix/Scenarios/Orca/OrcaWorlds.cs" Link="OrcaWorlds.cs" />
+    <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshWorlds.cs" Link="NavMeshWorlds.cs" />
+    <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshMutations.cs" Link="NavMeshMutations.cs" />
+    <Compile Include="../../tools/HashMatrix/Scenarios/Crowds/CorridorWorlds.cs" Link="CorridorWorlds.cs" />
   </ItemGroup>
 </Project>

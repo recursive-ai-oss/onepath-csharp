@@ -45,6 +45,7 @@ public static class Program
             NavMeshFuzz.WriteSeeds(args[1]);
             NavMeshSnapshotFuzz.WriteSeeds(System.IO.Path.Combine(args[1], "snapshot"));
             GraphTargets.WriteSeeds(System.IO.Path.Combine(args[1], "graph-landmarks"));
+            CorridorFuzz.WriteSeeds(System.IO.Path.Combine(args[1], "corridor"));
             return 0;
         }
 
@@ -112,5 +113,6 @@ public static class Targets
         ["grid-theta"] = ThetaTarget.Run,
         ["grid-flow"] = FlowTargets.Run,
         ["grid-replan"] = GridTargets.Replan,
+        ["corridor-follow"] = CorridorFuzz.Run,
     };
 }
