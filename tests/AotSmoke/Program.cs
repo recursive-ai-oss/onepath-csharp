@@ -78,4 +78,6 @@ bool grids = GridSmoke.Run();
 Console.WriteLine($"Grids run: {(grids ? "ok" : "FAILED")}");
 bool flow = FlowSmoke.Run();
 Console.WriteLine($"Flow fields run: {(flow ? "ok" : "FAILED")}");
-return ok && orca && nav && grids && flow && OnePathInfo.Version.Major >= 0 ? 0 : 1;
+bool graphs = GraphSmoke.Run();
+Console.WriteLine($"Graphs run: {(graphs ? "ok" : "FAILED")}");
+return ok && orca && nav && grids && flow && graphs && OnePathInfo.Version.Major >= 0 ? 0 : 1;
