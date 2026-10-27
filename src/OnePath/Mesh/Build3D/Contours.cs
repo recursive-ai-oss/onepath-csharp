@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace RecursiveAI.OnePath.NavMesh.Build3D;
+namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>
 /// A contour vertex on the cell grid: <see cref="X"/> and <see cref="Z"/> are cell-corner coordinates (0..Width, 0..Depth), <see cref="Y"/> the

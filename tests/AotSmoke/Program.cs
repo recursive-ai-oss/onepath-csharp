@@ -1,6 +1,8 @@
 using System;
+using RecursiveAI.OneMath;
 using RecursiveAI.OnePath;
-using RecursiveAI.OnePath.NavMesh.Build3D;
+using RecursiveAI.OnePath.Mesh.Build3D;
+using RecursiveAI.OnePath.Mesh.Build2D;
 
 // Exercises the public surface under NativeAOT and full trimming. Exit code 0 means it ran.
 Console.WriteLine($"OnePath {OnePathInfo.Version}");
@@ -14,6 +16,8 @@ try
 catch (ArgumentOutOfRangeException)
 {
 }
+bool nav = NavMeshSmoke.Run();
+Console.WriteLine($"Navmesh format: {(nav ? "ok" : "FAILED")}");
 bool orca = OrcaSmoke.Run();
 Console.WriteLine($"ORCA run: {(orca ? "ok" : "FAILED")}");
 
@@ -54,4 +58,13 @@ foreach (PartitionType type in Enum.GetValues<PartitionType>())
     ok &= set.Contours.Count == 1 && set.Contours[0].Vertices.Length == 4;
 }
 
-return ok && orca && OnePathInfo.Version.Major >= 0 ? 0 : 1;
+
+// 2D geometry pipeline: outlines -> boolean -> offset -> triangulation -> convex polygons.
+var a = Region.FromOutlines(new[] { new Outline(new[] { new Vector2D(0, 0), new Vector2D(10, 0), new Vector2D(10, 10), new Vector2D(0, 10) }) });
+var b = Region.FromOutlines(new[] { new Outline(new[] { new Vector2D(5, 5), new Vector2D(15, 5), new Vector2D(15, 15), new Vector2D(5, 15) }) });
+var u = a.Union(b);
+var shrunk = u.Offset(-1.0);
+var poly = shrunk.PartitionConvex();
+Console.WriteLine($"Region area {u.Area}, eroded area {shrunk.Area:F3}, {poly.PolygonCount} convex polygons");
+ok = ok && u.Area == 175.0 && poly.PolygonCount > 0 && shrunk.Area < u.Area;
+return ok && orca && nav && OnePathInfo.Version.Major >= 0 ? 0 : 1;

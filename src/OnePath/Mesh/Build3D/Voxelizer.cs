@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh.Build3D;
+namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>Counts from one rasterization call.</summary>
 /// <param name="Triangles">Triangles in the input.</param>

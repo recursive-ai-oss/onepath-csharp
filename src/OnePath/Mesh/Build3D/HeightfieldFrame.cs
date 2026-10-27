@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh.Build3D;
+namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>
 /// The voxel grid a tile is built on: a double world origin, the cell size (x and z) and cell height (y)

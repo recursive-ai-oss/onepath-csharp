@@ -1,6 +1,6 @@
 # 3D builder: regions and contours
 
-Normative. Continues `build3d-spans.md`: what `RecursiveAI.OnePath.NavMesh.Build3D` computes from the compact heightfield up to contours, which are the
+Normative. Continues `build3d-spans.md`: what `RecursiveAI.OnePath.Mesh.Build3D` computes from the compact heightfield up to contours, which are the
 hand-off to the polygon stage. Integer arithmetic only (cell and corner coordinates are `int`, products `long`); nothing here uses floating point except
 the error threshold compare in §6, which is IEEE `double` multiplication and division of exactly representable integers.
 

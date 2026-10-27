@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace RecursiveAI.OnePath.NavMesh.Build3D;
+namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>
 /// The span adjacency of a compact heightfield as flat arrays: neighbour span index per direction, or -1. A neighbour is recorded only when the

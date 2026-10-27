@@ -13,6 +13,8 @@ try
 catch (ArgumentOutOfRangeException)
 {
 }
+bool nav = NavMeshSmoke.Run();
+Console.WriteLine($"Navmesh format: {(nav ? "ok" : "FAILED")}");
 bool orca = OrcaSmoke.Run();
 Console.WriteLine($"ORCA run: {(orca ? "ok" : "FAILED")}");
-return ok && orca && OnePathInfo.Version.Major >= 0 ? 0 : 1;
+return ok && orca && nav && OnePathInfo.Version.Major >= 0 ? 0 : 1;

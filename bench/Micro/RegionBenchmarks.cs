@@ -1,5 +1,5 @@
 using BenchmarkDotNet.Attributes;
-using RecursiveAI.OnePath.NavMesh.Build3D;
+using RecursiveAI.OnePath.Mesh.Build3D;
 
 namespace RecursiveAI.OnePath.Micro;
 

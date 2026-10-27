@@ -6,5 +6,7 @@
   <ItemGroup>
     <PackageReference Include="SharpFuzz" />
     <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
+    <!-- Seed meshes come from the same generator the tests use. -->
+    <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshWorlds.cs" Link="Support/NavMeshWorlds.cs" />
   </ItemGroup>
 </Project>

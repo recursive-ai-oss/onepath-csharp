@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
-using RecursiveAI.OnePath.NavMesh.Build3D;
+using RecursiveAI.OnePath.Mesh.Build3D;
 
 namespace RecursiveAI.OnePath.HashMatrix;
 
@@ -79,7 +79,7 @@ internal static class Build3DRegionScenarios
         for (int n = 0; n < 40; n++)
         {
             CompactHeightfield chf = Field(20 + (n % 9), 18 + (n % 7));
-            NavMesh.Build3D.Regions.Build(chf, new RegionSettings { Partition = type, MinRegionArea = 4 * (n % 3), MergeRegionArea = type == PartitionType.Layers ? 0 : 20 * (n % 4) });
+            Mesh.Build3D.Regions.Build(chf, new RegionSettings { Partition = type, MinRegionArea = 4 * (n % 3), MergeRegionArea = type == PartitionType.Layers ? 0 : 20 * (n % 4) });
             WriteRegions(ctx, chf);
         }
     }
@@ -90,8 +90,8 @@ internal static class Build3DRegionScenarios
         for (int n = 0; n < 40; n++)
         {
             CompactHeightfield chf = Field(24 + (n % 5), 22 + (n % 11));
-            NavMesh.Build3D.Regions.Build(chf, new RegionSettings { Partition = (PartitionType)(n % 3), MinRegionArea = 4, MergeRegionArea = (n % 3 == 2) ? 0 : 30 });
-            WriteContours(ctx, NavMesh.Build3D.Contours.Build(chf, new ContourSettings { MaxError = (n % 4) * 0.65f, MaxEdgeLength = (n % 3) * 6 }));
+            Mesh.Build3D.Regions.Build(chf, new RegionSettings { Partition = (PartitionType)(n % 3), MinRegionArea = 4, MergeRegionArea = (n % 3 == 2) ? 0 : 30 });
+            WriteContours(ctx, Mesh.Build3D.Contours.Build(chf, new ContourSettings { MaxError = (n % 4) * 0.65f, MaxEdgeLength = (n % 3) * 6 }));
         }
     }
 

@@ -1,6 +1,6 @@
 # 3D builder, front half: voxelization and the span stage
 
-Normative. This describes what `RecursiveAI.OnePath.NavMesh.Build3D` computes up to the compact open-span
+Normative. This describes what `RecursiveAI.OnePath.Mesh.Build3D` computes up to the compact open-span
 heightfield, which is the hand-off to the region stage. A port must reproduce the same spans from these rules.
 Everything is IEEE-754 float32 (`+ − × ÷ sqrt` only) unless a type says double; nothing here uses a transcendental function.
 

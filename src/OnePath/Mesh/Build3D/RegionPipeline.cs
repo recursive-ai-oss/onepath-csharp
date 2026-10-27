@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh.Build3D;
+namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>
 /// The 3D builder up to contours: the <see cref="SpanPipeline"/> (filters, compaction, erosion, volumes) followed by the region partition and contour

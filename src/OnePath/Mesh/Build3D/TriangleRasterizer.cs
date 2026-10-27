@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveAI.OnePath.NavMesh.Build3D;
+namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>
 /// Clips one triangle against the grid and emits spans. Coordinates are scaled to cell units (u = x / cellSize,
