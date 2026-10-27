@@ -20,6 +20,11 @@ public static class Program
 {
     public static int Main(string[] args)
     {
+        int algAt = Array.IndexOf(args, "--alg");
+        if (algAt >= 0 && algAt + 1 < args.Length && AnyAngleQuality.Wants(args[algAt + 1]))
+        {
+            return AnyAngleQuality.Run(args);
+        }
         string? dir = null;
         string? set = null;
         int threads = 1;
@@ -46,7 +51,7 @@ public static class Program
         }
         if (dir is null || set is null)
         {
-            Console.Error.WriteLine("usage: GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--swamp 0|1] [--water 0|1] [--alt-sqrt2 X] [--alg astar|jps|jps+]");
+            Console.Error.WriteLine("usage: GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--swamp 0|1] [--water 0|1] [--alt-sqrt2 X] [--alg astar|jps|jps+]  |  --alg theta|lazytheta (--random N | --maps DIR --set NAME), a quality report");
             return 2;
         }
 

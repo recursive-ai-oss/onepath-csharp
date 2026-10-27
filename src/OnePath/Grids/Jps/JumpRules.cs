@@ -22,6 +22,18 @@ public enum GridAlgorithm
     /// the query falls back to <see cref="Jps"/> or <see cref="AStar"/>. The first query on a grid builds the tables.
     /// </summary>
     JpsPlus = 2,
+
+    /// <summary>
+    /// Theta* (Nash et al. 2007): any-angle paths, returned as waypoints with a line of sight between consecutive ones, found
+    /// close to (not always exactly) the shortest. Needs eight moves, <see cref="DiagonalRule.NoCornerCutting"/>, agent size 1, one
+    /// cost multiplier for every area, no cost or blocking callbacks and the <see cref="GridHeuristic.Auto"/> (straight-line),
+    /// <see cref="GridHeuristic.Euclidean"/> or <see cref="GridHeuristic.Zero"/> estimate; otherwise A* runs and
+    /// <see cref="GridPath.Algorithm"/> says so. <see cref="GridPath.Cost"/> is the Euclidean length.
+    /// </summary>
+    ThetaStar = 3,
+
+    /// <summary>Lazy Theta* (Nash et al. 2010): Theta* that tests the line of sight when a node is expanded instead of when it is generated, with the corrected-cost re-insertion of <see cref="ThetaVariant.LazyRequeue"/>. Same requirements and result form as <see cref="ThetaStar"/>.</summary>
+    LazyThetaStar = 4,
 }
 
 /// <summary>

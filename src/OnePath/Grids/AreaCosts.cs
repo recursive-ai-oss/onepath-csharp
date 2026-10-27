@@ -126,4 +126,7 @@ public enum GridHeuristic
 
     /// <summary>Octile distance (diagonal steps cost √2).</summary>
     Octile = 3,
+
+    /// <summary>Straight-line distance; the estimate any-angle searches (Theta*, Lazy Theta*) use.</summary>
+    Euclidean = 4,
 }

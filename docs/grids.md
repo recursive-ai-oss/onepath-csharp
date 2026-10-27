@@ -185,6 +185,50 @@ table index is independent of costs, so changing a multiplier needs no rebuild.
 
 **Cost model of preprocessing.** O(8 · cells) time to build, 16 bytes per cell; the block map takes cells/4 bytes.
 
+## Any-angle search (Theta*, Lazy Theta*)
+
+Papers: Nash, Daniel, Koenig & Felner 2007 (*Theta\*: Any-Angle Path Planning on Grids*; JAIR 2010) and Nash, Koenig & Tovey 2010
+(*Lazy Theta\**). Code: `src/OnePath/Grids/ThetaStar/`.
+
+**Model.** Nodes are cell centres (the same nodes as A*), not cell corners as in the papers, so every algorithm of this document
+shares one node set, start and goal definition and clearance rule. A waypoint list is a path; the agent moves in straight segments
+between consecutive centres.
+
+**Line of sight** (`GridLineOfSight`). Two walkable cells see each other iff the closed segment between their centres touches no
+wall cell, where a wall is the *closed* unit square (touching a wall's corner blocks). Diagonal neighbours therefore see each other
+exactly when both beside cells are walkable: every legal `NoCornerCutting` move is a line of sight. Cells outside the grid are walls.
+Integers only. With `dx = x1-x0`, `dy = y1-y0`, `nx = |dx|`, `ny = |dy|`, steps `sx, sy = sign`:
+- `nx = 0` or `ny = 0`: all cells on the row/column between the endpoints.
+- else walk from (x0, y0) with counters `ix = iy = 0` until `ix = nx` and `iy = ny`; `d = (2ix+1)*ny - (2iy+1)*nx` (64-bit). `d < 0`:
+  step in x (`ix++`); `d > 0`: step in y (`iy++`); `d = 0`: the segment passes through a lattice corner; the two cells beside it
+  `(x+sx, y)` and `(x, y+sy)` must be walkable, then step in both. Every cell entered must be walkable.
+
+**Applies when** (otherwise the query runs as A* and `GridPath.Algorithm` says so): eight-connected, `NoCornerCutting`, agent size 1,
+one cost multiplier `m` for every area, no `StepCost`/`Blocked` callbacks, heuristic `Auto`, `Euclidean` or `Zero`.
+The cost of a segment is `m * sqrt(dx*dx + dy*dy)` (`dx`, `dy` integer, the sum exact in 64 bits, one correctly rounded square root),
+so a straight cell step costs `m`, a diagonal one `m * Sqrt2` as in A*. A path's cost is the sum of its segment costs added in path order
+from 0 (`GridPath.Cost`; `Cells` and `WorldPoints` list the waypoints only). Heuristic: `m * sqrt(dx*dx + dy*dy)` to the goal
+(`EuclideanHeuristic`), weight `GridOptions.HeuristicWeight`.
+
+**Search** (`ThetaSearch<THeuristic>`, tier 2). The open set is the grid core's `OpenSet` (smaller f, larger g, smaller cell index); one
+iteration pops one node; the goal is tested when popped; budgets and slicing as in A*. Neighbours of an expanded node `s` are its legal
+grid moves in the order north, east, south, west, north-east, south-east, south-west, north-west; closed nodes are never reopened
+(as in the papers) and a neighbour's cost is replaced only when strictly lower, so the first parent found wins ties. The start has no parent
+(the papers make it its own parent). Let `p` be the parent of `s`, `c(a, b)` the segment cost.
+- *Theta\** (`ThetaVariant.Theta`): for each neighbour `t` that is not closed: if `p` exists and `LOS(p, t)`, candidate `g(p) + c(p, t)` with
+  parent `p`; otherwise `g(s) + c(s, t)` with parent `s`.
+- *Lazy Theta\** (`ThetaVariant.Lazy`, the paper): the candidate is always `g(p) + c(p, t)` with parent `p` (no test; the start
+  uses `s`). When a node is popped, `SetVertex`: if it has a parent `p` and not `LOS(p, node)`, the parent becomes the closed grid neighbour `u`
+  (neighbour order, first on ties) minimising `g(u) + c(u, node)`, and `g(node)` is set to that sum; then the node is closed and expanded.
+- *Lazy Theta\* with re-queue* (`ThetaVariant.LazyRequeue`, the tier-1 `GridAlgorithm.LazyThetaStar`): as `Lazy`, but a node whose `SetVertex`
+  changed its parent is pushed back into the open set under its corrected `g` and `f` and not expanded in this iteration (the pop still counts).
+  After the repair the parent is an adjacent cell, so the next pop does not repair again. **Why:** the paper's order expands such a node under
+  its optimistic cost, and on random grids that occasionally returns a path longer than the A* path (15 of about 50,000 queries, at most 13%
+  longer); with the re-queue none was seen in the same checks. It costs a few more iterations.
+
+The papers prove no optimality; paths are short, not shortest. Length lies between the visibility-graph optimum (shortest path turning
+only at cell centres) and, in all checks, the A* length.
+
 ## Moving AI files
 
 `MovingAiMap.Parse` reads the `.map` format (`type`, `height`, `width`, `map`, then rows). `.` and `G` are walkable;
@@ -202,8 +246,19 @@ allocated.
   8-connected, no corner cutting, via `tools/GridOptima`. The published numbers differ from exact octile sums by at most
   1.7e-9 of the length (consistent with some being summed with a diagonal cost of 1.41421356); the check allows a relative 1e-6.
 - Hash-matrix scenarios `grids/*` write status, cost bits, expansion counts and paths for generated maps.
-- Fuzz targets `movingai-map`, `movingai-scen`, `grid-query`, `grid-jps` (`fuzz/run.sh`).
+- Fuzz targets `movingai-map`, `movingai-scen`, `grid-query`, `grid-jps`, `grid-theta` (`fuzz/run.sh`).
 - JPS and JPS+: costs equal Dijkstra on 10^4 + 4·10^3 + 600 random grids, on rooms with gaps, and A* on grids wider than a
   bitmap word; table entries equal the cell-by-cell scan; incremental tables equal a rebuild over 1200 edit sequences; the
   block scan equals the cell scan with goals anywhere; every Moving AI 2D set above equals the published optimal costs with
   both (`ALG=jps sweep.sh`, `ALG=jps+ sweep.sh`, or `GridOptima --alg jps|jps+`).
+
+### Any-angle verification
+
+- Line of sight equals an independent exact segment-versus-closed-square test (separating axes, integers) on 3,000 grids x 60 pairs
+  and 300 grids up to 40 x 40, and is symmetric.
+- On 10^4 random grids up to 12 x 12 (and 2,000 with a unit cost of 2.5, 300 up to 30 x 30): same reachability as A*; every segment passes the
+  exact test; the cost equals the segment lengths added in order, bit for bit; Theta* and `LazyRequeue` are never longer than A*; every
+  variant is at least the visibility-graph optimum (Dijkstra over all line-of-sight links between walkable centres).
+- `GridOptima --alg theta|lazytheta` reports, on Moving AI scenarios, the ratio to the published eight-connected optimum (at most 1), re-verifies
+  every 64th path with the independent test, and compares with the visibility-graph optimum on eight deterministic 40 x 40 windows per map
+  (`--random N` does the same on random 24 x 24 grids).

@@ -27,7 +27,7 @@ for pattern in '\x00' '\x41' '\x55' '\x7f' '\xc3' '\x10\x80\x01\x44'; do
 done
 
 export AFL_SKIP_BIN_CHECK=1 AFL_NO_UI=1 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 AFL_NO_AFFINITY=1 AFL_SKIP_CPUFREQ=1
-afl-fuzz -V "$seconds" -i "$work/seeds" -o "$work/out" -t 20000 -m none -- dotnet "$build/OnePath.Fuzz.dll" "$target" --afl
+timeout --signal=INT "$seconds" afl-fuzz -i "$work/seeds" -o "$work/out" -t 20000 -m none -- dotnet "$build/OnePath.Fuzz.dll" "$target" --afl
 echo "crashes: $(ls "$work/out/default/crashes" 2>/dev/null | grep -vc README || true)"
 echo "hangs:   $(ls "$work/out/default/hangs" 2>/dev/null | wc -l)"
 grep -E 'execs_done|corpus_count|edges_found|total_edges|bitmap_cvg|saved_crashes|saved_hangs' "$work/out/default/fuzzer_stats" || true

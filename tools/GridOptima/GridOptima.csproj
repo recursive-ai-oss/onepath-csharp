@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
+    <Compile Include="../../tests/OnePath.Tests/Grids/AnyAngleOracle.cs" Link="AnyAngleOracle.cs" />
   </ItemGroup>
 
 </Project>
