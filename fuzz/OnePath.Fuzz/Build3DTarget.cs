@@ -195,7 +195,7 @@ internal static class Build3DTarget
             }
             if (area <= 0)
             {
-                throw new InvalidOperationException("contour is not counter-clockwise");
+                throw new InvalidOperationException($"contour of region {k.Region} is not counter-clockwise (area {area}): {string.Join(' ', k.Vertices)}");
             }
         }
     }

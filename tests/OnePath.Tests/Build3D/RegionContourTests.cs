@@ -397,7 +397,7 @@ public class ContourTests
                     {
                         continue;
                     }
-                    Assert.False(ProperlyCross(v[i], v[(i + 1) % v.Length], v[j], v[(j + 1) % v.Length]), $"contour of region {k.Region} crosses itself");
+                    Assert.False(ProperlyCross(v[i], v[(i + 1) % v.Length], v[j], v[(j + 1) % v.Length]), $"contour of region {k.Region} crosses itself: {string.Join(' ', v)} raw {string.Join(' ', k.RawVertices!)} holes {k.RawHoles!.Length}");
                 }
             }
             // Simplification error: every raw vertex is within maxError of the simplified outline.
@@ -491,6 +491,37 @@ public class ContourTests
         // regions so small that simplification would erase them: those are re-simplified more strictly, so their neighbours' edges no longer line up.
         Assert.True(rev[1] == pairs[1] && rev[3] == pairs[3], stats);
         Assert.True(rev[0] >= pairs[0] * 0.8 && rev[2] >= pairs[2] * 0.8, stats);
+    }
+
+    // Regression: a link from one span to a neighbour can exist without the link back (several close floors in a cell). Following such
+    // links made contour tracing run off its loop; region and contour work only use mutual links. Here one-way links are made by
+    // severing single directions. Holes simplified on their own can also cross the simplified outline; the raw loops are joined then.
+    [Fact]
+    public void OneWayLinksDoNotBreakContours()
+    {
+        var rng = new TestRng(301);
+        int oneWay = 0;
+        for (int n = 0; n < 400; n++)
+        {
+            var c = Fields.Random(rng, 6, 14);
+            for (int i = 0; i < c.SpanCount; i++)
+            {
+                for (int dir = 0; dir < 4; dir++)
+                {
+                    if (CompactHeightfield.GetConnection(c.Spans[i], dir) != CompactHeightfield.NotConnected && rng.Int(8) == 0)
+                    {
+                        c.Spans[i].Connections |= 0x3f << (dir * 6);
+                        oneWay++;
+                    }
+                }
+            }
+            Regions.Build(c, new RegionSettings { Partition = (PartitionType)(n % 3), MinRegionArea = 0, MergeRegionArea = 0 });
+            var set = Contours.Build(c, new ContourSettings { MaxError = 1.3f, MaxEdgeLength = 0, KeepRawVertices = true });
+            Assert.Equal(0, set.DroppedContours);
+            int a = 0, b = 0, e = 0, g = 0;
+            CheckContours(c, set, 1.3f, ref a, ref b, ref e, ref g);
+        }
+        Assert.True(oneWay > 100);
     }
 
     [Fact]

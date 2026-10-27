@@ -204,27 +204,50 @@ public static class Contours
                 List<ContourVertex> poly = polys[k]!;
                 if (holesOf[k] != null)
                 {
-                    holesOf[k].Sort(static (a, b) =>
+                    var outlineOnly = new List<ContourVertex>(poly);
+                    int failed = MergeHoles(poly, holesOf[k], r);
+                    // Each loop is simplified on its own, so a simplified hole can cross the simplified outline. Then join the raw loops instead.
+                    if (HasProperCrossing(poly))
                     {
-                        int ia = Leftmost(a), ib = Leftmost(b);
-                        int c = a[ia].X.CompareTo(b[ib].X);
-                        return c != 0 ? c : a[ia].Z.CompareTo(b[ib].Z);
-                    });
-                    var pending = new List<ContourVertex[]>(holesOf[k]);
-                    for (int h = 0; h < holesOf[k].Count; h++)
+                        fallbacks++;
+                        poly = new List<ContourVertex>(rawOf[k]);
+                        failed = MergeHoles(poly, new List<ContourVertex[]>(rawHolesOf[k]!), r);
+                    }
+                    droppedHoles += failed;
+                    // A region that overlaps itself seen from above (a spiral ramp) can have holes that cover the outline; keep the outline then.
+                    if (SignedArea2(poly.ToArray()) <= 0)
                     {
-                        ContourVertex[] hole = holesOf[k][h];
-                        pending.Remove(hole);
-                        if (!MergeHole(poly, hole, r, pending))
-                        {
-                            droppedHoles++;
-                        }
+                        droppedHoles += holesOf[k].Count - failed;
+                        poly = outlineOnly;
                     }
                 }
                 result.Add(new Contour(r, regionArea[r], poly.ToArray(), settings.KeepRawVertices ? rawOf[k] : null, settings.KeepRawVertices ? rawHolesOf[k]?.ToArray() ?? Array.Empty<ContourVertex[]>() : null));
             }
         }
         return new ContourSet(chf.Frame, result, maxRegion, dropped, droppedHoles, fallbacks);
+    }
+
+    // Joins the holes to the outline in order of their leftmost vertex; returns how many could not be joined.
+    private static int MergeHoles(List<ContourVertex> poly, List<ContourVertex[]> holes, int region)
+    {
+        holes.Sort(static (a, b) =>
+        {
+            int ia = Leftmost(a), ib = Leftmost(b);
+            int c = a[ia].X.CompareTo(b[ib].X);
+            return c != 0 ? c : a[ia].Z.CompareTo(b[ib].Z);
+        });
+        var pending = new List<ContourVertex[]>(holes);
+        int failed = 0;
+        for (int h = 0; h < holes.Count; h++)
+        {
+            ContourVertex[] hole = holes[h];
+            pending.Remove(hole);
+            if (!MergeHole(poly, hole, region, pending))
+            {
+                failed++;
+            }
+        }
+        return failed;
     }
 
     private static int NeighborValue(SpanGraph g, int[] region, int i, int d)
