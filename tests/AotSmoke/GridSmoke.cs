@@ -1,5 +1,6 @@
 using System;
 using RecursiveAI.OnePath.Grids;
+using RecursiveAI.OnePath.Grids.Voxel;
 
 /// <summary>A small grid run used by the NativeAOT and WebAssembly smoke apps: tier-1 queries, delegates, hex, area costs, parsing and the sliced generic search.</summary>
 internal static class GridSmoke
@@ -57,6 +58,20 @@ internal static class GridSmoke
         var block = new JumpSearch<BlockJumper, OctileHeuristic>(new BlockJumper(new BlockMap(fromText)), new OctileHeuristic(3));
         block.Begin(0, 8);
         ok &= block.Run() == SearchStatus.Found && block.PathCost == 2.0 * GridMath.Sqrt2;
+
+        // Voxel grids: tier-1 query with options, world mapping, map text, and the sliced generic search.
+        VoxelGrid voxels = VoxelMap.Parse("voxel 4 4 4\n1 1 1\n2 2 2\n").ToGrid();
+        VoxelPath vp = voxels.FindPath(new VoxelCell(0, 0, 0), new VoxelCell(3, 3, 3));
+        ok &= vp.Found && vp.Cost > 0.0;
+        voxels.Space = new VoxelSpace(10, 20, 30, 2);
+        VoxelPath vw = voxels.FindPath(new VoxelPoint(11, 21, 31), new VoxelPoint(17, 27, 37), new VoxelOptions { Connectivity = VoxelConnectivity.Eighteen, Blocked = c => c.X == 3 && c.Y == 0 });
+        ok &= vw.Found && vw.WorldPoints.Length == vw.Cells.Length;
+        var vsearch = new AStar<VoxelTopology, DefaultStepCost, VoxelHeuristic>(voxels.CreateTopology(), default, new VoxelHeuristic(4, 4, VoxelHeuristicKind.Octile26));
+        vsearch.Begin(0, 63);
+        while (vsearch.Step(1) == SearchStatus.Running)
+        {
+        }
+        ok &= vsearch.Status == SearchStatus.Found && vsearch.PathCost == vp.Cost;
         return ok;
     }
 }

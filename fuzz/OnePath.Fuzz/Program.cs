@@ -100,6 +100,9 @@ public static class Targets
         ["grid-query"] = GridTargets.Query,
         ["navmesh-query"] = NavMeshQueryFuzz.Run,
         ["grid-jps"] = GridTargets.Jps,
+        ["voxel-map"] = VoxelTargets.MapParser,
+        ["voxel-scen"] = VoxelTargets.ScenarioParser,
+        ["voxel-query"] = VoxelTargets.Query,
         ["navmesh-snapshot"] = NavMeshSnapshotFuzz.Run,
     };
 }

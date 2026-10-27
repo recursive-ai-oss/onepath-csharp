@@ -20,6 +20,10 @@ public static class Program
 {
     public static int Main(string[] args)
     {
+        if (Array.IndexOf(args, "--voxel") >= 0)
+        {
+            return VoxelOptima.Run(args);
+        }
         string? dir = null;
         string? set = null;
         int threads = 1;
