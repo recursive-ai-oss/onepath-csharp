@@ -12,7 +12,7 @@ namespace RecursiveAI.OnePath.GridOptima;
 /// <summary>
 /// Checks A* path costs against the published optimal lengths of Moving AI Lab scenario sets.
 /// Usage: <c>GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE]</c>, where DIR holds
-/// <c>NAME-map.zip</c> and <c>NAME-scen.zip</c> (as downloaded from the benchmark site; never committed).
+/// <c>NAME-map.zip</c> and <c>NAME-scen.zip</c> (as downloaded from the benchmark site; never committed) or a folder NAME of loose files.
 /// Prints one summary line: scenarios, mismatches, maximum absolute difference. Exit code 1 if any mismatch.
 /// Options: <c>--swamp 0|1</c>, <c>--water 0|1</c> choose how S and W terrain is read.
 /// </summary>
@@ -48,30 +48,50 @@ public static class Program
             return 2;
         }
 
-        using var maps = ZipFile.OpenRead(Path.Combine(dir, set + "-map.zip"));
-        using var scens = ZipFile.OpenRead(Path.Combine(dir, set + "-scen.zip"));
-        var work = new List<(ZipArchiveEntry Scen, ZipArchiveEntry? Map)>();
-        foreach (ZipArchiveEntry s in scens.Entries)
+        // Inputs come from NAME-map.zip and NAME-scen.zip in DIR, or from loose files in DIR/NAME.
+        var mapFiles = new SortedDictionary<string, byte[]>(StringComparer.Ordinal);
+        var scenFiles = new SortedDictionary<string, byte[]>(StringComparer.Ordinal);
+        string mapZip = Path.Combine(dir, set + "-map.zip");
+        if (File.Exists(mapZip))
         {
-            if (!s.Name.EndsWith(".scen", StringComparison.Ordinal))
+            using var maps = ZipFile.OpenRead(mapZip);
+            foreach (ZipArchiveEntry e in maps.Entries)
             {
-                continue;
+                if (e.Name.EndsWith(".map", StringComparison.Ordinal))
+                {
+                    mapFiles[e.Name] = Read(e);
+                }
             }
-            string mapName = s.Name[..^5];
-            work.Add((s, maps.GetEntry(mapName) ?? maps.GetEntry("maps/" + mapName)));
-        }
-        work.Sort((a, b) => string.CompareOrdinal(a.Scen.FullName, b.Scen.FullName));
-
-        // Zip entries are read on the main thread (an archive is not thread-safe); the searches run in parallel.
-        var jobs = new List<(string Name, ScenarioEntry[] Entries, MovingAiMap Map)>();
-        foreach (var (scen, map) in work)
-        {
-            if (map is null)
+            using var scens = ZipFile.OpenRead(Path.Combine(dir, set + "-scen.zip"));
+            foreach (ZipArchiveEntry e in scens.Entries)
             {
-                Console.Error.WriteLine($"no map for {scen.FullName}");
+                if (e.Name.EndsWith(".scen", StringComparison.Ordinal))
+                {
+                    scenFiles[e.Name] = Read(e);
+                }
+            }
+        }
+        else
+        {
+            foreach (string f in Directory.GetFiles(Path.Combine(dir, set), "*.map"))
+            {
+                mapFiles[Path.GetFileName(f)] = File.ReadAllBytes(f);
+            }
+            foreach (string f in Directory.GetFiles(Path.Combine(dir, set), "*.scen"))
+            {
+                scenFiles[Path.GetFileName(f)] = File.ReadAllBytes(f);
+            }
+        }
+        var jobs = new List<(string Name, ScenarioEntry[] Entries, MovingAiMap Map)>();
+        foreach (var (scenName, scenBytes) in scenFiles)
+        {
+            string mapName = scenName[..^5];
+            if (!mapFiles.TryGetValue(mapName, out byte[]? mapBytes))
+            {
+                Console.Error.WriteLine($"no map for {scenName}");
                 return 2;
             }
-            jobs.Add((map.Name, MovingAiScenarios.Parse(Read(scen)), MovingAiMap.Parse(Read(map))));
+            jobs.Add((mapName, MovingAiScenarios.Parse(scenBytes), MovingAiMap.Parse(mapBytes)));
         }
 
         long total = 0;

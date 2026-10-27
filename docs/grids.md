@@ -52,8 +52,8 @@ step costs added in path order starting from 0.
 
 **√2.** `Sqrt2 = 1.4142135623730951` (bits `0x3FF6A09E667F3BCD`), the correctly rounded double of √2; it equals
 `Math.Sqrt(2.0)` because IEEE-754 square root is correctly rounded. Octile costs `a + b√2` are therefore exact up to
-ordinary double rounding and identical on every platform. (The published Moving AI lengths carry about 1e-9 relative
-error themselves; see Verification.)
+ordinary double rounding and identical on every platform. (The published Moving AI lengths differ from exact sums by up to
+1.7e-9 relative; see Verification.)
 
 ## Clearance and agent sizes
 
@@ -127,7 +127,7 @@ allocated.
 - Costs equal an independent O(n²) Dijkstra written from the definitions on 10^4 random grids per variant (4-/8-connected,
   the three diagonal rules, area costs, agent sizes 1-3, the four hex layouts); returned paths are checked move by move.
 - Published optimal lengths of the Moving AI 2D sets (dao, da2, bg512, sc1, wc3maps512, street, maze, random, room),
-  8-connected, no corner cutting, via `tools/GridOptima`. The published numbers differ from exact octile sums by up to
-  about 2e-9 of the length; the check allows a relative 1e-6.
+  8-connected, no corner cutting, via `tools/GridOptima`. The published numbers differ from exact octile sums by at most
+  1.7e-9 of the length (consistent with some being summed with a diagonal cost of 1.41421356); the check allows a relative 1e-6.
 - Hash-matrix scenarios `grids/*` write status, cost bits, expansion counts and paths for generated maps.
 - Fuzz targets `movingai-map`, `movingai-scen`, `grid-query` (`fuzz/run.sh`).
