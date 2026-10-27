@@ -1,0 +1,26 @@
+# set	file	url	sha256
+# Moving AI Lab benchmarks (Open Data Commons Attribution License; see THIRD-PARTY-NOTICES.md). Fetch-only, never committed.
+bg512	bg512-map.zip	https://movingai.com/benchmarks/bg512/bg512-map.zip	babe4274380df5a757913ed520b988375a80879aefb43acc875caa2b32d1ed71
+bg512	bg512-scen.zip	https://movingai.com/benchmarks/bg512/bg512-scen.zip	13382dbebe28839c437c33a2c411d7ded9089821a92971d1545e0f7674a891a2
+bgmaps	bgmaps-map.zip	https://movingai.com/benchmarks/bgmaps/bgmaps-map.zip	11780b55ec9c95212f32de163708ffb56594413c0185e4c14820aeed3ab09499
+bgmaps	bgmaps-scen.zip	https://movingai.com/benchmarks/bgmaps/bgmaps-scen.zip	8587fe5e0fb8189d3517456a834575af89d67ce8867c8170d5dfdf8b020d8881
+da2	da2-map.zip	https://movingai.com/benchmarks/da2/da2-map.zip	76bcbbe7956bcdf6de579bfc1335bc0937365125305b2ada8ec4f20e4befe4e0
+da2	da2-scen.zip	https://movingai.com/benchmarks/da2/da2-scen.zip	3896fee5eefc58894edba2147887c20deb209a45727e7171237466187b308a5a
+dao	dao-map.zip	https://movingai.com/benchmarks/dao/dao-map.zip	229393af31caaec732e5f4fd923940845ab056e94dadfb96b8afc24da472d3af
+dao	dao-scen.zip	https://movingai.com/benchmarks/dao/dao-scen.zip	7a0072450ff4c04fd4cf2c5e4651b11bfa4078582ecdcee95784e5196abf69ef
+maze	maze-map.zip	https://movingai.com/benchmarks/maze/maze-map.zip	c89a11188104953a79bd5ab5020f82f3749cdff3bd2ba04efa7d9c62fe1eefb2
+maze	maze-scen.zip	https://movingai.com/benchmarks/maze/maze-scen.zip	b6123a77a45e6d7ad1f8a12bd675d1b551365fac0d837fb31cea15d388b40a67
+random	random-map.zip	https://movingai.com/benchmarks/random/random-map.zip	0b4a655e7b112c6b38d07495834fc3890100367f2f7a75493a16cdb2d730a663
+random	random-scen.zip	https://movingai.com/benchmarks/random/random-scen.zip	390baeec47835743bcae71165056f9c51b36c2dda6514e8b79087abaeda2359d
+room	room-map.zip	https://movingai.com/benchmarks/room/room-map.zip	f1442dea9b6f8d828e393ea4db90a12d3d87e535c278aa392a6008e3026d5c86
+room	room-scen.zip	https://movingai.com/benchmarks/room/room-scen.zip	ad0dc899eb3e78cf0af1569be4e3bde8f4c6d91f00bef8736ade11c2b97c0c61
+sc1	sc1-map.zip	https://movingai.com/benchmarks/sc1/sc1-map.zip	81285dee93dbd7594773e7292a4984a89da6531eb45424a90c99aa2f4144e091
+sc1	sc1-scen.zip	https://movingai.com/benchmarks/sc1/sc1-scen.zip	34c7ac3dd197d7703888b24848a4957b93875fb2ef3d272454d7479c764eb25c
+street	street-map.zip	https://movingai.com/benchmarks/street/street-map.zip	588442dee46ae99c4194831baafca2b121fe0b037de7a4c57f142e4fa55e1da8
+street	street-scen.zip	https://movingai.com/benchmarks/street/street-scen.zip	fed6a54c370a4041e07ec94f02aca9416d5149037151418f2908ebae28b4b6d2
+warframe	warframe-3dscen.zip	https://movingai.com/benchmarks/warframe/warframe-3dscen.zip	20e23556c7eaeee3e972b709131e7868ec3c63c9abfcc03ed29ab930eabda3f3
+warframe	warframe.zip	https://movingai.com/benchmarks/warframe/warframe.zip	f3059ab31472bcb2e34020602fb2d3df4b8552904b1dbadf18e819919aef19e7
+wc3maps512	wc3maps512-map.zip	https://movingai.com/benchmarks/wc3maps512/wc3maps512-map.zip	12ef51dea736c0dedfd4fc0a04234751af27c7247cb4ae53e9d0ff467976c17a
+wc3maps512	wc3maps512-scen.zip	https://movingai.com/benchmarks/wc3maps512/wc3maps512-scen.zip	cd4c41ea8cfe9d6bb8a560271a0f6f1a120828b4420514c8543ec636f07c3788
+weighted	weighted-map.zip	https://movingai.com/benchmarks/weighted/weighted-map.zip	b77cee739f44a69a2e5f19dc0f2743e8a32f5d44e3c022fb489755b614b10303
+weighted	weighted-scen.zip	https://movingai.com/benchmarks/weighted/weighted-scen.zip	35def9d86b38d53cf1f797ed914205ebd82863aa74a1e7356bdd098e1e9500f7

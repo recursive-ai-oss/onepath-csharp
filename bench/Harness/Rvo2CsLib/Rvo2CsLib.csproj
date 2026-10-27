@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The RVO2-CS release, compiled as shipped into one assembly, used only as a black-box comparison.
+    The release's own project files target an old .NET Framework, so this project simply compiles its
+    library sources (everything except its example programs). Nothing here reads or edits them.
+    Build with: dotnet build -p:Rvo2CsSrc=<unpacked release folder>   (tools/refs/refs.sh does this.)
+  -->
+  <PropertyGroup>
+    <AssemblyName>Rvo2Cs</AssemblyName>
+    <OutputType>Library</OutputType>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <MSBuildTreatWarningsAsErrors>false</MSBuildTreatWarningsAsErrors>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <AnalysisLevel>none</AnalysisLevel>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS0618;CS0219;CS0168;CS0649;CS0414</NoWarn>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(Rvo2CsSrc)' != ''">
+    <Compile Include="$(Rvo2CsSrc)/**/*.cs" Exclude="$(Rvo2CsSrc)/**/examples/**;$(Rvo2CsSrc)/**/Examples/**;$(Rvo2CsSrc)/**/obj/**;$(Rvo2CsSrc)/**/bin/**;$(Rvo2CsSrc)/**/Properties/**" />
+  </ItemGroup>
+</Project>
