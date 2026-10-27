@@ -211,3 +211,124 @@ A host that snapshots the mesh (`navmesh-snapshot.md`) and its followers togethe
 
 `FollowerDebug.Collect(query, follower)` returns plain data: state, position, velocity, destination, the corridor polygon outlines,
 the corners (position, flags, polygon) and the current off-mesh crossing.
+
+# Crowds: `Crowd` and `Agent`
+
+Normative behaviour of `RecursiveAI.OnePath.Crowd`, `Agent`, `AgentOptions`, `CrowdOptions` (root namespace) and `CrowdDebug`. A crowd walks one
+`TiledNavMesh`; every agent owns a `PathFollower` (above) and is steered by ORCA (van den Berg, Guy, Lin and Manocha, *Reciprocal n-body
+collision avoidance*, 2011; `orca.md`) against the neighbouring agents and the boundary edges of the mesh around it. Arithmetic is
+IEEE `+ − × ÷ sqrt` on double. There is no clock, no random number and no sub-stepping: `Step(dt)` is one step of `dt`.
+
+## Agents and slots
+
+Agents live in *slots* 0, 1, 2, …; `Add` takes the lowest free slot (so the slot order is a function of the sequence of `Add` and `Remove` calls),
+`Remove` frees it. `Agent.Id` counts agents ever added (0, 1, …) and is never reused. Everything below is evaluated in slot order. `Add` places the
+agent with `PathFollower.Place` (the nearest accepted polygon within the follower's search extents; an agent with no polygon near is
+refused with `ArgumentException`), standing still with no destination. The crowd's `Filter` (null = everything, cost 1) is the filter of every
+follower and wall query.
+
+## Step
+
+Three phases, each over the slots in fixed groups of 32 (worker *w* takes groups *w*, *w* + threads, …). In a phase an agent writes only its own
+slot and reads the state the phase began with, so the result is the same for any `MaxThreads` (and for a worker that happens to run late):
+
+0. **Snapshot** (single thread): every agent's position and velocity (the velocity it ended the last step with); the neighbour grid.
+1. **Plan** (per agent): an `Arrived` agent that was pushed farther than `2 · ArrivalRadius + 0.01` from its destination is sent back (`SetDestination`). Then
+   `PathFollower.PlanCrowd`: the corridor upkeep of `Step` (steps 1 to 6 of the follower's step: validation, replans, shortcuts, off-mesh entry, arrival),
+   and the wanted velocity in X/Z, `MaxSpeed` toward the steering corner slowed by the same arrival rule as step 7 (no acceleration limit). An agent in an off-mesh
+   crossing runs the whole crossing step here (no avoidance while crossing). An agent that is not walking (idle, arrived, stuck, no path) wants 0. Then the wall
+   lookup (below).
+2. **Avoid** (per agent; `AvoidanceQuality.Off` and crossing agents skip it and keep the wanted velocity): neighbours, separation, side bias, constraints, solve.
+3. **Move** (per agent): the new velocity is limited to a change of `MaxAcceleration · dt` from the start-of-step velocity; a walking agent then moves with
+   `PathFollower.ApplyCrowd`, others with `Nudge`. `ApplyCrowd` moves by velocity · dt along the surface: `MoveAlong` within the corridor up to the steering
+   corner's polygon, else `MovePosition` (a ray along the surface that slides along walls), so the agent is always on the mesh. It never walks past the
+   end or an off-mesh entry (it lands on it), reports velocity = displacement / dt and the remaining distance, and arrives or counts stuck time as `Step` does.
+   `Nudge` pushes a standing agent the same way (`MovePosition`) and reports the velocity that resulted.
+
+## Neighbours
+
+Agent *i* considers the `MaxNeighbors` nearest agents *j* ≠ *i* with squared centre distance < `NeighborDistance²`, ordered by (squared distance, slot) —
+`Low` 4, `Medium` 8, `High` 12 neighbours; `NeighborDistance = max(SeparationDistance, 2 · Radius + MaxSpeed · TimeHorizon)`; `TimeHorizon` 1.5, 2, 2.5 s. The
+set does not depend on the structure that finds it (the implementation sorts agents by (grid cell, slot) with cells at least as wide as the largest
+`NeighborDistance` and scans the 3 × 3 cells around the agent; the grid is rebuilt every step and cell keys are 64-bit integers, never hashes).
+Two agents at exactly the same place get a relative position of (±1e-3, 0), plus for the one with the higher slot, so they separate.
+
+Constraint of *i* against neighbour *j*: `OrcaConstraints.ForAgent(pj − pi, vi, vj, ri + rj, TimeHorizon, dt, share)` with the start-of-step velocities and
+`share = priority_j / (priority_i + priority_j)` (the other's weight over both, so the two agents' shares add to 1; `Priority` is a weight above 0 and a
+higher priority gives way less), or `share = 1` when *j* is crossing an off-mesh link and cannot give way.
+
+## Separation and side bias
+
+If `SeparationDistance` > 0: each neighbour *j* of *i* with centre distance *d* < `SeparationDistance` adds `SeparationWeight · MaxSpeed · t²` to the wanted velocity
+in the direction away from *j* (`t = 1 − d / SeparationDistance`; when *d* ≤ 1e-9 the direction is +X for *j* below *i* in slot order and −X otherwise); the sum is
+clamped to `MaxSpeed`. Separation acts on the agent's wanted velocity before avoidance, on standing agents too.
+
+The *side bias* (`SidePreference`, default 0.05) adds to the wanted velocity *p* the vector `(p.z, −p.x) · SidePreference`, a turn to one fixed side that breaks
+the symmetry of head-on meetings (exact avoidance resolves a perfectly head-on pair by stopping). If a wall constraint of the agent lies within four radii of it
+on that side (its normal points back against the bias direction by more than a half), the bias goes to the other side.
+
+## Walls: the mesh boundary as obstacles
+
+Wall pieces come from `NavMeshQuery.FindWalls` (`navmesh-queries.md`): the edges with nothing walkable behind them, within a radius of the agent, from the polygons
+the circle search reaches. Each agent keeps a list of at most `MaxWallsPerAgent` pieces (the nearest to where it was looked up), looked up with radius
+`reach + WallRefreshDistance` where `reach = ObstacleHorizon · MaxSpeed + WallClearance` and `ObstacleHorizon = TimeHorizon / 2`. The lookup is repeated when the agent
+is farther than `WallRefreshDistance` from where it was done, when `TiledNavMesh.EditCount` changed since, or when the last lookup failed (the lookup is a function of
+the mesh and the position it was done at; that position is state, see below).
+
+In phase 2 the agent takes the pieces within `reach` of it that face it, nearest first (ties by polygon reference, edge, then the first end's X and Z), at most
+`MaxWallsAvoided`. A piece faces the agent when `OrcaConstraints.ForBoundary` gives a half-plane (the agent is on its walkable side, within 1e-6, and projects on it more
+than `WallClearance` + 1e-6 from both ends) and the piece is on the agent's floor (the height of the piece at its nearest point differs from the agent's by at most
+`1 + 1.5 · distance`, so the walls of a floor above or below, joined by a link, are left out). The half-planes are the **hard** constraints of the linear
+program (they come first); neighbour half-planes follow in neighbour order. The program is `OrcaLinearProgram.Solve` (`orca.md`).
+
+The agent's centre may touch the boundary: the mesh was built for an agent radius and is already shrunk by it, so a wall constraint keeps only `WallClearance` (0.05)
+from the line, and a path that grazes a corner (the taut string does) is not held back by the wall it passes. Because agents are moved *along the surface*, they
+stay on the mesh even where the constraints let a corner be clipped.
+
+**Blocked by a standing agent.** If the solved velocity is shorter than 0.3 of the wanted speed, the agent is more than eight radii from its destination and a neighbour is not walking, the
+program is also solved for the wanted velocity turned +90°, −90°, +45°, −45° (constants `(−z, x)`, `(z, −x)`, `√½·(x − z, x + z)`, `√½·(x + z, z − x)`, `√½ = 0.7071067811865476`)
+and the fastest result (greatest squared length, first on a tie) is taken. Near its goal an agent joins the queue instead.
+
+## Off-mesh links in crowds
+
+`AgentOptions.ToFollowerOptions` sets `OffMeshTriggerRadius = max(follower default, 2 · Radius)`: a link end is attached to the mesh within a few radii, and agents queue
+at it instead of having to stand within a hair of the point. The crossing itself is the follower's.
+
+## Presets and defaults
+
+`Agent.Humanoid`: radius 0.6, speed 3.5, acceleration 8, arrival radius 0.25, priority 1, quality `Medium`, wall clearance 0.05, separation off (distance 0, weight 0.3),
+side bias 0.05. `Agent.Small`: radius 0.3, speed 2.5, acceleration 6, arrival radius 0.3. `Agent.Large`: radius 1.5, speed 3, acceleration 5, arrival radius 0.6. The follower options of
+an agent are `FollowerOptions.Humanoid` (or `AgentOptions.Path`) with the agent's speed, acceleration and arrival radius, corridor capacity 64 and stuck detection
+off (a crowd stands in queues; `Path` can turn it on). `CrowdOptions`: 65536 agents, 1 thread, no filter, 16384 query nodes per worker, 48 walls kept, refresh 1.0,
+8 avoided, constraints not recorded. None of these was tuned against a reference.
+
+## What the tests establish (stated bounds)
+
+- 1000 seeded runs of 6 agents each on scattered-obstacle fields (passages at least 2 units wide), agents removed on arrival: every agent arrived within
+  3× the time to walk the longest route at full speed plus 10 s (worst measured ratio of time taken to straight-route time at full speed 3.7); no agent position was ever off
+  the mesh (checked every step); the deepest agent–agent overlap was 0.18 (combined radius 0.6), under 0.05 in all but 8 runs.
+- Crossing streams (20, 60, 150 agents), crowds through a two-cell door (20, 40, 60) and 160 agents on two-floor meshes with off-mesh links (72 crossings): all arrive and stay on the
+  mesh; overlap at most 0.034 (open scenes) and 0.30 for two-floor meshes (an agent leaving a link lands where it lands; crossing agents do not avoid).
+- 1, 2, 5 and 16 threads give byte-identical agent states after 150 steps of 300 agents. 60 steady-state steps of 120 agents allocate nothing beyond 4 KB.
+
+## Limits
+
+- Standing agents are obstacles. In a passage less than about two body diameters wide an agent standing still (arrived) can block others, and two agents meeting
+  head-on in such a passage can crawl; the tests that must arrive remove agents on arrival or keep goals at least 1.2 apart in passages at least 2 wide.
+- Avoidance is on the mesh plane; agents on stacked floors are separated only by the height tolerance of walls and by distance (an agent above another on a different
+  floor is still a neighbour in X/Z).
+- `ApplyCrowd` follows the corridor, not the neighbours: an agent pushed far off its corridor is brought back by `MovePosition` and the follower's repair, not by a new search.
+
+## State and snapshots
+
+The crowd's state is plain data, written down here so the snapshot unit can serialize it without changing the step: per slot the agent's id, options (a
+record of doubles, enums and a nullable `FollowerOptions`), priority (changeable at any time), the follower's state (the follower's own bytes above), the wall cache (its
+centre and its pieces, at most `MaxWallsPerAgent`, or "stale"); per crowd the next id, the step count and the lowest free slot hint. Not state: the neighbour grid (rebuilt
+every step), the workers' buffers, the wanted/solved velocities (recomputed every step), the recorded constraints. A restore must mark every wall cache stale (the mesh edit counter
+is not saved), which only costs a lookup. The step does not depend on anything else.
+
+## Debug geometry
+
+`CrowdDebug.Collect(crowd)` returns, per agent in slot order, plain data: id, radius, the last wanted velocity, the follower's `FollowerDebugGeometry` (state, position,
+velocity, destination, corridor outlines, corners, off-mesh crossing), the wall pieces looked up, and (with `RecordConstraints`) the half-planes solved in the last step
+(walls first, then neighbours), each as a point and unit normal in velocity space.

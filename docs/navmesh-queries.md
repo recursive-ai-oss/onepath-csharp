@@ -108,6 +108,10 @@ into it (flags are or-ed). Points carry `Start` / `End` / `OffMeshConnection` ma
 stale references or empty is `InvalidCorridor` and writes nothing. The result is the Euclidean shortest path inside the corridor in
 X/Z (tests compare with a visibility-graph oracle).
 
+`FindStraightPath(start, end, corridor, result, maxCorners)` is the same computation stopped as soon as `maxCorners` points (the start included) have been found: the
+points written are a prefix of the full result, `truncated` is true when the limit was reached (the end point may or may not be among them), and the work follows the number of corners asked
+for, not the corridor length (the funnel stops; the validation of the corridor and the collection of the portals still run over the whole corridor).
+
 ## Raycast
 
 `Raycast(startPoly, start, end, filter, visited)` follows the segment across the surface in the X/Z plane. In each polygon the exit
@@ -169,6 +173,15 @@ index, fraction along the edge). The hit point gets its height by linear interpo
 from the hit point toward the centre in X/Z (the edge's inward normal if the centre lies on the wall). If nothing is within the
 radius, `Found` is false and `Distance` is the radius. `FinishDistanceToWall` does the scan for a sliced circle search (on the
 polygons expanded so far).
+
+## All walls near a position
+
+`FindWalls(startPoly, center, radius, filter, walls)` runs the same circle search and the same wall-piece rule as `DistanceToWall`, but returns every wall piece
+whose distance from the centre is at most `radius` instead of the nearest: a `WallSegment` holds the piece's two ends (world X, Y, Z, the heights interpolated
+along the edge in edge direction), the owning polygon and the edge index. The ends run in the polygon's winding, so the walkable side is to the left of
+first end → second end in X/Z. Pieces are ordered by (distance, then the order in which the search met them: polygons in expansion order, edges in order, pieces along the edge
+in order); when the buffer is full the nearest are kept (a later piece replaces the last only if strictly nearer), and `truncated` says some were dropped.
+The distance is the clamped X/Z distance to the piece; a piece of a different floor reachable through a link is included (callers compare heights).
 
 ## Random points
 

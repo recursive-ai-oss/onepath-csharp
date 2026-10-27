@@ -82,4 +82,6 @@ bool graphs = GraphSmoke.Run();
 Console.WriteLine($"Graphs run: {(graphs ? "ok" : "FAILED")}");
 bool corridors = CorridorSmoke.Run();
 Console.WriteLine($"Corridor follow: {(corridors ? "ok" : "FAILED")}");
-return ok && orca && nav && grids && flow && graphs && corridors && OnePathInfo.Version.Major >= 0 ? 0 : 1;
+bool crowds = CrowdSmoke.Run();
+Console.WriteLine($"Crowd run: {(crowds ? "ok" : "FAILED")}");
+return ok && orca && nav && grids && flow && graphs && corridors && crowds && OnePathInfo.Version.Major >= 0 ? 0 : 1;
