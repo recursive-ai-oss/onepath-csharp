@@ -17,4 +17,6 @@ bool nav = NavMeshSmoke.Run();
 Console.WriteLine($"Navmesh format: {(nav ? "ok" : "FAILED")}");
 bool orca = OrcaSmoke.Run();
 Console.WriteLine($"ORCA run: {(orca ? "ok" : "FAILED")}");
-return ok && orca && nav && OnePathInfo.Version.Major >= 0 ? 0 : 1;
+bool grids = GridSmoke.Run();
+Console.WriteLine($"Grids run: {(grids ? "ok" : "FAILED")}");
+return ok && orca && nav && grids && OnePathInfo.Version.Major >= 0 ? 0 : 1;

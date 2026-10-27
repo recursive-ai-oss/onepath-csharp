@@ -1,0 +1,45 @@
+using System;
+using RecursiveAI.OnePath.Grids;
+
+/// <summary>A small grid run used by the NativeAOT and WebAssembly smoke apps: tier-1 queries, delegates, hex, area costs, parsing and the sliced generic search.</summary>
+internal static class GridSmoke
+{
+    public static bool Run()
+    {
+        var grid = Grid.From(new bool[,]
+        {
+            { true, true, true, true, true },
+            { false, false, false, false, true },
+            { true, true, true, true, true },
+            { true, false, false, false, false },
+            { true, true, true, true, true },
+        });
+        GridPath path = grid.FindPath(new Cell(0, 0), new Cell(0, 4));
+        bool ok = path.Found && path.Cells.Length == 13 && path.Cost == 12.0;
+
+        // Options with a delegate cost and a filter (the tier-1 path adapts these onto the struct-generic core).
+        GridPath blocked = grid.FindPath(new Cell(0, 0), new Cell(0, 4), new GridOptions { Blocked = c => c.X == 4 && c.Y == 1, StepCost = (_, _, cost) => cost * 2 });
+        ok &= blocked.Status == PathStatus.NoPath;
+
+        // World-space query.
+        grid.Space = new GridSpace(10, 20, 2);
+        GridPath world = grid.FindPath(new WorldPoint(11, 21), new WorldPoint(11, 29));
+        ok &= world.Found && world.WorldPoints.Length == world.Cells.Length;
+
+        // Hex grid and area costs.
+        var hex = new HexGrid(6, 6, HexLayout.FlatOddColumn);
+        hex.Areas[1] = 4.0;
+        hex.SetArea(2, 2, 1);
+        ok &= hex.FindPath(new Cell(0, 0), new Cell(5, 5)).Found;
+
+        // Moving AI map text and the tier-2 generic search with slicing.
+        Grid fromText = MovingAiMap.Parse("type octile\nheight 3\nwidth 3\nmap\n...\n.@.\n...\n").ToGrid();
+        var search = new AStar<SquareTopology, DefaultStepCost, OctileHeuristic>(fromText.CreateTopology(), default, new OctileHeuristic(3));
+        search.Begin(0, 8);
+        while (search.Step(1) == SearchStatus.Running)
+        {
+        }
+        ok &= search.Status == SearchStatus.Found && search.PathCost == 4.0;
+        return ok;
+    }
+}

@@ -49,6 +49,15 @@ catch (ArgumentException)
 {
 }
 
+// Regions and contours: the eroded floor is one 8 x 8 square under every partition.
+var floorChunk = VoxelChunk.FromDense(12, 12, 8, dense);
+foreach (PartitionType type in Enum.GetValues<PartitionType>())
+{
+    var rp = new RegionPipeline(settings, new RegionSettings { Partition = type, MinRegionArea = 0, MergeRegionArea = 0 }, new ContourSettings { MaxEdgeLength = 0 });
+    ContourSet set = rp.BuildFromChunk(frame, floorChunk);
+    ok &= set.Contours.Count == 1 && set.Contours[0].Vertices.Length == 4;
+}
+
 
 // 2D geometry pipeline: outlines -> boolean -> offset -> triangulation -> convex polygons.
 var a = Region.FromOutlines(new[] { new Outline(new[] { new Vector2D(0, 0), new Vector2D(10, 0), new Vector2D(10, 10), new Vector2D(0, 10) }) });
@@ -58,8 +67,13 @@ var shrunk = u.Offset(-1.0);
 var poly = shrunk.PartitionConvex();
 Console.WriteLine($"Region area {u.Area}, eroded area {shrunk.Area:F3}, {poly.PolygonCount} convex polygons");
 ok = ok && u.Area == 175.0 && poly.PolygonCount > 0 && shrunk.Area < u.Area;
-// Tier 1: outlines -> tiled navigation mesh.
+// Tier 1: outlines -> tiled navigation mesh -> path.
 var navMesh = NavMesh.Build2D(new[] { new Outline(new[] { new Vector2D(0, 0), new Vector2D(100, 0), new Vector2D(100, 50), new Vector2D(0, 50) }) }, NavSettings.Humanoid with { TileSize = 32 });
 Console.WriteLine($"NavMesh.Build2D: {navMesh.Tiles.TileCount} tiles");
 ok = ok && navMesh.Tiles.TileCount == 8 && RecursiveAI.OnePath.Mesh.NavMeshValidator.Validate(navMesh.Tiles).Count == 0;
-return ok && orca && nav && OnePathInfo.Version.Major >= 0 ? 0 : 1;
+var navPath = navMesh.FindPath(new Vector3D(5, 0, 5), new Vector3D(95, 0, 45));
+Console.WriteLine($"NavMesh.FindPath: {navPath.Status}, {navPath.Points.Length} points");
+ok = ok && navPath.Points.Length >= 2;
+bool grids = GridSmoke.Run();
+Console.WriteLine($"Grids run: {(grids ? "ok" : "FAILED")}");
+return ok && orca && nav && grids && OnePathInfo.Version.Major >= 0 ? 0 : 1;

@@ -86,6 +86,7 @@ public static class Targets
         // Placeholder target: proves the scaffold builds and runs.
         ["info"] = _ => GC.KeepAlive(OnePathInfo.Version),
         ["build3d"] = Build3DTarget.Run,
+        ["build3d-contours"] = Build3DTarget.RunContours,
         ["build2d"] = Build2DFuzz.Run,
         ["build2d-smoke"] = Build2DFuzz.Smoke,
         ["build2d-tiles"] = Build2DFuzz.RunTiles,
@@ -93,5 +94,9 @@ public static class Targets
         ["build2d-describe"] = Build2DFuzz.Describe,
         ["navmesh-mesh"] = NavMeshFuzz.Mesh,
         ["navmesh-tile"] = NavMeshFuzz.Tile,
+        ["movingai-map"] = GridTargets.MapParser,
+        ["movingai-scen"] = GridTargets.ScenarioParser,
+        ["grid-query"] = GridTargets.Query,
+        ["navmesh-query"] = NavMeshQueryFuzz.Run,
     };
 }

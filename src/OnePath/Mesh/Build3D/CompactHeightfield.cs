@@ -62,6 +62,9 @@ public sealed class CompactHeightfield
     /// <summary>Climb rows the links were built for.</summary>
     public int WalkableClimb { get; }
 
+    /// <summary>Number of regions written by the region stage (ids 1..RegionCount); 0 before it ran.</summary>
+    public int RegionCount { get; set; }
+
     /// <summary>Total number of spans.</summary>
     public int SpanCount => SpansArray.Length;
 
