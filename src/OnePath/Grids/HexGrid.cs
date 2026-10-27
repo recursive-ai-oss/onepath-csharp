@@ -154,13 +154,22 @@ public sealed class HexGrid
     public void AddListener(IGridChangeListener listener)
     {
         ArgumentNullException.ThrowIfNull(listener);
-        _listeners.Add(listener);
+        lock (_listeners)
+        {
+            _listeners.Add(listener); // locked so several flow fields may be created on different threads
+        }
     }
 
     /// <summary>Unregisters a listener.</summary>
     /// <param name="listener">The listener.</param>
     /// <returns>True if it was registered.</returns>
-    public bool RemoveListener(IGridChangeListener listener) => _listeners.Remove(listener);
+    public bool RemoveListener(IGridChangeListener listener)
+    {
+        lock (_listeners)
+        {
+            return _listeners.Remove(listener);
+        }
+    }
 
     /// <summary>The axial coordinates of a cell.</summary>
     /// <param name="cell">The cell (column, row).</param>
@@ -318,6 +327,14 @@ public sealed class HexGrid
             _spare = buffers;
         }
     }
+
+    /// <summary>Computes a flow field: the least cost from every cell to the nearest of the goal cells, and the step each cell takes.</summary>
+    /// <param name="goals">Goal cells; at least one, all inside the grid. A goal the agent cannot stand on seeds nothing.</param>
+    /// <param name="options">Options; null means <see cref="GridOptions.Default"/>. Heuristic, algorithm and recording do not apply.</param>
+    /// <returns>The field, complete unless <see cref="GridOptions.IterationBudget"/> stopped it.</returns>
+    /// <exception cref="ArgumentException">No goals, or the options ask for an agent size other than 1.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A goal is outside the grid.</exception>
+    public GridFlowField CreateFlowField(ReadOnlySpan<Cell> goals, GridOptions? options = null) => new(this, goals, options ?? DefaultOptions);
 
     private void CheckCell(int col, int row)
     {
