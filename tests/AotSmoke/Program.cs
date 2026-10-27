@@ -49,6 +49,15 @@ catch (ArgumentException)
 {
 }
 
+// Regions and contours: the eroded floor is one 8 x 8 square under every partition.
+var floorChunk = VoxelChunk.FromDense(12, 12, 8, dense);
+foreach (PartitionType type in Enum.GetValues<PartitionType>())
+{
+    var rp = new RegionPipeline(settings, new RegionSettings { Partition = type, MinRegionArea = 0, MergeRegionArea = 0 }, new ContourSettings { MaxEdgeLength = 0 });
+    ContourSet set = rp.BuildFromChunk(frame, floorChunk);
+    ok &= set.Contours.Count == 1 && set.Contours[0].Vertices.Length == 4;
+}
+
 
 // 2D geometry pipeline: outlines -> boolean -> offset -> triangulation -> convex polygons.
 var a = Region.FromOutlines(new[] { new Outline(new[] { new Vector2D(0, 0), new Vector2D(10, 0), new Vector2D(10, 10), new Vector2D(0, 10) }) });

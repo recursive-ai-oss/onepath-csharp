@@ -16,7 +16,12 @@ internal static class Build3DTarget
         double.NaN, double.PositiveInfinity, double.NegativeInfinity, 3e6, -3e6, 1e300, -0.0, 4.9e-324, 2097152.0, -2097152.0, 2097152.5,
     };
 
-    public static void Run(byte[] data)
+    public static void Run(byte[] data) => Run(data, false);
+
+    /// <summary>The contour variant: runs the region partition and contour tracing as well and checks the contours.</summary>
+    public static void RunContours(byte[] data) => Run(data, true);
+
+    private static void Run(byte[] data, bool contours)
     {
         var r = new Reader(data);
         int w = 1 + (r.Byte() % 12);
@@ -83,6 +88,13 @@ internal static class Build3DTarget
                 chf = pipe.Run(solid);
             }
             CheckCompact(chf);
+            if (contours)
+            {
+                var rs = new RegionSettings { Partition = (PartitionType)(r.Byte() % 3), MinRegionArea = r.Byte() % 12, MergeRegionArea = r.Byte() % 40 };
+                Regions.Build(chf, rs);
+                var set = Contours.Build(chf, new ContourSettings { MaxError = (r.Byte() % 5) * 0.5f, MaxEdgeLength = r.Byte() % 16, KeepRawVertices = true });
+                CheckContours(chf, set);
+            }
         }
         catch (ArgumentException)
         {
@@ -150,6 +162,41 @@ internal static class Build3DTarget
         if (total != chf.SpanCount)
         {
             throw new InvalidOperationException("compact count mismatch");
+        }
+    }
+
+    private static void CheckContours(CompactHeightfield chf, ContourSet set)
+    {
+        int[] seen = new int[chf.RegionCount + 1];
+        for (int i = 0; i < chf.SpanCount; i++)
+        {
+            int reg = chf.Spans[i].Region;
+            if (reg < 0 || reg > chf.RegionCount || (reg > 0 && chf.Spans[i].Area == 0))
+            {
+                throw new InvalidOperationException("bad region id");
+            }
+        }
+        foreach (Contour k in set.Contours)
+        {
+            if (k.Region < 1 || k.Region > chf.RegionCount || k.Vertices.Length < 3)
+            {
+                throw new InvalidOperationException("bad contour");
+            }
+            seen[k.Region]++;
+            long area = 0;
+            for (int i = 0, j = k.Vertices.Length - 1; i < k.Vertices.Length; j = i++)
+            {
+                ContourVertex a = k.Vertices[j], b = k.Vertices[i];
+                if (a.X < 0 || a.X > chf.Frame.Width || a.Z < 0 || a.Z > chf.Frame.Depth)
+                {
+                    throw new InvalidOperationException("contour vertex outside the grid");
+                }
+                area += ((long)a.X * b.Z) - ((long)b.X * a.Z);
+            }
+            if (area <= 0)
+            {
+                throw new InvalidOperationException($"contour of region {k.Region} is not counter-clockwise (area {area}): {string.Join(' ', k.Vertices)}");
+            }
         }
     }
 
