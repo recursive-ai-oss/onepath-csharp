@@ -6,5 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
+    <!-- The mesh the query rows run on until a builder can build the suite levels. -->
+    <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshWorlds.cs" Link="Support/NavMeshWorlds.cs" />
   </ItemGroup>
 </Project>

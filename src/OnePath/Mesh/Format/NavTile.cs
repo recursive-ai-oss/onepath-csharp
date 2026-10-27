@@ -140,6 +140,11 @@ public sealed class NavTile
 
     internal int[] PolyStart => _polyStart;
 
+    private Queries.TileBvh? _bvh;
+
+    // Built on first use for box queries. Two threads racing build identical trees, so either may win.
+    internal Queries.TileBvh GetBvh() => _bvh ??= Queries.TileBvh.Build(this);
+
     internal int PortalCount(int side) => _portalPoly[side].Length;
 
     internal int PortalPoly(int side, int i) => _portalPoly[side][i];

@@ -17,8 +17,11 @@ internal static class OurScenarios
     /// </summary>
     public static List<Row>? Run(SuiteRow row, Paths paths)
     {
-        _ = row;
-        _ = paths;
+        if (row.Part == "query")
+        {
+            // One set of rows per scenario: the reference rows of other drivers (DotRecast) compare against the same ours rows.
+            return OursQueries.Run(row, paths);
+        }
         return null; // nothing to measure yet
     }
 }
