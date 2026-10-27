@@ -82,5 +82,6 @@ public static class Targets
         ["movingai-scen"] = GridTargets.ScenarioParser,
         ["grid-query"] = GridTargets.Query,
         ["navmesh-query"] = NavMeshQueryFuzz.Run,
+        ["grid-jps"] = GridTargets.Jps,
     };
 }

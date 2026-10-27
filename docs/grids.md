@@ -108,10 +108,82 @@ the same expansion order, path and cost as one unsliced run. The tier-1 `GridOpt
    `GridSearchBuffers` are reusable working memory (the search allocates nothing in steady state; marks carry a generation
    number so nothing is cleared between searches).
 3. **Raw.** `OpenSet`, `IGridTopology` + `INeighborVisitor` (implement your own graph), `GridSearchBuffers`, `AreaCosts`,
-   `IGridChangeListener`.
+   `IGridChangeListener`; for jump point search `JumpRules` (pruning), `IJumper` with `OnlineJumper`, `BlockJumper` and
+   `TableJumper`, `BlockMap`, `JpsPlusIndex` (the tables), and `JumpSearch<TJumper, THeuristic>` (tier 2: struct-generic over the jumper and heuristic).
+   Tier 1 picks them with `GridOptions.Algorithm`.
 
 Debug data: `GridOptions.RecordExpansions` / `GridSearchBuffers.RecordExpansions` record the expanded nodes in order
 (`GridPath.ExpandedCells`, `GridSearchBuffers.ExpandedNodes`); the path is `GridPath.Cells` / `WorldPoints`.
+
+## Jump point search (JPS, JPS+)
+
+Papers: Harabor & Grastien 2011 (*Online Graph Pruning for Pathfinding on Grid Maps*) for JPS; Harabor & Grastien 2014
+(*Improving Jump Point Search*) for block-based scanning and the offline (JPS+) variant, with Rabin's formulation of the
+preprocessed distances (Game AI Pro 2). Code: `src/OnePath/Grids/Jps/`.
+
+**When it applies.** Eight-connected moves, `DiagonalRule.NoCornerCutting`, agent size 1, every area with the same cost
+multiplier `m` (straight step `m`, diagonal step `m * √2`, the same values A* uses when all multipliers are equal), no
+step-cost or blocking callbacks, heuristic weight 1, heuristic octile or zero. The one-line API (`GridOptions.Algorithm`)
+falls back to A* when a query does not qualify (and `GridPath.Algorithm` says which ran); JPS+ also falls back to JPS when a
+side of the grid exceeds 32766 cells. Other rules (squeezing, allow-all, four moves) and agent sizes above 1 are A*'s. The
+default is A*.
+
+**Pruned successors** (`JumpRules.Successors`). Let a node be reached by a step of sign (dx, dy) from its parent (the
+parent may be many cells away; only the direction matters). The start node searches all eight directions.
+- Diagonal arrival: the diagonal and its two cardinal components. A diagonal step into a cell needs both side cells
+  free (no corner cutting), so no neighbour is forced.
+- Straight arrival: straight on; and on each side s (perpendicular to the step), if the cell beside the node on side s is free and
+  the cell beside the *previous* cell on that side is a wall, that side cell is reachable at the optimal cost only through this
+  node: the side's cardinal direction and the diagonal (step + s) are searched too. This is the forced neighbour of the 2011
+  paper moved one step along, because a diagonal step out of the previous cell is illegal when its side cell is a wall.
+
+**Jump** (`IJumper.Jump`). From a node in a direction, walk until a cell is reached that is the goal or (straight) has a
+forced neighbour as above, or (diagonal) is the goal or has a straight scan in one of its two cardinal directions that finds
+such a cell; a wall stops the walk with no result. A diagonal step needs both side cells and the target free. The result is the
+cell and the number of unit steps.
+
+**Search** (`JumpSearch`). A* over jump points with the grid core's `OpenSet`: smaller f, then larger g, then smaller cell
+index. f = g + octile(m) (or g for the zero heuristic); g adds `steps * m` or `steps * (m * √2)` per jump (so a path
+cost is a sum of one product per segment, not one addition per cell, and may differ from A*'s cell-by-cell sum in the last
+bits). A cheaper route reopens a node. Successors are generated in direction order 0..7 (north, east, south, west,
+north-east, south-east, south-west, north-west); on equal g the first parent found stays. The goal is tested when popped. One
+iteration pops and expands one node, so a sliced search equals an unsliced one; the iteration budget and expansion
+counts follow A*'s rules. The returned path lists every cell between the jump points (consecutive cells are neighbours).
+Jump points are not unique to the search: any valid optimal path is returned, and A*, JPS and JPS+ may return different
+paths of equal cost.
+
+**Block-based scanning** (`BlockMap`, `BlockJumper`). The walkable cells are kept as bits, 64 per word, once by rows and
+once by columns (bit i of word k of a line is position 64k+i; positions past the line end are blocked). A straight scan
+reads whole words: stop bits are `~walkable | forced`, where forced = `side & ~(side shifted by one position along the
+scan)` for the two neighbouring lines (a missing line counts as blocked), masked to positions beyond the start, and the first
+set bit (lowest bit forwards, highest backwards) is the stop; a goal on the line before the stop wins. The map follows
+grid edits immediately (a bit per edit in each orientation). It finds exactly the cells the cell-by-cell scan
+(`OnlineJumper`) finds.
+
+**JPS+ tables** (`JpsPlusIndex`). Per cell and direction one signed 16-bit value, layout `table[direction * cellCount +
+cell]`, direction order as above, cells row-major. Value `d > 0`: the next jump point is `d` steps away; `d <= 0`: no
+jump point before a wall, and `-d` is the number of walkable cells before it. A wall cell has all zeros. Straight direction:
+look at the next cell `q`; if `q` is a wall, 0; if `q` has a forced neighbour for this arrival, 1; else the value of `q`
+moved one step further (`v + 1` if `v > 0`, else `v - 1`). Diagonal: if the step is illegal (side cell or target a wall), 0; if
+`q`'s table for either cardinal component is positive, 1; else the same chain rule on the diagonal table. Build order: the
+four straight tables, then the diagonals, each from the far end. Size 16 bytes per cell.
+- *Goal bounding at query time.* Straight: the goal on the line ahead within `|d|` steps is returned directly (cost =
+  distance). Diagonal: if the goal lies strictly inside the quadrant and `min(|gx-x|,|gy-y|) <= |d|`, the run stops
+  at that many steps (the cell level with the goal in one axis), even if the stored jump point lies further. Otherwise a positive
+  `d` returns the stored jump point and a non-positive one nothing. Stopping early adds nodes that plain JPS would
+  not create; it never loses an optimal path (a superset of the nodes JPS visits) and never adds a cheaper one.
+- *Incremental update.* The index subscribes to the grid's `IGridChangeListener`; `Refresh()` (called by every query) applies
+  the pending edits: for each edited cell recompute the east and west tables of its row and the rows above and below, the
+  north and south tables of its column and the columns beside it, recording the cells whose sign (positive or not)
+  changed; then for every edited cell and sign-changed cell recompute the four diagonal entries that read it (the cell itself,
+  the cells one step behind it horizontally, vertically and diagonally), and follow each changed diagonal entry backwards
+  along its diagonal until an entry comes out unchanged. The tables then equal a fresh build (checked on >1000 random
+  edit sequences and in the fuzz target). More than max(256, cells/64) pending edits are answered by a full rebuild.
+
+**Cost with areas.** JPS assumes one cost for every step. Distinct area multipliers make a query fall back to A*; the
+table index is independent of costs, so changing a multiplier needs no rebuild.
+
+**Cost model of preprocessing.** O(8 · cells) time to build, 16 bytes per cell; the block map takes cells/4 bytes.
 
 ## Moving AI files
 
@@ -130,4 +202,8 @@ allocated.
   8-connected, no corner cutting, via `tools/GridOptima`. The published numbers differ from exact octile sums by at most
   1.7e-9 of the length (consistent with some being summed with a diagonal cost of 1.41421356); the check allows a relative 1e-6.
 - Hash-matrix scenarios `grids/*` write status, cost bits, expansion counts and paths for generated maps.
-- Fuzz targets `movingai-map`, `movingai-scen`, `grid-query` (`fuzz/run.sh`).
+- Fuzz targets `movingai-map`, `movingai-scen`, `grid-query`, `grid-jps` (`fuzz/run.sh`).
+- JPS and JPS+: costs equal Dijkstra on 10^4 + 4·10^3 + 600 random grids, on rooms with gaps, and A* on grids wider than a
+  bitmap word; table entries equal the cell-by-cell scan; incremental tables equal a rebuild over 1200 edit sequences; the
+  block scan equals the cell scan with goals anywhere; every Moving AI 2D set above equals the published optimal costs with
+  both (`ALG=jps sweep.sh`, `ALG=jps+ sweep.sh`, or `GridOptima --alg jps|jps+`).

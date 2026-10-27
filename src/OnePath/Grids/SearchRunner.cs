@@ -82,6 +82,57 @@ internal static class SearchRunner
         return new GridPath(PathStatus.Found, search.PathCost, cells, search.ExpandedCount, expanded, world);
     }
 
+    internal static GridPath RunJump<TJumper, THeuristic>(
+        TJumper jumper,
+        THeuristic heuristic,
+        double unitCost,
+        GridSearchBuffers buffers,
+        int start,
+        int goal,
+        GridOptions options,
+        Func<Cell, WorldPoint>? centre,
+        GridAlgorithm used)
+        where TJumper : struct, IJumper
+        where THeuristic : struct, IHeuristic
+    {
+        int width = jumper.Width;
+        buffers.RecordExpansions = options.RecordExpansions;
+        var search = new JumpSearch<TJumper, THeuristic>(jumper, heuristic, unitCost, buffers);
+        search.Begin(start, goal);
+        SearchStatus status = search.Step(options.IterationBudget);
+        Cell[]? expanded = null;
+        if (options.RecordExpansions)
+        {
+            ReadOnlySpan<int> e = buffers.ExpandedNodes;
+            expanded = new Cell[e.Length];
+            for (int i = 0; i < e.Length; i++)
+            {
+                expanded[i] = ToCell(e[i], width);
+            }
+        }
+        if (status == SearchStatus.Running)
+        {
+            return new GridPath(PathStatus.BudgetExhausted, double.PositiveInfinity, null, search.ExpandedCount, expanded, null) { Algorithm = used };
+        }
+        if (status == SearchStatus.NotFound)
+        {
+            return new GridPath(PathStatus.NoPath, double.PositiveInfinity, null, search.ExpandedCount, expanded, null) { Algorithm = used };
+        }
+        int[] nodes = new int[search.PathLength()];
+        search.CopyPath(nodes);
+        var cells = new Cell[nodes.Length];
+        WorldPoint[]? world = centre is null ? null : new WorldPoint[nodes.Length];
+        for (int i = 0; i < nodes.Length; i++)
+        {
+            cells[i] = ToCell(nodes[i], width);
+            if (world is not null)
+            {
+                world[i] = centre!(cells[i]);
+            }
+        }
+        return new GridPath(PathStatus.Found, search.PathCost, cells, search.ExpandedCount, expanded, world) { Algorithm = used };
+    }
+
     internal static Cell ToCell(int node, int width)
     {
         int y = node / width;

@@ -35,6 +35,8 @@ public sealed class Grid
     private readonly List<IGridChangeListener> _listeners = [];
     private int _clearanceVersion = -1;
     private GridSearchBuffers? _spare;
+    private JpsPlusIndex? _jpsPlus;
+    private BlockMap? _blockMap;
 
     /// <summary>Creates a grid of walkable cells (area 0).</summary>
     /// <param name="width">Columns; at least 1.</param>
@@ -311,6 +313,10 @@ public sealed class Grid
         {
             return new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
         }
+        if (o.Algorithm != GridAlgorithm.AStar && JumpSearchApplies(o, out double unitCost))
+        {
+            return FindPathJump(start, goal, o, unitCost, world);
+        }
         SquareTopology topology = CreateTopology(size, o.Connectivity, o.Diagonals);
         GridHeuristic h = o.Heuristic;
         if (h == GridHeuristic.Auto)
@@ -346,6 +352,65 @@ public sealed class Grid
                     _ => SearchRunner.Run(topology, cost, new OctileHeuristic(Width, scale), buffers, Width, a, b, o, centre),
                 };
             }
+        }
+        finally
+        {
+            _spare = buffers;
+        }
+    }
+
+    // The jump point searches assume what the one-line API can promise: eight moves, no corner cutting, agent size 1, one
+    // cost for every area, no per-move callbacks, an exact (weight 1) octile or zero estimate.
+    private bool JumpSearchApplies(GridOptions o, out double unitCost)
+    {
+        unitCost = 1.0;
+        return o.Connectivity == Connectivity.Eight
+            && o.Diagonals == DiagonalRule.NoCornerCutting
+            && o.AgentSize == 1
+            && o.StepCost is null
+            && o.Blocked is null
+            && o.HeuristicWeight == 1.0
+            && o.Heuristic != GridHeuristic.Manhattan
+            && Areas.TryGetUniform(out unitCost);
+    }
+
+    private GridPath FindPathJump(Cell start, Cell goal, GridOptions o, double unitCost, bool world)
+    {
+        int a = (start.Y * Width) + start.X;
+        int b = (goal.Y * Width) + goal.X;
+        Func<Cell, WorldPoint>? centre = world ? CellCenter : null;
+        bool plus = o.Algorithm == GridAlgorithm.JpsPlus && Width <= JpsPlusIndex.MaxSide && Height <= JpsPlusIndex.MaxSide;
+        TableJumper table = default;
+        BlockJumper block = default;
+        lock (_sync)
+        {
+            if (plus)
+            {
+                _jpsPlus ??= new JpsPlusIndex(this);
+                _jpsPlus.Refresh();
+                table = new TableJumper(_jpsPlus);
+            }
+            else
+            {
+                _blockMap ??= new BlockMap(this);
+                block = new BlockJumper(_blockMap);
+            }
+        }
+        GridSearchBuffers? buffers = Interlocked.Exchange(ref _spare, null);
+        buffers ??= new GridSearchBuffers(CellCount);
+        try
+        {
+            GridAlgorithm used = plus ? GridAlgorithm.JpsPlus : GridAlgorithm.Jps;
+            bool zero = o.Heuristic == GridHeuristic.Zero;
+            if (plus)
+            {
+                return zero
+                    ? SearchRunner.RunJump(table, default(ZeroHeuristic), unitCost, buffers, a, b, o, centre, used)
+                    : SearchRunner.RunJump(table, new OctileHeuristic(Width, unitCost), unitCost, buffers, a, b, o, centre, used);
+            }
+            return zero
+                ? SearchRunner.RunJump(block, default(ZeroHeuristic), unitCost, buffers, a, b, o, centre, used)
+                : SearchRunner.RunJump(block, new OctileHeuristic(Width, unitCost), unitCost, buffers, a, b, o, centre, used);
         }
         finally
         {

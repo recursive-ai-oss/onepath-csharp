@@ -40,6 +40,23 @@ internal static class GridSmoke
         {
         }
         ok &= search.Status == SearchStatus.Found && search.PathCost == 4.0;
+
+        // Jump point searches: tier-1 option, the generic search over each jumper, and a table repair after an edit.
+        foreach (GridAlgorithm algorithm in new[] { GridAlgorithm.Jps, GridAlgorithm.JpsPlus })
+        {
+            GridPath jump = grid.FindPath(new Cell(0, 0), new Cell(0, 4), new GridOptions { Algorithm = algorithm });
+            ok &= jump.Found && jump.Algorithm == algorithm && jump.Cost == 12.0;
+        }
+        using var index = new JpsPlusIndex(fromText);
+        var plus = new JumpSearch<TableJumper, OctileHeuristic>(new TableJumper(index), new OctileHeuristic(3));
+        plus.Begin(0, 8);
+        ok &= plus.Run() == SearchStatus.Found && plus.PathCost == 4.0;
+        fromText.SetWalkable(1, 1, true);
+        plus.Begin(0, 8);
+        ok &= plus.Run() == SearchStatus.Found && plus.PathCost == 2.0 * GridMath.Sqrt2;
+        var block = new JumpSearch<BlockJumper, OctileHeuristic>(new BlockJumper(new BlockMap(fromText)), new OctileHeuristic(3));
+        block.Begin(0, 8);
+        ok &= block.Run() == SearchStatus.Found && block.PathCost == 2.0 * GridMath.Sqrt2;
         return ok;
     }
 }
