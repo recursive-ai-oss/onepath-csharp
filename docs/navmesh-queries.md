@@ -119,6 +119,78 @@ across the edge if there is one the filter accepts: an in-tile neighbour, or a t
 not tested. The start must be inside the polygon (within 1e-6 of its outline) or the status is `StartOutsidePolygon`. The visited list
 (start first) is truncated to the buffer (`Truncated`); `visitedCount` is the number written.
 
+## Polygon-set queries (circle, shape, local neighbourhood)
+
+These answer "which polygons can I get to near here" without costs: only the filter's `Passes` matters, area costs are ignored.
+All geometry is in the X/Z plane (heights are ignored); world coordinates are the tile origin plus the float32 tile-local value, in double.
+
+**Portals.** A polygon edge leads to a neighbour through a *portal*: for an in-tile neighbour the whole edge; for a tile-border
+link (`NavLinkKind.Portal`) the part of the source edge from fraction `RangeMin/255` to `RangeMax/255` (computed as `a + (c - a) * s`,
+with `s = 0` and `s = 1` returning the end vertices exactly). Off-mesh links are not followed. A neighbour is entered only if the filter
+accepts it.
+
+**Shapes.** A circle (centre, radius 0 to 2^22) or a convex polygon of 3 to 64 points (either winding; Y ignored; collinear points
+allowed; zero area, non-convex, self-crossing or repeated-point input is `InvalidShape`; internally reordered counter-clockwise and
+checked by the exact orientation predicate against every edge). A portal *touches* a circle when the squared distance from its
+segment to the centre is `<= r*r`; it touches a polygon when an end point is inside or on it, or the segment meets one of its edges
+(closed segments, exact orientation tests with magnitudes below 2^-100 read as 0). The *reference point* is the circle centre or the
+mean of the polygon's points; an entry's *key* is the squared distance from the reference point to the portal's segment.
+
+**Search.** Best-first over polygons from the start polygon (which must pass the filter, else `InvalidStartPoly`, and is always in the
+result even if the shape misses it). Pop the node of least `(key, insertion sequence)` (binary heap, so the order is fully
+specified; a stale entry is skipped and costs no iteration). For each edge of the popped polygon in edge order (the in-tile
+neighbour, or else that edge's portal links in link order) whose target passes the filter and whose portal touches the shape: if the
+target has no node it gets one with this key and parent; if it has an open node with a larger key the key and parent are lowered; closed nodes are not changed.
+One iteration = one expansion. The set of polygons found is exactly those reachable from the start by a chain of touching portals
+(tests compare with a breadth-first oracle); their order, parents and keys are the expansion order described here. The query's
+`maxNodes` also caps this search (nodes beyond it are dropped, `AreaNodeLimitReached`).
+
+`Begin/UpdateAreaSearch/FinishAreaSearch` are the sliced form; `Update` any number of times with any budgets ends with the same
+lists as one unlimited call. `Finish` of an unfinished search lists the polygons expanded so far (status `InProgress`).
+`FindPolysInCircle` / `FindPolysInShape` / `FindLocalNeighbourhood` run begin, update-to-end and finish. The output arrays are
+written in expansion order; `parents` holds the polygon each was reached from (`Invalid` for the start), `distancesSquared` its key;
+both may be empty or shorter than `polys`. Anything beyond the `polys` buffer sets `truncated`.
+
+**Local neighbourhood.** The same search with one extra rule: when a polygon would get a node, it is skipped if its outline overlaps
+(interiors intersect, tested exactly with the separating-edge test; touching is not overlap) any polygon that already has a node.
+So stacked floors appear once, the one met first. A skipped polygon is not expanded through.
+
+## Distance to wall
+
+`DistanceToWall(startPoly, center, radius, filter)` runs the circle search above, then scans every polygon found (expansion
+order) for wall pieces within the radius. A *wall piece* is the part of an edge with nothing walkable behind it: an edge with no
+neighbour and no border side; an in-tile neighbour the filter rejects (whole edge); on a tile-border edge, the stretch not covered by
+the ranges of links to accepted polygons (gaps between merged ranges, at `k/255` fractions). The nearest point of each piece to the
+centre is found by clamped projection; the nearest overall within `radius` wins, ties going to the lowest (polygon reference, edge
+index, fraction along the edge). The hit point gets its height by linear interpolation along the edge. `Normal` is the unit vector
+from the hit point toward the centre in X/Z (the edge's inward normal if the centre lies on the wall). If nothing is within the
+radius, `Found` is false and `Distance` is the radius. `FinishDistanceToWall` does the scan for a sliced circle search (on the
+polygons expanded so far).
+
+## Random points
+
+`RandomPoint(ref SeededRandom, filter)`: area-weighted over every polygon the filter accepts, in (tile slot, polygon index) order,
+weight = X/Z outline area (sum of the fan triangles `(v0, vi, vi+1)`, in tile-local doubles). The generator (SplitMix64) supplies
+exactly four doubles in `[0, 1)`: `u0` picks the first polygon whose running area total exceeds `u0 * total` (if rounding leaves none,
+the last polygon of positive area); `u1` picks the fan triangle the same way; with `r1 = sqrt(u2)` and `r2 = u3` the point is
+`(1 - r1) A + r1 (1 - r2) B + r1 r2 C` (Osada et al. 2002). The height is the polygon surface height at the point. If no accepted
+polygon has positive area, no point is returned and the generator is not advanced. The state of `SeededRandom` is the whole
+state: copy it to snapshot, assign it to restore.
+
+`RandomPointAround(ref rng, startPoly, center, radius, filter)`: the circle search, then rejection sampling that is exactly uniform
+over the part of the found polygons inside the circle (stacked polygons each count). Each found polygon is clipped (Sutherland and
+Hodgman 1974) to the circle's bounding square; the clipped areas are the weights, summed in expansion order. An attempt draws four
+doubles as above (polygon from the clipped weights, then triangle and barycentric draws inside the clipped polygon) and keeps the
+point if it is inside the circle (`<= r*r`). After 64 failed attempts, or if radius is 0 or the start is invalid, nothing is
+returned; the generator has advanced by the draws made. `FinishRandomPointAround` does the draw for a sliced circle search.
+
+## Move along surface
+
+`MoveAlongSurface(startPoly, start, end, filter, visited)` traces the segment as `Raycast` does. If it ends inside the mesh the
+result is `end` (X/Z) with the surface height of the last polygon, `Blocked = false`. If it hits a wall, the result is the point of
+the wall's edge closest to `end` (clamped to the edge, height interpolated along it), in the polygon owning that edge,
+`Blocked = true`. One slide only: call again from the result to keep sliding. The result is always on a polygon of the mesh.
+
 ## One-call and tier-1 forms
 
 `NavMeshQuery.FindPath(start, end, PathOptions?)` = nearest polygon at each end (extents default (2, 4, 2)), sliced search run to
