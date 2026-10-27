@@ -110,9 +110,25 @@ public readonly struct VoxelTopology : IGridTopology
         where TVisitor : struct, INeighborVisitor
     {
         VoxelCell c = VoxelGrid.Decode(node, _sizeX, _sizeY);
-        int x = c.X;
-        int y = c.Y;
-        int z = c.Z;
+        var adapter = new NodeAdapter<TVisitor> { Inner = visitor, SizeX = _sizeX, SizeY = _sizeY };
+        VisitNeighborsAt(c.X, c.Y, c.Z, ref adapter);
+        visitor = adapter.Inner;
+    }
+
+    private struct NodeAdapter<TVisitor> : IVoxelVisitor
+        where TVisitor : struct, INeighborVisitor
+    {
+        public TVisitor Inner;
+        public int SizeX;
+        public int SizeY;
+
+        public void Visit(int x, int y, int z, double baseCost) => Inner.Visit(x + (SizeX * (y + (SizeY * z))), baseCost);
+    }
+
+    // The neighbour enumeration of VisitNeighbors for a voxel given by coordinates (the search keeps them, so it never divides).
+    internal void VisitNeighborsAt<TVisitor>(int x, int y, int z, ref TVisitor visitor)
+        where TVisitor : struct, IVoxelVisitor
+    {
         double mFrom = _multipliers[Area(x, y, z)];
         sbyte[] dxs = VoxelOffsets.Dx;
         sbyte[] dys = VoxelOffsets.Dy;
@@ -145,7 +161,7 @@ public readonly struct VoxelTopology : IGridTopology
                 }
                 length = kind == 2 ? GridMath.Sqrt2 : VoxelMath.Sqrt3;
             }
-            visitor.Visit(nx + (_sizeX * (ny + (_sizeY * nz))), length * ((mFrom + _multipliers[area]) * 0.5));
+            visitor.Visit(nx, ny, nz, length * ((mFrom + _multipliers[area]) * 0.5));
         }
     }
 
@@ -261,9 +277,19 @@ public struct VoxelHeuristic : IHeuristic
             return 0.0;
         }
         VoxelCell n = VoxelGrid.Decode(node, _sizeX, _sizeY);
-        int dx = n.X > _gx ? n.X - _gx : _gx - n.X;
-        int dy = n.Y > _gy ? n.Y - _gy : _gy - n.Y;
-        int dz = n.Z > _gz ? n.Z - _gz : _gz - n.Z;
+        return EstimateAt(n.X, n.Y, n.Z);
+    }
+
+    // The estimate for a voxel given by coordinates (the paged search keeps them, so it never divides).
+    internal readonly double EstimateAt(int x, int y, int z)
+    {
+        if (_kind == VoxelHeuristicKind.Zero)
+        {
+            return 0.0;
+        }
+        int dx = x > _gx ? x - _gx : _gx - x;
+        int dy = y > _gy ? y - _gy : _gy - y;
+        int dz = z > _gz ? z - _gz : _gz - z;
 
         // Sort ascending: a <= b <= c.
         int a = dx;

@@ -183,52 +183,50 @@ internal static class VoxelSearchRunner
         VoxelTopology topology,
         TCost cost,
         VoxelHeuristic heuristic,
-        GridSearchBuffers buffers,
-        int sizeX,
-        int sizeY,
-        int start,
-        int goal,
+        VoxelSearchState state,
+        VoxelCell start,
+        VoxelCell goal,
         VoxelOptions options,
         Func<VoxelCell, VoxelPoint>? centre)
         where TCost : struct, IStepCost
     {
-        buffers.RecordExpansions = options.RecordExpansions;
-        var search = new AStar<VoxelTopology, TCost, VoxelHeuristic>(topology, cost, heuristic, buffers)
-        {
-            HeuristicWeight = options.HeuristicWeight,
-        };
-        search.Begin(start, goal);
-        SearchStatus status = search.Step(options.IterationBudget);
+        SearchStatus status = state.Run(topology, cost, heuristic, start, goal, options.HeuristicWeight, options.IterationBudget, options.RecordExpansions,
+            out int goalSlot, out double pathCost, out int expandedCount);
         VoxelCell[]? expanded = null;
         if (options.RecordExpansions)
         {
-            ReadOnlySpan<int> e = buffers.ExpandedNodes;
+            ReadOnlySpan<int> e = state.ExpandedSlots;
             expanded = new VoxelCell[e.Length];
             for (int i = 0; i < e.Length; i++)
             {
-                expanded[i] = VoxelGrid.Decode(e[i], sizeX, sizeY);
+                expanded[i] = state.CellOfSlot(e[i]);
             }
         }
         if (status == SearchStatus.Running)
         {
-            return new VoxelPath(PathOutcome.BudgetExhausted, double.PositiveInfinity, null, search.ExpandedCount, expanded, null);
+            return new VoxelPath(PathOutcome.BudgetExhausted, double.PositiveInfinity, null, expandedCount, expanded, null);
         }
         if (status == SearchStatus.NotFound)
         {
-            return new VoxelPath(PathOutcome.NoPath, double.PositiveInfinity, null, search.ExpandedCount, expanded, null);
+            return new VoxelPath(PathOutcome.NoPath, double.PositiveInfinity, null, expandedCount, expanded, null);
         }
-        int[] nodes = new int[search.PathLength()];
-        search.CopyPath(nodes);
-        var cells = new VoxelCell[nodes.Length];
-        VoxelPoint[]? world = centre is null ? null : new VoxelPoint[nodes.Length];
-        for (int i = 0; i < nodes.Length; i++)
+        int length = 0;
+        for (int s = goalSlot; s >= 0; s = state.ParentOf(s))
         {
-            cells[i] = VoxelGrid.Decode(nodes[i], sizeX, sizeY);
+            length++;
+        }
+        var cells = new VoxelCell[length];
+        VoxelPoint[]? world = centre is null ? null : new VoxelPoint[length];
+        int at = length;
+        for (int s = goalSlot; s >= 0; s = state.ParentOf(s))
+        {
+            at--;
+            cells[at] = state.CellOfSlot(s);
             if (world is not null)
             {
-                world[i] = centre!(cells[i]);
+                world[at] = centre!(cells[at]);
             }
         }
-        return new VoxelPath(PathOutcome.Found, search.PathCost, cells, search.ExpandedCount, expanded, world);
+        return new VoxelPath(PathOutcome.Found, pathCost, cells, expandedCount, expanded, world);
     }
 }

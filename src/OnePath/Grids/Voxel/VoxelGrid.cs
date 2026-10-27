@@ -20,8 +20,10 @@ namespace RecursiveAI.OnePath;
 /// open (or mostly solid) costs memory only for the chunks that differ.
 /// </para>
 /// <para>
-/// The voxel index used as a search node is <c>x + SizeX * (y + SizeY * z)</c>. Search buffers hold 20 bytes per voxel (cost, parent, mark and open-set position),
-/// so the largest searchable block is <see cref="MaxVoxels"/> voxels.
+/// The voxel index used as a search node is <c>x + SizeX * (y + SizeY * z)</c>. A one-line query keeps its search state
+/// (cost, parent, mark and open-set position, 20 bytes per voxel) in pages of 8 × 8 × 8 voxels, allocated when the search first
+/// reaches the block, so its memory follows the voxels the search touches. A tier-2
+/// <see cref="AStar{TTopology, TCost, THeuristic}"/> with <see cref="GridSearchBuffers"/> is dense: 20 bytes per voxel of the whole block.
 /// </para>
 /// <para>Reading is safe from several threads once no thread edits the grid. Edits must not overlap queries.</para>
 /// </summary>
@@ -43,7 +45,10 @@ public sealed class VoxelGrid
     private readonly byte _fill;
     private readonly List<IVoxelChangeListener> _listeners = [];
     private int _allocated;
-    private GridSearchBuffers? _spare;
+    private VoxelSearchState? _spare;
+
+    // A pooled search state with more pages than this (about 40 MB at 10 KB a page) is dropped after the query, so one huge search does not pin its memory.
+    private const int RetainedPages = 4096;
 
     /// <summary>Creates a grid where every voxel has the same area.</summary>
     /// <param name="sizeX">Voxels along x; at least 1.</param>
@@ -376,14 +381,15 @@ public sealed class VoxelGrid
             return VoxelPath.Invalid(o.Blocked(start) ? PathOutcome.StartInvalid : PathOutcome.GoalInvalid);
         }
         VoxelTopology topology = CreateTopology(o.Connectivity, o.Corners);
-        int a = start.X + (SizeX * (start.Y + (SizeY * start.Z)));
-        int b = goal.X + (SizeX * (goal.Y + (SizeY * goal.Z)));
         GridHeuristic h = o.Heuristic == GridHeuristic.Auto ? (o.Connectivity == VoxelConnectivity.Six ? GridHeuristic.Manhattan : GridHeuristic.Octile) : o.Heuristic;
         double scale = Areas.MinCost;
         Func<VoxelCell, VoxelPoint>? centre = world ? CellCenter : null;
 
-        GridSearchBuffers? buffers = Interlocked.Exchange(ref _spare, null);
-        buffers ??= new GridSearchBuffers(VoxelCount);
+        VoxelSearchState? state = Interlocked.Exchange(ref _spare, null);
+        if (state is null || !state.Fits(this))
+        {
+            state = new VoxelSearchState(SizeX, SizeY, SizeZ);
+        }
         try
         {
             VoxelHeuristic heuristic = h switch
@@ -394,14 +400,14 @@ public sealed class VoxelGrid
             };
             if (o.StepCost is null && o.Blocked is null)
             {
-                return VoxelSearchRunner.Run(topology, default(DefaultStepCost), heuristic, buffers, SizeX, SizeY, a, b, o, centre);
+                return VoxelSearchRunner.Run(topology, default(DefaultStepCost), heuristic, state, start, goal, o, centre);
             }
             var cost = new VoxelSearchRunner.DelegateStepCost { SizeX = SizeX, SizeY = SizeY, Step = o.StepCost, Blocked = o.Blocked };
-            return VoxelSearchRunner.Run(topology, cost, heuristic, buffers, SizeX, SizeY, a, b, o, centre);
+            return VoxelSearchRunner.Run(topology, cost, heuristic, state, start, goal, o, centre);
         }
         finally
         {
-            _spare = buffers;
+            _spare = state.PooledPages <= RetainedPages ? state : null;
         }
     }
 

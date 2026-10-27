@@ -12,7 +12,7 @@ namespace RecursiveAI.OnePath.GridOptima;
 
 /// <summary>
 /// Checks voxel A* costs against the published optimal lengths of the Moving AI Lab voxel scenario sets.
-/// Usage: <c>GridOptima --voxel --maps DIR --set NAME [--only A1,A2] [--threads N] [--limit N] [--per-map N] [--tolerance ABS] [--conn 6|18|26] [--rule cut|squeeze|all]</c>,
+/// Usage: <c>GridOptima --voxel --maps DIR --set NAME [--only A1,A2] [--threads N] [--limit N] [--per-map N] [--tolerance ABS] [--conn 6|18|26] [--rule cut|squeeze|all] [--verbose]</c>,
 /// where DIR/NAME holds the loose <c>*.3dmap</c> and <c>*.3dmap.3dscen</c> files unpacked by <c>tools/maps/maps.sh</c> (never committed).
 /// Prints one line per map and a summary line: scenarios, mismatches, largest absolute difference. Exit code 1 if any mismatch.
 /// </summary>
@@ -27,11 +27,17 @@ internal static class VoxelOptima
         long limit = long.MaxValue;
         int perMap = int.MaxValue;
         double tolerance = 1e-6;
+        bool verbose = false;
         var options = new VoxelOptions();
         for (int i = 0; i < args.Length; i++)
         {
             if (args[i] == "--voxel")
             {
+                continue;
+            }
+            if (args[i] == "--verbose")
+            {
+                verbose = true;
                 continue;
             }
             if (i + 1 >= args.Length)
@@ -105,6 +111,10 @@ internal static class VoxelOptima
                 n++;
                 VoxelPath p = grid.FindPath(new VoxelCell(e.StartX, e.StartY, e.StartZ), new VoxelCell(e.GoalX, e.GoalY, e.GoalZ), options);
                 double delta = p.Found ? Math.Abs(p.Cost - e.OptimalLength) : double.PositiveInfinity;
+                if (verbose)
+                {
+                    Console.WriteLine($"{name} #{n}: expanded {p.ExpandedCount} cost {p.Cost:F6} published {e.OptimalLength:F6}");
+                }
                 if (!(delta <= tolerance))
                 {
                     bad++;
