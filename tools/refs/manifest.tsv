@@ -1,0 +1,10 @@
+# id	version	url	sha256	notes
+# Benchmark references. They are fetched, built and run as black boxes; none is redistributed.
+recast	1.6.0	https://github.com/recastnavigation/recastnavigation/archive/refs/tags/v1.6.0.tar.gz	d48ca0121962fa0639502c0f56c4e3ae72f98e55d88727225444f500775c0074	Recast, Detour, DetourCrowd (zlib)
+rvo2	2.0.2	https://github.com/snape/RVO2/archive/refs/tags/v2.0.2.tar.gz	20b59fcc4cf61783cb0d1baa40a0dff3c557a97246651f95d9d9fed91bf17724	RVO2 C++ (Apache-2.0)
+rvo2cs	2.0.1	https://github.com/snape/RVO2-CS/archive/refs/tags/v2.0.1.tar.gz	f7e00e73de8ecfa504edb962371ac042502afa6402091bc2b5aa6a0e01a0e62a	RVO2 C# (Apache-2.0)
+warthog-core	0.6.2	https://github.com/ShortestPathLab/warthog-core/archive/refs/tags/v0.6.2.tar.gz	603a78c4ab7940ce06ed7b04627c56c4273c7c749633bfd28d8dafdfddc8cdce	Warthog core (MIT)
+warthog-jps	0.6.2	https://github.com/ShortestPathLab/warthog-jps/archive/refs/tags/v0.6.2.tar.gz	a183138d5a561a7bf9ae3450841c9cb82adfdf572c8eb87b3c7136eb86aa4a3e	Warthog JPS, JPS+ (MIT)
+# Build tools, installed user-locally by tools/refs/refs.sh bootstrap.
+cmake-linux-x64	3.31.8	https://github.com/Kitware/CMake/releases/download/v3.31.8/cmake-3.31.8-linux-x86_64.tar.gz	630615d8e98ac33eba7fbe472626dff5c899c85af3c024585ae109166a6909d0	CMake (BSD-3-Clause)
+cmake-osx-arm64	3.31.8	https://github.com/Kitware/CMake/releases/download/v3.31.8/cmake-3.31.8-macos-universal.tar.gz	d1449f969c54d5c00886d5b643340d493dfb3c81cb39ee29b35453395c11ebf7	CMake (BSD-3-Clause)

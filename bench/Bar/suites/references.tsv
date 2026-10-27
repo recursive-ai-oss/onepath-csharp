@@ -1,0 +1,89 @@
+# id	part	driver	metric	better	tolerance	args
+# Placeholders: {home} {maps} {geom} (levels at size 256) {geomsmall} (size 96). env:NAME=VALUE sets an environment variable for the reference run.
+build/city-solo/recast	build	recast	time_best	lower	1.15	build --obj {geom}/city.obj --reps 5
+build/city-solo/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/city.obj --reps 5
+build/terraces-solo/recast	build	recast	time_best	lower	1.15	build --obj {geom}/terraces.obj --reps 5
+build/terraces-solo/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/terraces.obj --reps 5
+build/stairs-solo/recast	build	recast	time_best	lower	1.15	build --obj {geom}/stairs.obj --reps 5
+build/stairs-solo/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/stairs.obj --reps 5
+build/ramps-solo/recast	build	recast	time_best	lower	1.15	build --obj {geom}/ramps.obj --reps 5
+build/ramps-solo/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/ramps.obj --reps 5
+build/overlapping-solo/recast	build	recast	time_best	lower	1.15	build --obj {geom}/overlapping.obj --reps 5
+build/overlapping-solo/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/overlapping.obj --reps 5
+build/slivers-solo/recast	build	recast	time_best	lower	1.15	build --obj {geom}/slivers.obj --reps 5
+build/slivers-solo/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/slivers.obj --reps 5
+build/city-tiled/recast	build	recast	time_best	lower	1.15	build --obj {geom}/city.obj --mode tiled --tile-size 64 --reps 5
+query/city-tiled/recast	query	recast	path_per_sec	higher	1.15	query --obj {geom}/city.obj --points {geom}/city.points --mode tiled --tile-size 64 --reps 10
+build/city-tiled/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/city.obj --mode tiled --tile-size 64 --reps 5
+query/city-tiled/dotrecast	query	dotrecast	path_per_sec	higher	1.15	query --obj {geom}/city.obj --points {geom}/city.points --mode tiled --tile-size 64 --reps 10
+build/terraces-tiled/recast	build	recast	time_best	lower	1.15	build --obj {geom}/terraces.obj --mode tiled --tile-size 64 --reps 5
+query/terraces-tiled/recast	query	recast	path_per_sec	higher	1.15	query --obj {geom}/terraces.obj --points {geom}/terraces.points --mode tiled --tile-size 64 --reps 10
+build/terraces-tiled/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/terraces.obj --mode tiled --tile-size 64 --reps 5
+query/terraces-tiled/dotrecast	query	dotrecast	path_per_sec	higher	1.15	query --obj {geom}/terraces.obj --points {geom}/terraces.points --mode tiled --tile-size 64 --reps 10
+query/city-solo/recast	query	recast	path_per_sec	higher	1.15	query --obj {geom}/city.obj --points {geom}/city.points --reps 10
+query/city-solo/dotrecast	query	dotrecast	path_per_sec	higher	1.15	query --obj {geom}/city.obj --points {geom}/city.points --reps 10
+query/terraces-solo/recast	query	recast	path_per_sec	higher	1.15	query --obj {geom}/terraces.obj --points {geom}/terraces.points --reps 10
+query/terraces-solo/dotrecast	query	dotrecast	path_per_sec	higher	1.15	query --obj {geom}/terraces.obj --points {geom}/terraces.points --reps 10
+query/overlapping-solo/recast	query	recast	path_per_sec	higher	1.15	query --obj {geom}/overlapping.obj --points {geom}/overlapping.points --reps 10
+query/overlapping-solo/dotrecast	query	dotrecast	path_per_sec	higher	1.15	query --obj {geom}/overlapping.obj --points {geom}/overlapping.points --reps 10
+crowd/city-100/recast	crowd	recast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 100 --steps 200 --warmup 50
+crowd/city-100/dotrecast	crowd	dotrecast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 100 --steps 200 --warmup 50
+crowd/city-500/recast	crowd	recast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 500 --steps 200 --warmup 50
+crowd/city-500/dotrecast	crowd	dotrecast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 500 --steps 200 --warmup 50
+crowd/city-1000/recast	crowd	recast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 1000 --steps 200 --warmup 50
+crowd/city-1000/dotrecast	crowd	dotrecast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 1000 --steps 200 --warmup 50
+crowd/city-2000/recast	crowd	recast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 2000 --steps 200 --warmup 50
+crowd/city-2000/dotrecast	crowd	dotrecast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 2000 --steps 200 --warmup 50
+crowd/city-5000/recast	crowd	recast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 5000 --steps 200 --warmup 50
+crowd/city-5000/dotrecast	crowd	dotrecast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 5000 --steps 200 --warmup 50
+crowd/circle-250-1thread/rvo2	crowd	rvo2	agents_per_ms	higher	1.15	circle --agents 250 --steps 200 env:OMP_NUM_THREADS=1
+crowd/circle-250/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 250 --steps 200
+crowd/circle-1000-1thread/rvo2	crowd	rvo2	agents_per_ms	higher	1.15	circle --agents 1000 --steps 200 env:OMP_NUM_THREADS=1
+crowd/circle-1000/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 1000 --steps 200
+crowd/circle-5000-1thread/rvo2	crowd	rvo2	agents_per_ms	higher	1.15	circle --agents 5000 --steps 200 env:OMP_NUM_THREADS=1
+crowd/circle-5000/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 5000 --steps 200
+grid/dao-brc000d/astar	grid	warthog	search_time	lower	1.0	--alg astar --scen {maps}/dao/brc000d.map.scen --checkopt
+grid/dao-brc000d/jps	grid	jps	search_time	lower	1.0	--alg jps --scen {maps}/dao/brc000d.map.scen --checkopt
+grid/dao-brc000d/jpsP	grid	jps	search_time	lower	1.0	--alg jpsP --scen {maps}/dao/brc000d.map.scen --checkopt
+grid/dao-brc000d/jps+	grid	jps	search_time	lower	1.0	--alg jps+ --scen {maps}/dao/brc000d.map.scen --checkopt
+grid/dao-brc000d/jpsP+	grid	jps	search_time	lower	1.0	--alg jpsP+ --scen {maps}/dao/brc000d.map.scen --checkopt
+grid/da2-ca_cave/astar	grid	warthog	search_time	lower	1.0	--alg astar --scen {maps}/da2/ca_cave.map.scen --checkopt
+grid/da2-ca_cave/jps	grid	jps	search_time	lower	1.0	--alg jps --scen {maps}/da2/ca_cave.map.scen --checkopt
+grid/da2-ca_cave/jpsP	grid	jps	search_time	lower	1.0	--alg jpsP --scen {maps}/da2/ca_cave.map.scen --checkopt
+grid/da2-ca_cave/jps+	grid	jps	search_time	lower	1.0	--alg jps+ --scen {maps}/da2/ca_cave.map.scen --checkopt
+grid/da2-ca_cave/jpsP+	grid	jps	search_time	lower	1.0	--alg jpsP+ --scen {maps}/da2/ca_cave.map.scen --checkopt
+grid/bg512-AR0011SR/astar	grid	warthog	search_time	lower	1.0	--alg astar --scen {maps}/bg512/AR0011SR.map.scen --checkopt
+grid/bg512-AR0011SR/jps	grid	jps	search_time	lower	1.0	--alg jps --scen {maps}/bg512/AR0011SR.map.scen --checkopt
+grid/bg512-AR0011SR/jpsP	grid	jps	search_time	lower	1.0	--alg jpsP --scen {maps}/bg512/AR0011SR.map.scen --checkopt
+grid/bg512-AR0011SR/jps+	grid	jps	search_time	lower	1.0	--alg jps+ --scen {maps}/bg512/AR0011SR.map.scen --checkopt
+grid/bg512-AR0011SR/jpsP+	grid	jps	search_time	lower	1.0	--alg jpsP+ --scen {maps}/bg512/AR0011SR.map.scen --checkopt
+grid/sc1-Aftershock/astar	grid	warthog	search_time	lower	1.0	--alg astar --scen {maps}/sc1/Aftershock.map.scen --checkopt
+grid/sc1-Aftershock/jps	grid	jps	search_time	lower	1.0	--alg jps --scen {maps}/sc1/Aftershock.map.scen --checkopt
+grid/sc1-Aftershock/jpsP	grid	jps	search_time	lower	1.0	--alg jpsP --scen {maps}/sc1/Aftershock.map.scen --checkopt
+grid/sc1-Aftershock/jps+	grid	jps	search_time	lower	1.0	--alg jps+ --scen {maps}/sc1/Aftershock.map.scen --checkopt
+grid/sc1-Aftershock/jpsP+	grid	jps	search_time	lower	1.0	--alg jpsP+ --scen {maps}/sc1/Aftershock.map.scen --checkopt
+grid/street-Berlin_0_256/astar	grid	warthog	search_time	lower	1.0	--alg astar --scen {maps}/street/Berlin_0_256.map.scen --checkopt
+grid/street-Berlin_0_256/jps	grid	jps	search_time	lower	1.0	--alg jps --scen {maps}/street/Berlin_0_256.map.scen --checkopt
+grid/street-Berlin_0_256/jpsP	grid	jps	search_time	lower	1.0	--alg jpsP --scen {maps}/street/Berlin_0_256.map.scen --checkopt
+grid/street-Berlin_0_256/jps+	grid	jps	search_time	lower	1.0	--alg jps+ --scen {maps}/street/Berlin_0_256.map.scen --checkopt
+grid/street-Berlin_0_256/jpsP+	grid	jps	search_time	lower	1.0	--alg jpsP+ --scen {maps}/street/Berlin_0_256.map.scen --checkopt
+grid/maze-maze512-1-0/astar	grid	warthog	search_time	lower	1.0	--alg astar --scen {maps}/maze/maze512-1-0.map.scen --checkopt
+grid/maze-maze512-1-0/jps	grid	jps	search_time	lower	1.0	--alg jps --scen {maps}/maze/maze512-1-0.map.scen --checkopt
+grid/maze-maze512-1-0/jpsP	grid	jps	search_time	lower	1.0	--alg jpsP --scen {maps}/maze/maze512-1-0.map.scen --checkopt
+grid/maze-maze512-1-0/jps+	grid	jps	search_time	lower	1.0	--alg jps+ --scen {maps}/maze/maze512-1-0.map.scen --checkopt
+grid/maze-maze512-1-0/jpsP+	grid	jps	search_time	lower	1.0	--alg jpsP+ --scen {maps}/maze/maze512-1-0.map.scen --checkopt
+grid/random-random512-10-0/astar	grid	warthog	search_time	lower	1.0	--alg astar --scen {maps}/random/random512-10-0.map.scen --checkopt
+grid/random-random512-10-0/jps	grid	jps	search_time	lower	1.0	--alg jps --scen {maps}/random/random512-10-0.map.scen --checkopt
+grid/random-random512-10-0/jpsP	grid	jps	search_time	lower	1.0	--alg jpsP --scen {maps}/random/random512-10-0.map.scen --checkopt
+grid/random-random512-10-0/jps+	grid	jps	search_time	lower	1.0	--alg jps+ --scen {maps}/random/random512-10-0.map.scen --checkopt
+grid/random-random512-10-0/jpsP+	grid	jps	search_time	lower	1.0	--alg jpsP+ --scen {maps}/random/random512-10-0.map.scen --checkopt
+grid/room-16room_000/astar	grid	warthog	search_time	lower	1.0	--alg astar --scen {maps}/room/16room_000.map.scen --checkopt
+grid/room-16room_000/jps	grid	jps	search_time	lower	1.0	--alg jps --scen {maps}/room/16room_000.map.scen --checkopt
+grid/room-16room_000/jpsP	grid	jps	search_time	lower	1.0	--alg jpsP --scen {maps}/room/16room_000.map.scen --checkopt
+grid/room-16room_000/jps+	grid	jps	search_time	lower	1.0	--alg jps+ --scen {maps}/room/16room_000.map.scen --checkopt
+grid/room-16room_000/jpsP+	grid	jps	search_time	lower	1.0	--alg jpsP+ --scen {maps}/room/16room_000.map.scen --checkopt
+grid/wc3maps512-battleground/astar	grid	warthog	search_time	lower	1.0	--alg astar --scen {maps}/wc3maps512/battleground.map.scen --checkopt
+grid/wc3maps512-battleground/jps	grid	jps	search_time	lower	1.0	--alg jps --scen {maps}/wc3maps512/battleground.map.scen --checkopt
+grid/wc3maps512-battleground/jpsP	grid	jps	search_time	lower	1.0	--alg jpsP --scen {maps}/wc3maps512/battleground.map.scen --checkopt
+grid/wc3maps512-battleground/jps+	grid	jps	search_time	lower	1.0	--alg jps+ --scen {maps}/wc3maps512/battleground.map.scen --checkopt
+grid/wc3maps512-battleground/jpsP+	grid	jps	search_time	lower	1.0	--alg jpsP+ --scen {maps}/wc3maps512/battleground.map.scen --checkopt

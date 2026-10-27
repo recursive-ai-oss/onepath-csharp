@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Black-box drivers for DotRecast (NuGet 2026.3.1) and RVO2-CS (built from its release by tools/refs/refs.sh).
+    Comparison rows only: not part of the solution or of the library's dependencies. Built by `refs.sh harness`:
+      dotnet build bench/Harness/RefHarness -c Release -o ~/onepath/bin/refharness -p:Rvo2CsDll=<path to Rvo2Cs.dll>
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>OnePath.RefHarness</AssemblyName>
+    <RootNamespace>RecursiveAI.OnePath.RefHarness</RootNamespace>
+    <Nullable>disable</Nullable>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <MSBuildTreatWarningsAsErrors>false</MSBuildTreatWarningsAsErrors>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <AnalysisLevel>none</AnalysisLevel>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DotRecast.Core" />
+    <PackageReference Include="DotRecast.Recast" />
+    <PackageReference Include="DotRecast.Detour" />
+    <PackageReference Include="DotRecast.Detour.Crowd" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(Rvo2CsDll)' != ''">
+    <DefineConstants>$(DefineConstants);RVO2CS</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(Rvo2CsDll)' != ''">
+    <Reference Include="Rvo2Cs">
+      <HintPath>$(Rvo2CsDll)</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Rvo2CsDll)' == ''">
+    <Compile Remove="Rvo2CsDriver.cs" />
+  </ItemGroup>
+</Project>
