@@ -1,5 +1,6 @@
 using System;
 using RecursiveAI.OnePath;
+using RecursiveAI.OnePath.NavMesh;
 using SharpFuzz;
 
 namespace RecursiveAI.OnePath.Fuzz;
@@ -21,6 +22,13 @@ public static class Program
                 stream.CopyTo(ms);
                 aflTarget(ms.ToArray());
             });
+            return 0;
+        }
+
+        // Writes valid seed inputs for the deserializer targets: OnePath.Fuzz --seeds <dir>.
+        if (args.Length == 2 && args[0] == "--seeds")
+        {
+            NavMeshFuzz.WriteSeeds(args[1]);
             return 0;
         }
 
@@ -67,5 +75,7 @@ public static class Targets
         ["build2d"] = Build2DFuzz.Run,
         ["build2d-smoke"] = Build2DFuzz.Smoke,
         ["build2d-describe"] = Build2DFuzz.Describe,
+        ["navmesh-mesh"] = NavMeshFuzz.Mesh,
+        ["navmesh-tile"] = NavMeshFuzz.Tile,
     };
 }

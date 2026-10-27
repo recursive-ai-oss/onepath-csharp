@@ -16,6 +16,8 @@ try
 catch (ArgumentOutOfRangeException)
 {
 }
+bool nav = NavMeshSmoke.Run();
+Console.WriteLine($"Navmesh format: {(nav ? "ok" : "FAILED")}");
 bool orca = OrcaSmoke.Run();
 Console.WriteLine($"ORCA run: {(orca ? "ok" : "FAILED")}");
 
@@ -56,4 +58,4 @@ var shrunk = u.Offset(-1.0);
 var poly = shrunk.PartitionConvex();
 Console.WriteLine($"Region area {u.Area}, eroded area {shrunk.Area:F3}, {poly.PolygonCount} convex polygons");
 ok = ok && u.Area == 175.0 && poly.PolygonCount > 0 && shrunk.Area < u.Area;
-return ok && orca && OnePathInfo.Version.Major >= 0 ? 0 : 1;
+return ok && orca && nav && OnePathInfo.Version.Major >= 0 ? 0 : 1;
