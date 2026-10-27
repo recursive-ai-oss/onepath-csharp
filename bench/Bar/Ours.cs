@@ -17,8 +17,6 @@ internal static class OurScenarios
     /// </summary>
     public static List<Row>? Run(SuiteRow row, Paths paths)
     {
-        _ = row;
-        _ = paths;
-        return null; // nothing to measure yet
+        return row.Part == "grid" ? GridBar.Run(row, paths) : null;
     }
 }

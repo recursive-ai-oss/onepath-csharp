@@ -19,6 +19,12 @@ public class GridAStarBenchmarks
     private int[] _goals = [];
     private AStar<SquareTopology, DefaultStepCost, OctileHeuristic> _search = null!;
 
+    internal Grid GridForJps => _grid;
+
+    internal int[] StartsForJps => _starts;
+
+    internal int[] GoalsForJps => _goals;
+
     [GlobalSetup]
     public void Setup()
     {
@@ -81,5 +87,95 @@ public class GridAStarBenchmarks
             }
         }
         return sum;
+    }
+}
+
+/// <summary>
+/// JPS (block scanning) and JPS+ on the same inputs as <see cref="GridAStarBenchmarks"/>, plus the JPS+ table build and an
+/// incremental repair after one cell edit. Table builds are reported separately from the searches, as the reference drivers do.
+/// </summary>
+[MemoryDiagnoser]
+public sealed class GridJpsBenchmarks : IDisposable
+{
+    private readonly GridAStarBenchmarks _inputs = new();
+    private Grid _grid = null!;
+    private int[] _starts = [];
+    private int[] _goals = [];
+    private JumpSearch<BlockJumper, OctileHeuristic> _jps = null!;
+    private JumpSearch<TableJumper, OctileHeuristic> _jpsPlus = null!;
+    private JpsPlusIndex _index = null!;
+    private int _editX;
+    private int _editY;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _inputs.Setup();
+        _grid = _inputs.GridForJps;
+        _starts = _inputs.StartsForJps;
+        _goals = _inputs.GoalsForJps;
+        _jps = new JumpSearch<BlockJumper, OctileHeuristic>(new BlockJumper(new BlockMap(_grid)), new OctileHeuristic(_grid.Width), 1.0, new GridSearchBuffers(_grid.CellCount));
+        _index = new JpsPlusIndex(_grid);
+        _jpsPlus = new JumpSearch<TableJumper, OctileHeuristic>(new TableJumper(_index), new OctileHeuristic(_grid.Width), 1.0, new GridSearchBuffers(_grid.CellCount));
+        // An open cell near the middle for the edit benchmark.
+        _editX = _grid.Width / 2;
+        _editY = _grid.Height / 2;
+    }
+
+    [GlobalCleanup]
+    public void Dispose() => _index?.Dispose();
+
+    [Benchmark]
+    public double AllScenariosJps()
+    {
+        double sum = 0;
+        for (int i = 0; i < _starts.Length; i++)
+        {
+            _jps.Begin(_starts[i], _goals[i]);
+            if (_jps.Run() == SearchStatus.Found)
+            {
+                sum += _jps.PathCost;
+            }
+        }
+        return sum;
+    }
+
+    [Benchmark]
+    public double AllScenariosJpsPlus()
+    {
+        double sum = 0;
+        for (int i = 0; i < _starts.Length; i++)
+        {
+            _jpsPlus.Begin(_starts[i], _goals[i]);
+            if (_jpsPlus.Run() == SearchStatus.Found)
+            {
+                sum += _jpsPlus.PathCost;
+            }
+        }
+        return sum;
+    }
+
+    [Benchmark]
+    public int BuildJpsPlusTables()
+    {
+        using var index = new JpsPlusIndex(_grid);
+        return index.JumpDistance(1, 0, 0);
+    }
+
+    [Benchmark]
+    public int BuildBlockMap()
+    {
+        using var map = new BlockMap(_grid);
+        return map.RowWords;
+    }
+
+    [Benchmark]
+    public int RepairAfterOneEdit()
+    {
+        // Toggle one cell and bring the tables up to date: the cost of an incremental update.
+        bool wall = !_grid.IsWalkable(_editX, _editY);
+        _grid.SetWalkable(_editX, _editY, wall);
+        _index.Refresh();
+        return _index.JumpDistance(1, 0, 0);
     }
 }

@@ -10,8 +10,8 @@ using RecursiveAI.OnePath.Grids;
 namespace RecursiveAI.OnePath.GridOptima;
 
 /// <summary>
-/// Checks A* path costs against the published optimal lengths of Moving AI Lab scenario sets.
-/// Usage: <c>GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE]</c>, where DIR holds
+/// Checks path costs (A*, JPS or JPS+) against the published optimal lengths of Moving AI Lab scenario sets.
+/// Usage: <c>GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--alg astar|jps|jps+]</c>, where DIR holds
 /// <c>NAME-map.zip</c> and <c>NAME-scen.zip</c> (as downloaded from the benchmark site; never committed) or a folder NAME of loose files.
 /// Prints one summary line: scenarios, mismatches, maximum absolute difference. Exit code 1 if any mismatch.
 /// Options: <c>--swamp 0|1</c>, <c>--water 0|1</c> choose how S and W terrain is read.
@@ -26,6 +26,7 @@ public static class Program
         long limit = long.MaxValue;
         double tolerance = 1e-6; // relative: the published lengths carry single-precision-class error
         double altSqrt2 = 0;
+        string alg = "astar";
         var options = new MovingAiOptions();
         for (int i = 0; i + 1 < args.Length; i += 2)
         {
@@ -36,6 +37,7 @@ public static class Program
                 case "--threads": threads = int.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
                 case "--limit": limit = long.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
                 case "--tolerance": tolerance = double.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
+                case "--alg": alg = args[i + 1]; break;
                 case "--alt-sqrt2": altSqrt2 = double.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
                 case "--swamp": options.SwampWalkable = args[i + 1] == "1"; break;
                 case "--water": options.WaterWalkable = args[i + 1] == "1"; break;
@@ -44,7 +46,7 @@ public static class Program
         }
         if (dir is null || set is null)
         {
-            Console.Error.WriteLine("usage: GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--swamp 0|1] [--water 0|1] [--alt-sqrt2 X]");
+            Console.Error.WriteLine("usage: GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--swamp 0|1] [--water 0|1] [--alt-sqrt2 X] [--alg astar|jps|jps+]");
             return 2;
         }
 
@@ -104,8 +106,7 @@ public static class Program
         Parallel.ForEach(jobs, po, job =>
         {
             Grid grid = job.Map.ToGrid(options);
-            SquareTopology topo = grid.CreateTopology();
-            var search = new AStar<SquareTopology, DefaultStepCost, OctileHeuristic>(topo, default, new OctileHeuristic(grid.Width), new GridSearchBuffers(grid.CellCount));
+            Searcher search = Searcher.Create(alg, grid);
             long n = 0;
             long bad = 0;
             double worst = 0;
@@ -121,8 +122,7 @@ public static class Program
                 if (e.MapWidth == grid.Width && e.MapHeight == grid.Height && grid.Contains(e.StartX, e.StartY) && grid.Contains(e.GoalX, e.GoalY)
                     && grid.IsWalkable(e.StartX, e.StartY) && grid.IsWalkable(e.GoalX, e.GoalY))
                 {
-                    search.Begin((e.StartY * grid.Width) + e.StartX, (e.GoalY * grid.Width) + e.GoalX);
-                    if (search.Run() == SearchStatus.Found)
+                    if (search.Run((e.StartY * grid.Width) + e.StartX, (e.GoalY * grid.Width) + e.GoalX))
                     {
                         ours = search.PathCost;
                         if (altSqrt2 > 0)
@@ -177,6 +177,62 @@ public static class Program
         });
         Console.WriteLine($"{set}: maps {jobs.Count}, scenarios {total}, mismatches {mismatches}, max |delta| {maxDelta.ToString("E3", CultureInfo.InvariantCulture)}, max |delta|/max(1,length) {maxRel.ToString("E3", CultureInfo.InvariantCulture)}");
         return mismatches == 0 ? 0 : 1;
+    }
+
+    /// <summary>One search per worker thread, whichever algorithm was asked for.</summary>
+    private sealed class Searcher
+    {
+        public Func<int, int, bool> Run = null!;
+        public Func<double> Cost = null!;
+        public Func<int[]> Path = null!;
+
+        public double PathCost => Cost();
+
+        public int PathLength() => Path().Length;
+
+        public void CopyPath(int[] destination) => Path().CopyTo(destination, 0);
+
+        public static Searcher Create(string alg, Grid grid)
+        {
+            var buffers = new GridSearchBuffers(grid.CellCount);
+            var heuristic = new OctileHeuristic(grid.Width);
+            switch (alg)
+            {
+                case "astar":
+                {
+                    var a = new AStar<SquareTopology, DefaultStepCost, OctileHeuristic>(grid.CreateTopology(), default, heuristic, buffers);
+                    return new Searcher
+                    {
+                        Run = (s, g) => { a.Begin(s, g); return a.Run() == SearchStatus.Found; },
+                        Cost = () => a.PathCost,
+                        Path = () => { int[] p = new int[a.PathLength()]; a.CopyPath(p); return p; },
+                    };
+                }
+                case "jps":
+                {
+                    var j = new JumpSearch<BlockJumper, OctileHeuristic>(new BlockJumper(new BlockMap(grid)), heuristic, 1.0, buffers);
+                    return new Searcher
+                    {
+                        Run = (s, g) => { j.Begin(s, g); return j.Run() == SearchStatus.Found; },
+                        Cost = () => j.PathCost,
+                        Path = () => { int[] p = new int[j.PathLength()]; j.CopyPath(p); return p; },
+                    };
+                }
+                case "jps+":
+                {
+                    var index = new JpsPlusIndex(grid);
+                    var j = new JumpSearch<TableJumper, OctileHeuristic>(new TableJumper(index), heuristic, 1.0, buffers);
+                    return new Searcher
+                    {
+                        Run = (s, g) => { j.Begin(s, g); return j.Run() == SearchStatus.Found; },
+                        Cost = () => j.PathCost,
+                        Path = () => { int[] p = new int[j.PathLength()]; j.CopyPath(p); return p; },
+                    };
+                }
+                default:
+                    throw new ArgumentException($"unknown algorithm '{alg}' (astar, jps or jps+)");
+            }
+        }
     }
 
     private static byte[] Read(ZipArchiveEntry e)

@@ -33,6 +33,20 @@ public sealed class AreaCosts
 
     internal double[] Multipliers => _multipliers;
 
+    /// <summary>True when every usable area has the same multiplier (what the jump point searches need); that multiplier is returned.</summary>
+    internal bool TryGetUniform(out double multiplier)
+    {
+        multiplier = _multipliers[0];
+        for (int i = 1; i < Count; i++)
+        {
+            if (_multipliers[i] != multiplier)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /// <summary>Gets or sets the multiplier of an area. The getter returns +∞ for <see cref="Wall"/>.</summary>
     /// <param name="area">Area id.</param>
     /// <exception cref="ArgumentOutOfRangeException">Setting <see cref="Wall"/>, or a value that is not positive and finite.</exception>

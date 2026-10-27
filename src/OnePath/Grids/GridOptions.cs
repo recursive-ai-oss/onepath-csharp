@@ -66,6 +66,13 @@ public sealed class GridOptions
     /// <summary>Optional extra blocking: cells for which this returns true cannot be entered (nor used as start or goal). Default none.</summary>
     public Func<Cell, bool>? Blocked { get; set; }
 
+    /// <summary>
+    /// The search algorithm. Default <see cref="GridAlgorithm.AStar"/>. <see cref="GridAlgorithm.Jps"/> and <see cref="GridAlgorithm.JpsPlus"/>
+    /// give the same optimal cost on the grids they apply to (see <see cref="GridAlgorithm"/> for the conditions; otherwise A* runs
+    /// and <see cref="GridPath.Algorithm"/> reports it) but may return a different path of that cost.
+    /// </summary>
+    public GridAlgorithm Algorithm { get; set; } = GridAlgorithm.AStar;
+
     /// <summary>When true the result lists the expanded cells in order (debug data). Default false.</summary>
     public bool RecordExpansions { get; set; }
 
@@ -121,6 +128,9 @@ public sealed class GridPath
         _expanded = expanded ?? NoCells;
         _world = world ?? [];
     }
+
+    /// <summary>The algorithm that actually ran (it differs from <see cref="GridOptions.Algorithm"/> when the options did not allow it).</summary>
+    public GridAlgorithm Algorithm { get; internal init; }
 
     /// <summary>How the query ended.</summary>
     public PathStatus Status { get; }
