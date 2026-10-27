@@ -73,7 +73,7 @@ public static class Build2DFuzz
         }
     }
 
-    private static Region? Build(Reader r, System.Text.StringBuilder? log = null)
+    private static Region? Build(Reader r, System.Text.StringBuilder? log = null, Geometry2DOptions? options = null)
     {
         int outlines = 1 + (r.Byte() % 3);
         var list = new List<Outline>();
@@ -104,7 +104,7 @@ public static class Build2DFuzz
                 log.AppendLine("--");
             }
         }
-        return Region.FromOutlines(list);
+        return Region.FromOutlines(list, options);
     }
 
     private static Int128 TwiceArea(Vector2D[] ring)
@@ -181,6 +181,88 @@ public static class Build2DFuzz
         }
     }
 
+    /// <summary>
+    /// Outlines and a tiling decoded from the input run through the slicer and the mesh assembly. Rejections are
+    /// <see cref="ArgumentException"/>; a tile the format refuses, a mesh the validator flags, or an area that moved by
+    /// more than the rounding of cut points can explain is a finding.
+    /// </summary>
+    public static void RunTiles(byte[] data)
+    {
+        var r = new Reader(data);
+        try
+        {
+            double cell = (r.Byte() & 1) == 0 ? 0.25 : 0.0625;
+            double[] sizes = { 0.5, 1, 2, 4, 8, 16, 64 };
+            double size = sizes[r.Byte() % sizes.Length];
+            var p = new RecursiveAI.OnePath.Mesh.NavMeshParams
+            {
+                TileSize = size,
+                CellSize = cell,
+                OriginX = (r.SByte() % 16) / 4.0,
+                OriginZ = (r.SByte() % 16) / 4.0,
+                MaxVertsPerPoly = 3 + (r.Byte() % 6),
+            };
+            var options = new Geometry2DOptions { SnapBits = TileSlicer.FinestSnapBits(cell) - (r.Byte() % 3) };
+            Region? region = Build(r, null, options);
+            if (region == null)
+            {
+                return;
+            }
+            Int128 twice = 0;
+            double perimeter = 0;
+            double minX = double.MaxValue, maxX = double.MinValue, minY = double.MaxValue, maxY = double.MinValue;
+            for (int i = 0; i < region.RingCount; i++)
+            {
+                Vector2D[] ring = region.GetRing(i);
+                twice += TwiceArea(ring);
+                for (int k = 0; k < ring.Length; k++)
+                {
+                    Vector2D a = ring[k], b = ring[(k + 1) % ring.Length];
+                    perimeter += Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y);
+                    minX = Math.Min(minX, a.X);
+                    maxX = Math.Max(maxX, a.X);
+                    minY = Math.Min(minY, a.Y);
+                    maxY = Math.Max(maxY, a.Y);
+                }
+            }
+            if (region.RingCount == 0 || ((maxX - minX) / size) * ((maxY - minY) / size) > 4096)
+            {
+                return; // too many tiles for a fuzz iteration; the cap itself is covered by unit tests
+            }
+            var tiles = TileSlicer.Slice(region, p);
+            Int128 sum = 0;
+            var data2 = new List<RecursiveAI.OnePath.Mesh.NavTileData>();
+            foreach (TilePartition t in tiles)
+            {
+                ConvexPartition cp = t.Partition;
+                for (int k = 0; k < cp.PolygonCount; k++)
+                {
+                    ReadOnlySpan<int> ids = cp.GetIndices(k);
+                    var ring = new Vector2D[ids.Length];
+                    for (int i = 0; i < ring.Length; i++) { ring[i] = cp.Vertices[ids[i]]; }
+                    sum += TwiceArea(ring);
+                }
+                data2.Add(Mesh2DPipeline.ToTileData(t, p, 0, 0, 1));
+            }
+            var mesh = Mesh2DPipeline.Assemble(p, data2);
+            if (RecursiveAI.OnePath.Mesh.NavMeshValidator.Validate(mesh).Count != 0)
+            {
+                throw new InvalidOperationException("The tiled mesh is inconsistent.");
+            }
+            Int128 diff = sum > twice ? sum - twice : twice - sum;
+            // Cut points on the boundary move by under one grid unit: twice-area (units of 2^-32) changes by at most 2 x perimeter x unit.
+            double allowed = 4.0 * (perimeter + 1) * Math.Pow(2, 32 - options.SnapBits);
+            if ((double)diff > allowed)
+            {
+                throw new InvalidOperationException("Tile areas differ from the region area by more than cut rounding allows.");
+            }
+        }
+        catch (ArgumentException)
+        {
+            // Rejected input or tiling: the documented outcome.
+        }
+    }
+
     /// <summary>Writes the outlines a decoded input produces (for turning a finding into a regression test).</summary>
     public static void Describe(byte[] data)
     {
@@ -199,7 +281,12 @@ public static class Build2DFuzz
     }
 
     /// <summary>A built-in random driver: treats <paramref name="seedBytes"/> as a seed and runs many generated inputs.</summary>
-    public static void Smoke(byte[] seedBytes)
+    public static void Smoke(byte[] seedBytes) => SmokeWith(seedBytes, Run);
+
+    /// <summary>Like <see cref="Smoke"/> for the tiling target.</summary>
+    public static void SmokeTiles(byte[] seedBytes) => SmokeWith(seedBytes, RunTiles);
+
+    private static void SmokeWith(byte[] seedBytes, Action<byte[]> run)
     {
         ulong s = 1469598103934665603UL;
         foreach (byte b in seedBytes) { s = (s ^ b) * 1099511628211UL; }
@@ -209,7 +296,7 @@ public static class Build2DFuzz
             for (int i = 0; i < data.Length; i++) { data[i] = (byte)Next(ref s); }
             try
             {
-                Run(data);
+                run(data);
             }
             catch (Exception)
             {
