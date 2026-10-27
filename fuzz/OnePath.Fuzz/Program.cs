@@ -1,5 +1,6 @@
 using System;
 using RecursiveAI.OnePath;
+using RecursiveAI.OnePath.NavMesh;
 using SharpFuzz;
 
 namespace RecursiveAI.OnePath.Fuzz;
@@ -12,6 +13,13 @@ public static class Program
 {
     public static int Main(string[] args)
     {
+        // Writes valid seed inputs for the deserializer targets: OnePath.Fuzz --seeds <dir>.
+        if (args.Length == 2 && args[0] == "--seeds")
+        {
+            NavMeshFuzz.WriteSeeds(args[1]);
+            return 0;
+        }
+
         if (args.Length == 0 || !Targets.All.TryGetValue(args[0], out var target))
         {
             Console.Error.WriteLine("usage: OnePath.Fuzz <target> [libFuzzer args]");
@@ -39,5 +47,7 @@ public static class Targets
     {
         // Placeholder target: proves the scaffold builds and runs.
         ["info"] = _ => GC.KeepAlive(OnePathInfo.Version),
+        ["navmesh-mesh"] = NavMeshFuzz.Mesh,
+        ["navmesh-tile"] = NavMeshFuzz.Tile,
     };
 }
