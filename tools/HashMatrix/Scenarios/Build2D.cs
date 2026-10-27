@@ -21,6 +21,7 @@ internal static class Build2DScenarios
         Scenarios.Register("build2d/offset", ctx => Run(ctx, 1, 120));
         Scenarios.Register("build2d/mesh", ctx => Run(ctx, 2, 200));
         Scenarios.Register("build2d/tiles", ctx => Run(ctx, 3, 120));
+        Scenarios.Register("build2d/pipeline", ctx => Run(ctx, 4, 80));
     }
 
     private static void Run(ScenarioContext ctx, int kind, int cases)
@@ -90,6 +91,10 @@ internal static class Build2DScenarios
         {
             return TileCase(ref rng, i);
         }
+        if (kind == 4)
+        {
+            return PipelineCase(ref rng, i);
+        }
         Region a = Region.FromOutlines(Outlines(ref rng, 1 + rng.Next(3), extent, denom, ox, oy, nudge));
         var res = new List<long>();
         switch (kind)
@@ -146,6 +151,42 @@ internal static class Build2DScenarios
             data.Add(Mesh2DPipeline.ToTileData(t, p, 0.5, 0, 1));
         }
         byte[] bytes = RecursiveAI.OnePath.Mesh.NavMeshSerializer.WriteMesh(Mesh2DPipeline.Assemble(p, data));
+        var res = new List<long>(bytes.Length / 8) { bytes.Length };
+        for (int k = 0; k < bytes.Length; k += 8)
+        {
+            long v = 0;
+            for (int b = 0; b < 8 && k + b < bytes.Length; b++) { v |= (long)bytes[k + b] << (8 * b); }
+            res.Add(v);
+        }
+        return res;
+    }
+
+    // The whole Build2D pipeline (shrink by the agent radius, tile cut, convex partition, assembly) on a random tile map
+    // or random outlines, at several radii, solo and tiled; the serialized mesh bytes are hashed.
+    private static List<long> PipelineCase(ref Rng rng, int i)
+    {
+        double[] radii = { 0.25, 0.5, 0.75, 1.0 };
+        bool tiled = rng.Next(2) == 0;
+        var settings = new RecursiveAI.OnePath.NavSettings
+        {
+            CellSize = 0.25,
+            AgentRadius = (float)radii[i % radii.Length],
+            TileSize = tiled ? 4.0 : 64.0,
+            MaxVertsPerPoly = 3 + rng.Next(6),
+        };
+        Region region;
+        if (i % 2 == 0)
+        {
+            int w = 4 + rng.Next(10), h = 4 + rng.Next(10);
+            var cells = new bool[w * h];
+            for (int k = 0; k < cells.Length; k++) { cells[k] = rng.Next(100) < 65; }
+            region = Region.FromTileMap(cells, w, h, 2.0, new Vector2D(0, 0), Mesh2DPipeline.GeometryOptions(settings));
+        }
+        else
+        {
+            region = Region.FromOutlines(Outlines(ref rng, 1 + rng.Next(3), 12, 8, 0.0, 0.0, false), Mesh2DPipeline.GeometryOptions(settings));
+        }
+        byte[] bytes = RecursiveAI.OnePath.Mesh.NavMeshSerializer.WriteMesh(Mesh2DPipeline.Build(region, settings));
         var res = new List<long>(bytes.Length / 8) { bytes.Length };
         for (int k = 0; k < bytes.Length; k += 8)
         {

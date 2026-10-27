@@ -18,7 +18,7 @@ namespace RecursiveAI.OnePath.Bar;
 /// </summary>
 internal static class OursBuild2D
 {
-    public static bool Handles(SuiteRow row) => row.Part == "build" && row.Args.Contains("tilemap", StringComparison.Ordinal);
+    public static bool Handles(SuiteRow row) => row.Part == "build" && (row.Args.Contains("tilemap", StringComparison.Ordinal) || row.Args.Contains("{home}/shapes/", StringComparison.Ordinal));
 
     /// <summary>The settings a row's command line asks for.</summary>
     public static NavSettings SettingsFor(string[] t, double extent)
@@ -30,10 +30,7 @@ internal static class OursBuild2D
         return NavSettings.Humanoid with
         {
             CellSize = cell,
-            // The reference's floors end one cell short of every edge before it erodes by the radius (its coverage on this
-            // level matches ours at radius + one cell and is 45% below ours at the nominal radius), so ours takes the same
-            // effective radius; the settings row says so.
-            AgentRadius = (float)(radius + cell),
+            AgentRadius = (float)radius,
             AgentHeight = (float)Num(t, "--agent-height", 2.0),
             MaxVertsPerPoly = (int)Num(t, "--verts-per-poly", 6),
             // One tile spanning the level stands in for the reference's solo mode.
@@ -71,7 +68,7 @@ internal static class OursBuild2D
             R("tiles", tileCount, "count"),
             R("input_tris", triangles, "count"),
             R("peak_rss", Process.GetCurrentProcess().PeakWorkingSet64 / (1024.0 * 1024.0), "MB"),
-            new Row(row.Part, row.Id, side, "settings", $"cell={settings.CellSize:R} r={settings.AgentRadius:R} (nominal + one cell) tile={settings.TileSize:R} nvp={settings.MaxVertsPerPoly}; tile map {tiles}x{tiles}", "text"),
+            new Row(row.Part, row.Id, side, "settings", $"cell={settings.CellSize:R} r={settings.AgentRadius:R} tile={settings.TileSize:R} nvp={settings.MaxVertsPerPoly}; tile map {tiles}x{tiles}", "text"),
         };
     }
 

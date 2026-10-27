@@ -245,6 +245,33 @@ def level_tilemap(size, seed):
     return m
 
 
+TILEMAP_CLEARANCE = 1.5  # query points of the tile-map "core" set keep this far from every wall
+
+
+def tilemap_core_points(size, seed, count):
+    """Query points on tile-map floor at least TILEMAP_CLEARANCE from any wall or the map edge, so every builder's mesh covers
+    them at agent radii up to 1 and both sides of a query row can use the identical pair set."""
+    n, floor = tilemap_cells(size, seed)
+    m = level_tilemap(size, seed)
+    cand = m.sample_points(Lcg(seed * 1000003 + 991), count * 8)
+    out = []
+    for x, y, z in cand:
+        ok = True
+        for j in range(max(0, int((z - TILEMAP_CLEARANCE) // TILEMAP_CELL) - 1), min(n, int((z + TILEMAP_CLEARANCE) // TILEMAP_CELL) + 2)):
+            for i in range(max(0, int((x - TILEMAP_CLEARANCE) // TILEMAP_CELL) - 1), min(n, int((x + TILEMAP_CLEARANCE) // TILEMAP_CELL) + 2)):
+                if floor[j][i]:
+                    continue
+                dx = max(i * TILEMAP_CELL - x, 0.0, x - (i + 1) * TILEMAP_CELL)
+                dz = max(j * TILEMAP_CELL - z, 0.0, z - (j + 1) * TILEMAP_CELL)
+                if dx * dx + dz * dz < TILEMAP_CLEARANCE ** 2:
+                    ok = False
+        if ok and x >= TILEMAP_CLEARANCE and z >= TILEMAP_CLEARANCE and x <= n * TILEMAP_CELL - TILEMAP_CLEARANCE and z <= n * TILEMAP_CELL - TILEMAP_CLEARANCE:
+            out.append((x, y, z))
+        if len(out) == count:
+            break
+    return out
+
+
 LEVELS = {
     "tilemap": level_tilemap,
     "terraces": level_terraces, "ramps": level_ramps, "stairs": level_stairs,
@@ -278,6 +305,13 @@ def main(argv):
         pts = m.sample_points(Lcg(seed * 1000003 + len(name)), npts)
         m.write(os.path.join(out, name), pts)
         print("%s: %d verts, %d tris, %d points" % (name, len(m.v), len(m.t), len(pts)))
+        if name == "tilemap":
+            core = tilemap_core_points(size, seed, npts)
+            with open(os.path.join(out, "tilemap-core.points"), "w", newline="\n") as f:
+                f.write("# x y z\n")
+                for x, y, z in core:
+                    f.write("%.5f %.5f %.5f\n" % (x, y, z))
+            print("tilemap-core: %d points (clearance %.1f)" % (len(core), TILEMAP_CLEARANCE))
     return 0
 
 

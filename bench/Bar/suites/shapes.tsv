@@ -1,0 +1,32 @@
+# id	part	driver	metric	better	tolerance	args
+# Tile-map shapes with a known exact eroded area (tools/geom/gen_shapes.py, written to {home}/shapes): coverage_area of both sides against exact.tsv. Quality only.
+shapes/l-room-r0.5-cs0.25/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/l-room.obj --cell 0.25 --agent-radius 0.5 --reps 1
+shapes/l-room-r0.5-cs0.125/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/l-room.obj --cell 0.125 --agent-radius 0.5 --reps 1
+shapes/l-room-r0.75-cs0.25/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/l-room.obj --cell 0.25 --agent-radius 0.75 --reps 1
+shapes/l-room-r0.75-cs0.125/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/l-room.obj --cell 0.125 --agent-radius 0.75 --reps 1
+shapes/l-room-r1.0-cs0.25/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/l-room.obj --cell 0.25 --agent-radius 1.0 --reps 1
+shapes/l-room-r1.0-cs0.125/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/l-room.obj --cell 0.125 --agent-radius 1.0 --reps 1
+shapes/corridor-r0.5-cs0.25/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/corridor.obj --cell 0.25 --agent-radius 0.5 --reps 1
+shapes/corridor-r0.5-cs0.125/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/corridor.obj --cell 0.125 --agent-radius 0.5 --reps 1
+shapes/corridor-r0.75-cs0.25/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/corridor.obj --cell 0.25 --agent-radius 0.75 --reps 1
+shapes/corridor-r0.75-cs0.125/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/corridor.obj --cell 0.125 --agent-radius 0.75 --reps 1
+shapes/corridor-r1.0-cs0.25/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/corridor.obj --cell 0.25 --agent-radius 1.0 --reps 1
+shapes/corridor-r1.0-cs0.125/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/corridor.obj --cell 0.125 --agent-radius 1.0 --reps 1
+shapes/single-tile-r0.5-cs0.25/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/single-tile.obj --cell 0.25 --agent-radius 0.5 --reps 1
+shapes/single-tile-r0.5-cs0.125/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/single-tile.obj --cell 0.125 --agent-radius 0.5 --reps 1
+shapes/single-tile-r0.75-cs0.25/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/single-tile.obj --cell 0.25 --agent-radius 0.75 --reps 1
+shapes/single-tile-r0.75-cs0.125/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/single-tile.obj --cell 0.125 --agent-radius 0.75 --reps 1
+shapes/single-tile-r1.0-cs0.25/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/single-tile.obj --cell 0.25 --agent-radius 1.0 --reps 1
+shapes/single-tile-r1.0-cs0.125/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/single-tile.obj --cell 0.125 --agent-radius 1.0 --reps 1
+shapes/pillar-room-r0.5-cs0.25/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/pillar-room.obj --cell 0.25 --agent-radius 0.5 --reps 1
+shapes/pillar-room-r0.5-cs0.125/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/pillar-room.obj --cell 0.125 --agent-radius 0.5 --reps 1
+shapes/pillar-room-r0.75-cs0.25/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/pillar-room.obj --cell 0.25 --agent-radius 0.75 --reps 1
+shapes/pillar-room-r0.75-cs0.125/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/pillar-room.obj --cell 0.125 --agent-radius 0.75 --reps 1
+shapes/pillar-room-r1.0-cs0.25/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/pillar-room.obj --cell 0.25 --agent-radius 1.0 --reps 1
+shapes/pillar-room-r1.0-cs0.125/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/pillar-room.obj --cell 0.125 --agent-radius 1.0 --reps 1
+shapes/single-tile-r0.5-cs0.125-region0/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/single-tile.obj --cell 0.125 --agent-radius 0.5 --region-min 0 --region-merge 0 --reps 1
+shapes/single-tile-r0.75-cs0.125-region0/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/single-tile.obj --cell 0.125 --agent-radius 0.75 --region-min 0 --region-merge 0 --reps 1
+shapes/corridor-r0.5-cs0.125-region0/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/corridor.obj --cell 0.125 --agent-radius 0.5 --region-min 0 --region-merge 0 --reps 1
+shapes/corridor-r0.75-cs0.125-region0/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/corridor.obj --cell 0.125 --agent-radius 0.75 --region-min 0 --region-merge 0 --reps 1
+shapes/l-room-r0.5-cs0.125-region0/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/l-room.obj --cell 0.125 --agent-radius 0.5 --region-min 0 --region-merge 0 --reps 1
+shapes/l-room-r0.75-cs0.125-region0/recast	build	recast	coverage_area	higher	1.0	build --obj {home}/shapes/l-room.obj --cell 0.125 --agent-radius 0.75 --region-min 0 --region-merge 0 --reps 1
