@@ -22,6 +22,18 @@ public enum GridAlgorithm
     /// the query falls back to <see cref="Jps"/> or <see cref="AStar"/>. The first query on a grid builds the tables.
     /// </summary>
     JpsPlus = 2,
+
+    /// <summary>
+    /// Lifelong Planning A* (Koenig, Likhachev &amp; Furcy 2004) for <see cref="Grid.CreateReplanner"/>: a fixed start, repaired after
+    /// every grid edit. A one-off <c>FindPath</c> with this value runs A* (and says so in <see cref="GridPath.Algorithm"/>).
+    /// </summary>
+    LpaStar = 8,
+
+    /// <summary>
+    /// D* Lite (Koenig &amp; Likhachev 2002) for <see cref="Grid.CreateReplanner"/>: searches from the goal so the start can move while the grid
+    /// changes. The replanner's default. A one-off <c>FindPath</c> with this value runs A*.
+    /// </summary>
+    DStarLite = 9,
 }
 
 /// <summary>

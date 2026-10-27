@@ -21,6 +21,7 @@ public sealed class HexGrid
 
     private readonly byte[] _cells;
     private readonly List<IGridChangeListener> _listeners = [];
+    private readonly List<int> _changedScratch = [];
     private GridSearchBuffers? _spare;
 
     /// <summary>Creates a grid of walkable hexes.</summary>
@@ -148,6 +149,35 @@ public sealed class HexGrid
         }
     }
 
+    /// <summary>Sets every cell of a rectangle (a tile) to one area as a single edit; see <see cref="Grid.SetRect(int, int, int, int, byte)"/>.</summary>
+    /// <param name="col">Left column.</param>
+    /// <param name="row">Top row.</param>
+    /// <param name="width">Columns, 0 or more.</param>
+    /// <param name="height">Rows, 0 or more.</param>
+    /// <param name="area">New area id (255 = wall).</param>
+    /// <exception cref="ArgumentOutOfRangeException">The rectangle is not inside the grid.</exception>
+    public void SetRect(int col, int row, int width, int height, byte area) => ApplyRect(col, row, width, height, area, default, false);
+
+    /// <summary>Overwrites a rectangle (a tile) with row-major area ids as a single edit; see <see cref="Grid.SetRect(int, int, int, int, ReadOnlySpan{byte})"/>.</summary>
+    /// <param name="col">Left column.</param>
+    /// <param name="row">Top row.</param>
+    /// <param name="width">Columns, 0 or more.</param>
+    /// <param name="height">Rows, 0 or more.</param>
+    /// <param name="areas">Exactly <c>width * height</c> area ids, row by row.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The rectangle is not inside the grid.</exception>
+    /// <exception cref="ArgumentException"><paramref name="areas"/> has the wrong length.</exception>
+    public void SetRect(int col, int row, int width, int height, ReadOnlySpan<byte> areas) => ApplyRect(col, row, width, height, 0, areas, true);
+
+    private void ApplyRect(int x, int y, int width, int height, byte fill, ReadOnlySpan<byte> source, bool useSource)
+    {
+        if (!RectEdit.Apply(_cells, Width, Height, x, y, width, height, fill, source, useSource, _changedScratch, out int x0, out int y0, out int x1, out int y1))
+        {
+            return;
+        }
+        Version++;
+        RectEdit.Notify(_listeners, _changedScratch, Width, x0, y0, x1, y1);
+    }
+
     /// <summary>Registers a listener for cell edits.</summary>
     /// <param name="listener">The listener.</param>
     /// <exception cref="ArgumentNullException">The listener is null.</exception>
@@ -272,6 +302,15 @@ public sealed class HexGrid
         }
         return FindPathCore(sc, gc, options ?? DefaultOptions, true);
     }
+
+    /// <summary>Creates an incremental search that keeps the path up to date as the grid is edited and the start moves; see <see cref="Grid.CreateReplanner"/>.</summary>
+    /// <param name="start">Start cell (column, row).</param>
+    /// <param name="goal">Goal cell.</param>
+    /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>. Agent size must be 1, heuristic weight 1.</param>
+    /// <returns>The replanner.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">A cell is outside the grid.</exception>
+    /// <exception cref="ArgumentException">The agent size is not 1 or the heuristic weight is not 1.</exception>
+    public HexReplanner CreateReplanner(Cell start, Cell goal, GridOptions? options = null) => new(this, start, goal, options ?? DefaultOptions);
 
     private GridPath FindPathCore(Cell start, Cell goal, GridOptions o, bool world)
     {

@@ -57,6 +57,25 @@ internal static class GridSmoke
         var block = new JumpSearch<BlockJumper, OctileHeuristic>(new BlockJumper(new BlockMap(fromText)), new OctileHeuristic(3));
         block.Begin(0, 8);
         ok &= block.Run() == SearchStatus.Found && block.PathCost == 2.0 * GridMath.Sqrt2;
+
+        // Incremental replanning: D* Lite and LPA* behind the tier-1 replanner, a tile edit, and the hex form.
+        foreach (GridAlgorithm algorithm in new[] { GridAlgorithm.DStarLite, GridAlgorithm.LpaStar })
+        {
+            var open = new Grid(8, 8);
+            using GridReplanner replanner = open.CreateReplanner(new Cell(0, 0), new Cell(7, 0), new GridOptions { Algorithm = algorithm });
+            ok &= replanner.Replan().Cost == 7.0;
+            open.SetRect(3, 0, 1, 7, AreaCosts.Wall);
+            GridPath around = replanner.Replan();
+            ok &= around.Found && Math.Abs(around.Cost - open.FindPath(new Cell(0, 0), new Cell(7, 0)).Cost) < 1e-9;
+            replanner.MoveStart(around.Cells[1]);
+            ok &= replanner.Replan(1).Status is PathStatus.BudgetExhausted or PathStatus.Found;
+            ok &= replanner.Replan().Found;
+        }
+        var hexOpen = new HexGrid(6, 6);
+        using HexReplanner hexReplanner = hexOpen.CreateReplanner(new Cell(0, 0), new Cell(5, 5));
+        double before = hexReplanner.Replan().Cost;
+        hexOpen.SetRect(2, 0, 1, 5, AreaCosts.Wall);
+        ok &= hexReplanner.Replan().Cost >= before;
         return ok;
     }
 }

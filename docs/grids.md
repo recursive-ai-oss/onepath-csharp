@@ -185,6 +185,66 @@ table index is independent of costs, so changing a multiplier needs no rebuild.
 
 **Cost model of preprocessing.** O(8 · cells) time to build, 16 bytes per cell; the block map takes cells/4 bytes.
 
+## Tile edits and incremental clearance
+
+`Grid.SetRect(x, y, w, h, area)` and `SetRect(x, y, w, h, areas)` (and the same on `HexGrid`) change a rectangle as one edit:
+cells are written in row-major order, `Version` goes up once if any cell changed (nothing happens otherwise), and the listeners hear
+about it once. A listener implementing `IGridBatchListener` gets `OnRectChanged` with the smallest rectangle containing every changed
+cell (cells inside it may be unchanged); any other listener gets `OnCellChanged` for each changed cell, row-major. The grid already holds
+the final state in both cases. A rectangle outside the grid throws `ArgumentOutOfRangeException` before any cell is written; a source of
+the wrong length throws `ArgumentException`.
+
+**Clearance repair.** Clearance of a cell reads only the cells right of, below and diagonally below-right of it, so it can change only
+if the cell was edited or one of those three changed. The grid keeps the rectangles edited since the clearance was last current (more
+than 32 are merged into their bounding box). The next read repairs rows from the lowest edited row upwards, each row right to left:
+the cells of the row that lie in an edited rectangle, plus the cells one step left of and below the changed interval of the row
+below, are recomputed, and the sweep continues left past that range only while values keep changing. Edits made before the clearance
+was ever read cost nothing. The result equals the full recompute (checked on random edit sequences, `SetRect` included).
+`JpsPlusIndex` implements `IGridBatchListener`: a rectangle adds its cells to the pending edits (or schedules a full rebuild past the
+usual threshold). `BlockMap` updates per changed cell.
+
+## Incremental replanning (LPA\*, D\* Lite)
+
+Papers: Koenig, Likhachev & Furcy, *Lifelong Planning A\** (2004); Koenig & Likhachev, *D\* Lite* (2002), the version with the key
+modifier `km`. One engine (`ReplanSearch<TTopology, TCost, THeuristic>`) serves both. It searches from a **root** (LPA\*: the start;
+D\* Lite: the goal) towards a **focus** (LPA\*: the goal; D\* Lite: the start, which moves). `g` is the cost from the root and `rhs` the
+one-step lookahead, `rhs(root) = 0` and otherwise the minimum over walkable neighbours `v` of `g(v) + cost` where the move cost is the
+move `v -> node` (LPA\*) or `node -> v` (D\* Lite) through the cost hook. Unreachable and non-walkable nodes have `rhs = +inf`.
+
+- *Queue.* Nodes with `g != rhs` are queued with key `[min(g, rhs) + h(focus, node) + km, min(g, rhs)]`. Order (`ReplanOpenSet`): first
+  key, then second key, then node index; two keys within a relative 1e-11 count as equal.
+- *Loop.* While the top key is smaller than the focus's key, or the focus is inconsistent (`g != rhs`): pop `u`; if its stored key
+  is smaller than its current key, re-queue it with the current key; else if `g(u) > rhs(u)` set `g(u) = rhs(u)`, remove it and
+  recompute `rhs` of its neighbours; else set `g(u) = +inf` and recompute `rhs` of `u` and its neighbours. Recomputing a node's `rhs` is a full
+  minimum over its neighbours (not the paper's per-edge shortcut), then queue it if inconsistent, remove it if consistent.
+  One pop is one **iteration** (the unit of `IterationBudget`/`Replan(budget)`); pops that change a `g` are **expansions**.
+- *Tolerance.* Costs are sums of doubles added in different orders by different repairs, so costs equal on paper can differ in the
+  last bits. "Smaller key", "equal" and "consistent" therefore use a relative tolerance of 1e-11 (absolute 1e-11 below 1), and a node
+  whose key ties the focus's key on paper is processed when its second key is smaller. Stopping late is harmless, stopping early leaves stale costs.
+  Reported costs are exact sums along the returned path, in start-to-goal order.
+- *Moving the start* (D\* Lite): `km += h(old start, new start)` and the heuristic's goal becomes the new start; the queue keeps
+  all its work. For LPA\* a moved start or changed goal restarts the search. D\* Lite restarts on a changed goal.
+- *Changes.* The node set to re-examine for an edit at cell `(x, y)` with agent size `s` on a square grid is the cells
+  `[x - s, x + 1] x [y - s, y + 1]` (for a rectangle edit `[x - s, x + w] x [y - s, y + h]`): a move between two nodes reads the two nodes'
+  areas, the cells beside a diagonal move, and the `s x s` blocks both nodes occupy, all within one cell of both nodes, and the walkability
+  of a node for size `s` reads the block starting at it. Both ends of every changed move are in the set, so recomputing `rhs` there is
+  complete. On a hex grid the changed cell and its neighbours are re-examined. A change touching more than a quarter of the cells (or
+  more pending nodes than the grid has) restarts the search instead. A change to `AreaCosts` (a multiplier) rebuilds the search
+  (the heuristic's scale depends on the smallest multiplier). Changes the grid cannot see (a delegate that now answers differently)
+  are announced with `Invalidate`.
+- *Path.* From the focus, repeatedly step to the neighbour minimising `g + move cost`, preferring neighbours with `g == rhs` (settled; a
+  queued neighbour may hold an out-of-date cost), ties broken by neighbour order (see Movement); LPA\* walks goal to start and reverses.
+  Many equal-cost paths exist, so the path may differ from A\*'s, but never the cost.
+- *Requirements.* The move graph must be undirected in structure (true for the square and hex topologies); the heuristic must be
+  consistent and symmetric (octile, Manhattan, hex distance, zero); the heuristic weight must be 1; costs of +inf/NaN remove a move.
+- *Slicing.* `Replan(budget)` pops at most `budget` times; on `BudgetExhausted` the next call resumes, and any sequence of budgets
+  ends with the result, expansion count and path of one unsliced call.
+
+Tier 1: `grid.CreateReplanner(start, goal, options)` (`GridOptions.Algorithm` = `LpaStar`, else D\* Lite) returns a `GridReplanner`
+(`HexReplanner`) that listens to the grid: `Replan()`, `MoveStart`, `SetGoal`, `Invalidate`, `Dispose`. Tier 2: `ReplanSearch<,,>` over any `IGridTopology`
+with struct cost and heuristic. Tier 3: `ReplanOpenSet`, the node-level `MarkChanged`/`Replan`/`ExtractPath`. A one-off `FindPath` with
+`LpaStar` or `DStarLite` runs A\*.
+
 ## Moving AI files
 
 `MovingAiMap.Parse` reads the `.map` format (`type`, `height`, `width`, `map`, then rows). `.` and `G` are walkable;
@@ -207,3 +267,7 @@ allocated.
   bitmap word; table entries equal the cell-by-cell scan; incremental tables equal a rebuild over 1200 edit sequences; the
   block scan equals the cell scan with goals anywhere; every Moving AI 2D set above equals the published optimal costs with
   both (`ALG=jps sweep.sh`, `ALG=jps+ sweep.sh`, or `GridOptima --alg jps|jps+`).
+- Replanning: after every change in 10.8k random change/move sequences (LPA\* and D\* Lite; 4- and 8-connected, three diagonal rules, agent sizes 1-3,
+  area costs, cell and tile edits, start moves) the replanned cost equals an independent O(n^2) Dijkstra and the library's A\*, and paths are legal
+  and sum to their cost; hex layouts the same; sliced equals unsliced; incremental clearance and JPS+ tables after tile edits equal a full
+  recompute. On Moving AI dao and room (`GridOptima --replan lpa|dstar`): random wall toggles along the current path, costs equal fresh A\*.

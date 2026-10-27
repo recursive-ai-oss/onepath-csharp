@@ -175,6 +175,86 @@ internal static class GridTargets
         }
     }
 
+    // Incremental replanning (LPA* or D* Lite) under cell and tile edits and start moves. Properties: every replan equals a fresh A*
+    // (status and cost, legal priced path), the clearance repaired in place equals a full recompute, a sliced replan equals an unsliced one.
+    internal static void Replan(byte[] data)
+    {
+        if (data.Length < 16)
+        {
+            return;
+        }
+        int w = 2 + (data[0] % 40);
+        int h = 2 + (data[1] % 24);
+        int density = 1 + (data[2] % 9);
+        var g = new Grid(w, h);
+        for (int i = 0; i < w * h; i++)
+        {
+            byte v = (byte)(data[3 + (i % (data.Length - 3))] ^ (i * 31));
+            if ((v & 15) < density)
+            {
+                g.SetWalkable(i % w, i / w, false);
+            }
+        }
+        int pos = 3;
+        int mode = Next(data, ref pos);
+        var options = new GridOptions
+        {
+            Algorithm = (mode & 1) == 0 ? GridAlgorithm.LpaStar : GridAlgorithm.DStarLite,
+            Connectivity = (mode & 2) == 0 ? Connectivity.Eight : Connectivity.Four,
+            AgentSize = 1 + ((mode >> 2) & 1),
+        };
+        var a = new Cell(Next(data, ref pos) % w, Next(data, ref pos) % h);
+        var b = new Cell(Next(data, ref pos) % w, Next(data, ref pos) % h);
+        using GridReplanner r = g.CreateReplanner(a, b, options);
+        using GridReplanner sliced = g.CreateReplanner(a, b, options);
+        GridOptions plain = options.Clone();
+        plain.Algorithm = GridAlgorithm.AStar;
+        for (int round = 0; round < 8; round++)
+        {
+            int edits = 1 + (Next(data, ref pos) % 4);
+            for (int e = 0; e < edits; e++)
+            {
+                if ((Next(data, ref pos) & 3) == 0)
+                {
+                    int x = Next(data, ref pos) % w;
+                    int y = Next(data, ref pos) % h;
+                    int rw = Next(data, ref pos) % (w - x + 1);
+                    int rh = Next(data, ref pos) % (h - y + 1);
+                    g.SetRect(x, y, rw, rh, (Next(data, ref pos) & 1) == 0 ? AreaCosts.Wall : (byte)0);
+                }
+                else
+                {
+                    g.SetWalkable(Next(data, ref pos) % w, Next(data, ref pos) % h, (Next(data, ref pos) & 3) == 0);
+                }
+            }
+            GridPath p = r.Replan();
+            GridPath q;
+            do
+            {
+                q = sliced.Replan(1 + (Next(data, ref pos) % 7));
+            }
+            while (q.Status == PathStatus.BudgetExhausted);
+            if (q.Status != p.Status || q.Cost != p.Cost || !q.Cells.SequenceEqual(p.Cells))
+            {
+                throw new InvalidOperationException("sliced replan differs from the unsliced one");
+            }
+            GridPath fresh = g.FindPath(r.Start, r.Goal, plain);
+            if (fresh.Status != p.Status || (fresh.Found && Math.Abs(fresh.Cost - p.Cost) > 1e-9 * Math.Max(1.0, fresh.Cost)))
+            {
+                throw new InvalidOperationException($"fresh A* says {fresh.Status} {fresh.Cost} but the replanner says {p.Status} {p.Cost}");
+            }
+            if (!Grid.From(g.Cells, w, h).Clearance.SequenceEqual(g.Clearance))
+            {
+                throw new InvalidOperationException("repaired clearance differs from a full recompute");
+            }
+            if (p.Found && p.Cells.Length > 1 && (Next(data, ref pos) & 1) == 0)
+            {
+                r.MoveStart(p.Cells[1]);
+                sliced.MoveStart(p.Cells[1]);
+            }
+        }
+    }
+
     private static int Next(byte[] data, ref int pos)
     {
         int v = data[pos % data.Length];
