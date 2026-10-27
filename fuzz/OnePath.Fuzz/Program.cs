@@ -52,5 +52,6 @@ public static class Targets
         // Placeholder target: proves the scaffold builds and runs.
         ["info"] = _ => GC.KeepAlive(OnePathInfo.Version),
         ["build3d"] = Build3DTarget.Run,
+        ["build3d-contours"] = Build3DTarget.RunContours,
     };
 }

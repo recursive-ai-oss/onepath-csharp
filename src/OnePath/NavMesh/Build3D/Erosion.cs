@@ -73,13 +73,17 @@ public static class Erosion
         // Pull relaxation to a fixed point. A shortest path below the cap has at most cap / 2 steps, so the
         // loop ends within that many passes; the fixed point is unique, hence independent of the sweep order.
         bool changed = true;
+        bool reverse = false;
         while (changed)
         {
             changed = false;
-            for (int z = 0; z < f.Depth; z++)
+            // Sweeping alternately forward and backward spreads distances across a wide field in a few passes; the fixed point is the same.
+            for (int zi = 0; zi < f.Depth; zi++)
             {
-                for (int x = 0; x < f.Width; x++)
+                int z = reverse ? f.Depth - 1 - zi : zi;
+                for (int xi = 0; xi < f.Width; xi++)
                 {
+                    int x = reverse ? f.Width - 1 - xi : xi;
                     int c = f.Column(x, z);
                     for (int i = first[c]; i < first[c] + count[c]; i++)
                     {
@@ -121,6 +125,7 @@ public static class Erosion
                     }
                 }
             }
+            reverse = !reverse;
         }
         return dist;
     }

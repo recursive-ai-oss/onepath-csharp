@@ -63,8 +63,8 @@ public class LevelTests
             var solid = new SolidHeightfield(frame);
             var stats = Voxelizer.Rasterize(solid, verts, idx, settings);
             int solidSpans = solid.SpanCount;
-            var pipe = new SpanPipeline(settings);
-            var chf = pipe.Run(solid);
+            var spanStage = new SpanPipeline(settings);
+            var chf = spanStage.Run(solid);
             int walkable = 0;
             for (int i = 0; i < chf.SpanCount; i++)
             {
@@ -72,6 +72,20 @@ public class LevelTests
             }
             lines.Add(string.Create(CultureInfo.InvariantCulture, $"{Path.GetFileNameWithoutExtension(file)}: {idx.Length / 3} tris ({stats.Degenerate} degenerate), grid {frame.Width}x{frame.Depth}x{frame.Height} = {frame.ColumnCount} columns, {solidSpans} solid spans, {chf.SpanCount} walkable before erosion, {walkable} after"));
             Assert.True(chf.SpanCount > 0, file);
+            foreach (PartitionType type in Enum.GetValues<PartitionType>())
+            {
+                // Same thresholds as the reference comparison: minimum 8^2 and merge 20^2 spans, edge length 12 units, error 1.3.
+                var rs = new RegionSettings { Partition = type, MinRegionArea = 64, MergeRegionArea = 400 };
+                Regions.Build(chf, rs);
+                var set = Contours.Build(chf, new ContourSettings { MaxError = 1.3f, MaxEdgeLength = 40 });
+                int verts2 = 0;
+                foreach (Contour k in set.Contours)
+                {
+                    verts2 += k.Vertices.Length;
+                }
+                lines.Add(string.Create(CultureInfo.InvariantCulture, $"  {Path.GetFileNameWithoutExtension(file)} {type}: {chf.RegionCount} regions, {set.Contours.Count} contours, {verts2} contour vertices, {set.DroppedContours} dropped, {set.DroppedHoles} holes dropped, {set.RawFallbacks} raw fallbacks"));
+                Assert.True(chf.RegionCount > 0, file);
+            }
         }
         File.WriteAllLines(Path.Combine(dir!, "span-stage-report.txt"), lines);
         Assert.NotEmpty(lines);

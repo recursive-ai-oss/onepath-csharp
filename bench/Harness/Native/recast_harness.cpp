@@ -52,6 +52,7 @@ struct TileData { unsigned char* data = nullptr; int size = 0; int tx = 0, ty = 
 struct BuildResult {
   std::vector<TileData> tiles;
   long polys = 0, verts = 0;
+  long regions = 0, conts = 0, contVerts = 0;  // region and contour stage output (rcCompactHeightfield::maxRegions, rcContourSet)
   double areaXZ = 0;  // sum of polygon areas projected on the ground plane: the walkable coverage
   float bmin[3], bmax[3];
   int tw = 1, th = 1;
@@ -124,6 +125,9 @@ static bool buildOne(rcContext& ctx, const Settings& s, const Mesh& m, const flo
     if (!rcBuildDistanceField(&ctx, *chf)) break;
     if (!rcBuildRegions(&ctx, *chf, cfg.borderSize, cfg.minRegionArea, cfg.mergeRegionArea)) break;
     if (!rcBuildContours(&ctx, *chf, cfg.maxSimplificationError, cfg.maxEdgeLen, *cset)) break;
+    out.regions += chf->maxRegions;
+    out.conts += cset->nconts;
+    for (int ci = 0; ci < cset->nconts; ++ci) out.contVerts += cset->conts[ci].nverts;
     if (cset->nconts == 0) { ok = true; break; }
     if (!rcBuildPolyMesh(&ctx, *cset, cfg.maxVertsPerPoly, *pm)) break;
     if (!rcBuildPolyMeshDetail(&ctx, *pm, *chf, cfg.detailSampleDist, cfg.detailSampleMaxError, *dm)) break;
@@ -225,6 +229,9 @@ static int cmdBuild(const Args& a) {
   row("build", scen, kSide, "polys", (double)last.polys, "count");
   row("build", scen, kSide, "verts", (double)last.verts, "count");
   row("build", scen, kSide, "coverage_area", last.areaXZ, "world_units2");
+  row("build", scen, kSide, "regions", (double)last.regions, "count");
+  row("build", scen, kSide, "contours", (double)last.conts, "count");
+  row("build", scen, kSide, "contour_verts", (double)last.contVerts, "count");
   row("build", scen, kSide, "tiles", (double)last.tiles.size(), "count");
   row("build", scen, kSide, "input_tris", (double)m.triCount(), "count");
   row("build", scen, kSide, "peak_rss", peakRssMb(), "MB");
