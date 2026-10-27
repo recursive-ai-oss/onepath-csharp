@@ -12,6 +12,18 @@ public static class Program
 {
     public static int Main(string[] args)
     {
+        // AFL mode (SharpFuzz out-of-process): OnePath.Fuzz --afl <target>. Used where clang and libFuzzer are not available.
+        if (args.Length == 2 && args[0] == "--afl" && Targets.All.TryGetValue(args[1], out var aflTarget))
+        {
+            Fuzzer.Run(stream =>
+            {
+                using var ms = new System.IO.MemoryStream();
+                stream.CopyTo(ms);
+                aflTarget(ms.ToArray());
+            });
+            return 0;
+        }
+
         if (args.Length == 0 || !Targets.All.TryGetValue(args[0], out var target))
         {
             Console.Error.WriteLine("usage: OnePath.Fuzz <target> [libFuzzer args]");
@@ -39,5 +51,6 @@ public static class Targets
     {
         // Placeholder target: proves the scaffold builds and runs.
         ["info"] = _ => GC.KeepAlive(OnePathInfo.Version),
+        ["build3d"] = Build3DTarget.Run,
     };
 }
