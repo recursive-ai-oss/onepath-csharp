@@ -18,8 +18,8 @@ public sealed class NavTile
     private readonly ushort[] _polyIndices;
     private readonly int[] _edgeNeighbors;
     private readonly byte[] _edgePortalSides;
-    private readonly byte[] _polyAreas;
-    private readonly ushort[] _polyFlags;
+    private byte[] _polyAreas;
+    private ushort[] _polyFlags;
     private readonly DetailMesh[] _detailMeshes;
     private readonly float[] _detailVertices;
     private readonly byte[] _detailTriangles;
@@ -59,7 +59,70 @@ public sealed class NavTile
         _portalEdge = portalEdge;
         BoundsMin = bmin;
         BoundsMax = bmax;
+        _baseAreas = areas;
+        _baseFlags = flags;
     }
+
+    // Runtime state. A tile placed in a mesh is a private copy whose areas, flags and disabled off-mesh links the
+    // mesh may edit; the as-built arrays are kept (never written) so a snapshot can name the tile by its original
+    // content and store only the differences.
+    private byte[] _baseAreas;
+    private ushort[] _baseFlags;
+    private bool[]? _offMeshDisabled;
+    private TileContentId? _contentId;
+
+    internal ReadOnlySpan<byte> BaseAreas => _baseAreas;
+
+    internal ReadOnlySpan<ushort> BaseFlags => _baseFlags;
+
+    internal bool IsOffMeshDisabled(int link) => _offMeshDisabled is { } d && d[link];
+
+    internal void SetOffMeshDisabled(int link, bool disabled)
+    {
+        if (disabled)
+        {
+            _offMeshDisabled ??= new bool[_offMesh.Length];
+            _offMeshDisabled[link] = true;
+        }
+        else if (_offMeshDisabled is { } d)
+        {
+            d[link] = false;
+        }
+    }
+
+    internal void SetPolyArea(int poly, byte area) => _polyAreas[poly] = area;
+
+    internal void SetPolyFlags(int poly, ushort flags) => _polyFlags[poly] = flags;
+
+    /// <summary>
+    /// A copy a mesh can edit: shares every immutable array, owns its areas, flags and disabled-link state (copied from
+    /// this tile, so a tile taken from one mesh and added to another carries its edits).
+    /// </summary>
+    internal NavTile OwnedCopy()
+    {
+        var c = (NavTile)MemberwiseClone();
+        c._polyAreas = (byte[])_polyAreas.Clone();
+        c._polyFlags = (ushort[])_polyFlags.Clone();
+        c._offMeshDisabled = (bool[]?)_offMeshDisabled?.Clone();
+        c._bvh = null;
+        return c;
+    }
+
+    /// <summary>The tile as built: a copy with the as-built areas and flags and every off-mesh link on.</summary>
+    internal NavTile PristineCopy()
+    {
+        NavTile c = OwnedCopy();
+        c._polyAreas = (byte[])_baseAreas.Clone();
+        c._polyFlags = (ushort[])_baseFlags.Clone();
+        c._offMeshDisabled = null;
+        return c;
+    }
+
+    /// <summary>
+    /// The identity of the tile's as-built content (its areas and flags before any runtime edit): the SHA-256 of its
+    /// serialized form. Equal ids mean equal geometry, adjacency, detail, off-mesh slots, areas and flags as built.
+    /// </summary>
+    public TileContentId ContentId => _contentId ??= TileContentId.Compute(NavMeshSerializer.WriteTile(this, pristine: true));
 
     /// <summary>The mesh parameters this tile was validated against.</summary>
     public NavMeshParams Params { get; }

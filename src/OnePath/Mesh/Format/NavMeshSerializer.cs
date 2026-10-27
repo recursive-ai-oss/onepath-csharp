@@ -14,19 +14,22 @@ public static class NavMeshSerializer
 {
     private const uint TileMagic = 0x5450_4E4F; // "ONPT" little-endian
     private const uint MeshMagic = 0x4D50_4E4F; // "ONPM"
-    private const int ParamsSize = 60;
+    internal const int ParamsSize = 60;
     private const int TileFixedHeader = 4 + 2 + 2 + 12 + 24 + (6 * 4);
     private const int PolyRecordSize = 16;
     private const int OffMeshRecordSize = 36;
 
-    private static ushort HeaderFlags => NavMeshFormat.IsUnstable ? NavMeshFormat.FlagUnstable : (ushort)0;
+    internal static ushort HeaderFlags => NavMeshFormat.IsUnstable ? NavMeshFormat.FlagUnstable : (ushort)0;
 
     /// <summary>Serializes one tile.</summary>
-    public static byte[] WriteTile(NavTile tile)
+    public static byte[] WriteTile(NavTile tile) => WriteTile(tile, pristine: false);
+
+    // pristine writes the areas and flags the tile was built with, ignoring runtime edits (the tile's content id).
+    internal static byte[] WriteTile(NavTile tile, bool pristine)
     {
         ArgumentNullException.ThrowIfNull(tile);
         var w = new Writer(TileFixedHeader + (tile.Vertices.Length * 4) + (tile.PolyCount * (PolyRecordSize + 4)));
-        WriteTileBody(w, tile);
+        WriteTileBody(w, tile, pristine);
         return w.ToArray();
     }
 
@@ -50,18 +53,7 @@ public static class NavMeshSerializer
         w.U32(MeshMagic);
         w.U16(NavMeshFormat.Version);
         w.U16(HeaderFlags);
-        NavMeshParams p = mesh.Params;
-        w.F64(p.OriginX);
-        w.F64(p.OriginY);
-        w.F64(p.OriginZ);
-        w.F64(p.TileSize);
-        w.F64(p.CellSize);
-        w.U16((ushort)p.MaxVertsPerPoly);
-        w.U16(0);
-        w.F32(p.WalkableClimb);
-        w.F32(p.AgentRadius);
-        w.F32(p.AgentHeight);
-        w.F32(p.AgentMaxSlopeDegrees);
+        WriteParams(w, mesh.Params);
         w.U32((uint)mesh.SlotCount);
         for (int s = 0; s < mesh.SlotCount; s++)
         {
@@ -90,28 +82,7 @@ public static class NavMeshSerializer
             throw new NavMeshFormatException("Not a navigation mesh file (bad magic).");
         }
         CheckVersion(ref r);
-        NavMeshParams p;
-        try
-        {
-            p = new NavMeshParams
-            {
-                OriginX = r.F64("origin X"),
-                OriginY = r.F64("origin Y"),
-                OriginZ = r.F64("origin Z"),
-                TileSize = r.F64("tile size"),
-                CellSize = r.F64("cell size"),
-                MaxVertsPerPoly = r.U16("max vertices per polygon"),
-                WalkableClimb = SkipReserved(ref r),
-                AgentRadius = r.F32("agent radius"),
-                AgentHeight = r.F32("agent height"),
-                AgentMaxSlopeDegrees = r.F32("agent slope"),
-            };
-            p.Validate();
-        }
-        catch (ArgumentOutOfRangeException e)
-        {
-            throw new NavMeshFormatException("Invalid mesh parameters: " + e.Message, e);
-        }
+        NavMeshParams p = ReadParams(ref r);
         uint slotCount = r.U32("slot count");
         if (slotCount > NavMeshFormat.MaxTileSlots || slotCount > r.Remaining / 5)
         {
@@ -154,6 +125,48 @@ public static class NavMeshSerializer
         return mesh;
     }
 
+    internal static void WriteParams(Writer w, NavMeshParams p)
+    {
+        w.F64(p.OriginX);
+        w.F64(p.OriginY);
+        w.F64(p.OriginZ);
+        w.F64(p.TileSize);
+        w.F64(p.CellSize);
+        w.U16((ushort)p.MaxVertsPerPoly);
+        w.U16(0);
+        w.F32(p.WalkableClimb);
+        w.F32(p.AgentRadius);
+        w.F32(p.AgentHeight);
+        w.F32(p.AgentMaxSlopeDegrees);
+    }
+
+    internal static NavMeshParams ReadParams(ref Reader r)
+    {
+        NavMeshParams p;
+        try
+        {
+            p = new NavMeshParams
+            {
+                OriginX = r.F64("origin X"),
+                OriginY = r.F64("origin Y"),
+                OriginZ = r.F64("origin Z"),
+                TileSize = r.F64("tile size"),
+                CellSize = r.F64("cell size"),
+                MaxVertsPerPoly = r.U16("max vertices per polygon"),
+                WalkableClimb = SkipReserved(ref r),
+                AgentRadius = r.F32("agent radius"),
+                AgentHeight = r.F32("agent height"),
+                AgentMaxSlopeDegrees = r.F32("agent slope"),
+            };
+            p.Validate();
+        }
+        catch (ArgumentOutOfRangeException e)
+        {
+            throw new NavMeshFormatException("Invalid mesh parameters: " + e.Message, e);
+        }
+        return p;
+    }
+
     // The 16-bit pad after MaxVertsPerPoly must be zero; the climb follows it.
     private static float SkipReserved(ref Reader r)
     {
@@ -164,7 +177,7 @@ public static class NavMeshSerializer
         return r.F32("walkable climb");
     }
 
-    private static void CheckVersion(ref Reader r)
+    internal static void CheckVersion(ref Reader r)
     {
         ushort v = r.U16("version");
         ushort f = r.U16("flags");
@@ -178,7 +191,7 @@ public static class NavMeshSerializer
         }
     }
 
-    private static void WriteTileBody(Writer w, NavTile t)
+    private static void WriteTileBody(Writer w, NavTile t, bool pristine)
     {
         w.U32(TileMagic);
         w.U16(NavMeshFormat.Version);
@@ -203,8 +216,8 @@ public static class NavMeshSerializer
         {
             DetailMesh d = t.DetailMeshes[i];
             w.U8(t.PolyVertexCounts[i]);
-            w.U8(t.PolyAreas[i]);
-            w.U16(t.PolyFlags[i]);
+            w.U8(pristine ? t.BaseAreas[i] : t.PolyAreas[i]);
+            w.U16(pristine ? t.BaseFlags[i] : t.PolyFlags[i]);
             w.U32(d.VertexBase);
             w.U32(d.TriangleBase);
             w.U16(d.VertexCount);
@@ -354,7 +367,7 @@ public static class NavMeshSerializer
         }
     }
 
-    private sealed class Writer
+    internal sealed class Writer
     {
         private byte[] _buf;
         private int _len;
@@ -389,7 +402,7 @@ public static class NavMeshSerializer
         public void Bytes(ReadOnlySpan<byte> b) => b.CopyTo(Next(b.Length));
     }
 
-    private ref struct Reader
+    internal ref struct Reader
     {
         private readonly ReadOnlySpan<byte> _b;
         private int _pos;

@@ -29,6 +29,7 @@ public static class Program
         if (args.Length == 2 && args[0] == "--seeds")
         {
             NavMeshFuzz.WriteSeeds(args[1]);
+            NavMeshSnapshotFuzz.WriteSeeds(System.IO.Path.Combine(args[1], "snapshot"));
             return 0;
         }
 
@@ -81,5 +82,6 @@ public static class Targets
         ["movingai-scen"] = GridTargets.ScenarioParser,
         ["grid-query"] = GridTargets.Query,
         ["navmesh-query"] = NavMeshQueryFuzz.Run,
+        ["navmesh-snapshot"] = NavMeshSnapshotFuzz.Run,
     };
 }
