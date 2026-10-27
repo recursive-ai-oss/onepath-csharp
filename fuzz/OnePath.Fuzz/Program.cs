@@ -39,5 +39,8 @@ public static class Targets
     {
         // Placeholder target: proves the scaffold builds and runs.
         ["info"] = _ => GC.KeepAlive(OnePathInfo.Version),
+        ["movingai-map"] = GridTargets.MapParser,
+        ["movingai-scen"] = GridTargets.ScenarioParser,
+        ["grid-query"] = GridTargets.Query,
     };
 }

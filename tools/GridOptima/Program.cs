@@ -1,0 +1,169 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.IO.Compression;
+using System.Threading;
+using System.Threading.Tasks;
+using RecursiveAI.OnePath.Grids;
+
+namespace RecursiveAI.OnePath.GridOptima;
+
+/// <summary>
+/// Checks A* path costs against the published optimal lengths of Moving AI Lab scenario sets.
+/// Usage: <c>GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE]</c>, where DIR holds
+/// <c>NAME-map.zip</c> and <c>NAME-scen.zip</c> (as downloaded from the benchmark site; never committed).
+/// Prints one summary line: scenarios, mismatches, maximum absolute difference. Exit code 1 if any mismatch.
+/// Options: <c>--swamp 0|1</c>, <c>--water 0|1</c> choose how S and W terrain is read.
+/// </summary>
+public static class Program
+{
+    public static int Main(string[] args)
+    {
+        string? dir = null;
+        string? set = null;
+        int threads = 1;
+        long limit = long.MaxValue;
+        double tolerance = 1e-6; // relative: the published lengths carry single-precision-class error
+        double altSqrt2 = 0;
+        var options = new MovingAiOptions();
+        for (int i = 0; i + 1 < args.Length; i += 2)
+        {
+            switch (args[i])
+            {
+                case "--maps": dir = args[i + 1]; break;
+                case "--set": set = args[i + 1]; break;
+                case "--threads": threads = int.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
+                case "--limit": limit = long.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
+                case "--tolerance": tolerance = double.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
+                case "--alt-sqrt2": altSqrt2 = double.Parse(args[i + 1], CultureInfo.InvariantCulture); break;
+                case "--swamp": options.SwampWalkable = args[i + 1] == "1"; break;
+                case "--water": options.WaterWalkable = args[i + 1] == "1"; break;
+                default: Console.Error.WriteLine($"unknown option {args[i]}"); return 2;
+            }
+        }
+        if (dir is null || set is null)
+        {
+            Console.Error.WriteLine("usage: GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--swamp 0|1] [--water 0|1] [--alt-sqrt2 X]");
+            return 2;
+        }
+
+        using var maps = ZipFile.OpenRead(Path.Combine(dir, set + "-map.zip"));
+        using var scens = ZipFile.OpenRead(Path.Combine(dir, set + "-scen.zip"));
+        var work = new List<(ZipArchiveEntry Scen, ZipArchiveEntry? Map)>();
+        foreach (ZipArchiveEntry s in scens.Entries)
+        {
+            if (!s.Name.EndsWith(".scen", StringComparison.Ordinal))
+            {
+                continue;
+            }
+            string mapName = s.Name[..^5];
+            work.Add((s, maps.GetEntry(mapName) ?? maps.GetEntry("maps/" + mapName)));
+        }
+        work.Sort((a, b) => string.CompareOrdinal(a.Scen.FullName, b.Scen.FullName));
+
+        // Zip entries are read on the main thread (an archive is not thread-safe); the searches run in parallel.
+        var jobs = new List<(string Name, ScenarioEntry[] Entries, MovingAiMap Map)>();
+        foreach (var (scen, map) in work)
+        {
+            if (map is null)
+            {
+                Console.Error.WriteLine($"no map for {scen.FullName}");
+                return 2;
+            }
+            jobs.Add((map.Name, MovingAiScenarios.Parse(Read(scen)), MovingAiMap.Parse(Read(map))));
+        }
+
+        long total = 0;
+        long mismatches = 0;
+        double maxDelta = 0;
+        double maxRel = 0;
+        object sync = new();
+        long budget = limit;
+        var po = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, threads) };
+        Parallel.ForEach(jobs, po, job =>
+        {
+            Grid grid = job.Map.ToGrid(options);
+            SquareTopology topo = grid.CreateTopology();
+            var search = new AStar<SquareTopology, DefaultStepCost, OctileHeuristic>(topo, default, new OctileHeuristic(grid.Width), new GridSearchBuffers(grid.CellCount));
+            long n = 0;
+            long bad = 0;
+            double worst = 0;
+            double worstRel = 0;
+            foreach (ScenarioEntry e in job.Entries)
+            {
+                if (Interlocked.Decrement(ref budget) < 0)
+                {
+                    break;
+                }
+                n++;
+                double ours = double.PositiveInfinity;
+                if (e.MapWidth == grid.Width && e.MapHeight == grid.Height && grid.Contains(e.StartX, e.StartY) && grid.Contains(e.GoalX, e.GoalY)
+                    && grid.IsWalkable(e.StartX, e.StartY) && grid.IsWalkable(e.GoalX, e.GoalY))
+                {
+                    search.Begin((e.StartY * grid.Width) + e.StartX, (e.GoalY * grid.Width) + e.GoalX);
+                    if (search.Run() == SearchStatus.Found)
+                    {
+                        ours = search.PathCost;
+                        if (altSqrt2 > 0)
+                        {
+                            // Re-price the found path with a different diagonal constant (straight steps cost 1).
+                            int[] p = new int[search.PathLength()];
+                            search.CopyPath(p);
+                            long diag = 0;
+                            for (int k = 1; k < p.Length; k++)
+                            {
+                                if (((p[k] % grid.Width) != (p[k - 1] % grid.Width)) && ((p[k] / grid.Width) != (p[k - 1] / grid.Width)))
+                                {
+                                    diag++;
+                                }
+                            }
+                            ours = (p.Length - 1 - diag) + (diag * altSqrt2);
+                        }
+                    }
+                }
+                double d = Math.Abs(ours - e.OptimalLength);
+                if (!(d <= (tolerance * Math.Max(1.0, e.OptimalLength))))
+                {
+                    bad++;
+                    if (bad <= 3)
+                    {
+                        Console.Error.WriteLine($"MISMATCH {job.Name} ({e.StartX},{e.StartY})->({e.GoalX},{e.GoalY}) published {e.OptimalLength.ToString("R", CultureInfo.InvariantCulture)} ours {ours.ToString("R", CultureInfo.InvariantCulture)}");
+                    }
+                    d = double.IsFinite(d) ? d : double.MaxValue;
+                }
+                if (d > worst)
+                {
+                    worst = d;
+                }
+                if (d / Math.Max(1.0, e.OptimalLength) > worstRel)
+                {
+                    worstRel = d / Math.Max(1.0, e.OptimalLength);
+                }
+            }
+            lock (sync)
+            {
+                total += n;
+                mismatches += bad;
+                if (worst > maxDelta)
+                {
+                    maxDelta = worst;
+                }
+                if (worstRel > maxRel)
+                {
+                    maxRel = worstRel;
+                }
+            }
+        });
+        Console.WriteLine($"{set}: maps {jobs.Count}, scenarios {total}, mismatches {mismatches}, max |delta| {maxDelta.ToString("E3", CultureInfo.InvariantCulture)}, max |delta|/max(1,length) {maxRel.ToString("E3", CultureInfo.InvariantCulture)}");
+        return mismatches == 0 ? 0 : 1;
+    }
+
+    private static byte[] Read(ZipArchiveEntry e)
+    {
+        using Stream s = e.Open();
+        using var ms = new MemoryStream(checked((int)e.Length));
+        s.CopyTo(ms);
+        return ms.ToArray();
+    }
+}

@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <WasmExtraFilesToDeploy Include="main.mjs" />
+    <Compile Include="../AotSmoke/GridSmoke.cs" Link="GridSmoke.cs" />
     <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
   </ItemGroup>
 </Project>

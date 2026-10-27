@@ -21,6 +21,8 @@ CORE_PROJECTS=(
   fuzz/OnePath.Fuzz/OnePath.Fuzz.csproj
   bench/Bar/Bar.csproj
   bench/Micro/Micro.csproj
+  tools/HashMatrix/HashMatrix.csproj
+  tools/GridOptima/GridOptima.csproj
 )
 
 cd "$REPO_ROOT"
