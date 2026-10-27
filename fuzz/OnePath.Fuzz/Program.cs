@@ -77,5 +77,8 @@ public static class Targets
         ["build2d-describe"] = Build2DFuzz.Describe,
         ["navmesh-mesh"] = NavMeshFuzz.Mesh,
         ["navmesh-tile"] = NavMeshFuzz.Tile,
+        ["movingai-map"] = GridTargets.MapParser,
+        ["movingai-scen"] = GridTargets.ScenarioParser,
+        ["grid-query"] = GridTargets.Query,
     };
 }
