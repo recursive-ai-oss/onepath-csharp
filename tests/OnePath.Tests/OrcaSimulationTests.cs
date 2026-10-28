@@ -176,13 +176,14 @@ public class OrcaSimulationTests
         {
             w.Step();
         }
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int s = 0; s < 50; s++)
+        long allocated = AllocationProbe.SteadyState(() =>
         {
-            w.Step();
-        }
-        long after = GC.GetAllocatedBytesForCurrentThread();
-        Assert.Equal(0, after - before);
+            for (int s = 0; s < 50; s++)
+            {
+                w.Step();
+            }
+        });
+        Assert.Equal(0, allocated);
     }
 
     [Fact]

@@ -224,12 +224,13 @@ public class CrowdTests
         {
             sim.Crowd.Step(Dt);
         }
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 60; i++)
+        long allocated = AllocationProbe.SteadyState(() =>
         {
-            sim.Crowd.Step(Dt);
-        }
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            for (int i = 0; i < 60; i++)
+            {
+                sim.Crowd.Step(Dt);
+            }
+        });
         _out.WriteLine($"{allocated} bytes in 60 steps");
         Assert.True(allocated <= 4096, $"{allocated} bytes allocated in 60 steps");
     }

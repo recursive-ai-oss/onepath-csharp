@@ -10,7 +10,8 @@
     <PackageReleaseNotes>See CHANGELOG.md in the repository.</PackageReleaseNotes>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <!-- No baseline yet: this is the first public version. Set PackageValidationBaselineVersion after it ships. -->
+    <!-- A pack fails on a breaking change against the last published version. -->
+    <PackageValidationBaselineVersion>0.4.0-preview.1</PackageValidationBaselineVersion>
     <EnablePackageValidation>true</EnablePackageValidation>
     <IsPackable>true</IsPackable>
     <IsAotCompatible>true</IsAotCompatible>
