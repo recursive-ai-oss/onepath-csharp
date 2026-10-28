@@ -156,6 +156,7 @@ internal sealed class OctileJump<TFinder> : IOctileEngine
         FastHeap heap = core.Heap;
         TFinder finder = _finder;
         int w = _w;
+        ulong recip = w == 1 ? 0 : (ulong.MaxValue / (ulong)w) + 1; // 2^64 / 1 does not fit; a one-column grid takes the row from the index
         while (budget > 0)
         {
             if (!heap.Pop(out HeapItem item))
@@ -186,7 +187,7 @@ internal sealed class OctileJump<TFinder> : IOctileEngine
             {
                 _expanded.Add(node);
             }
-            int y = node / w;
+            int y = w == 1 ? node : (int)Math.BigMul((ulong)node, recip, out _); // node / w without a division: recip = ceil(2^64 / w), exact for node < 2^32
             int x = node - (y * w);
             int arrival = rec.Parent < 0 ? -1 : (int)((rec.Tag >> 1) & 7u);
             finder.Expand(core, node, x, y, a, b, arrival);

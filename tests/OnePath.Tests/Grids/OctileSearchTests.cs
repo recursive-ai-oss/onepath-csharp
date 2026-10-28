@@ -135,4 +135,21 @@ public class OctileSearchTests
         GridPath full = g.FindPath(new Cell(0, 0), new Cell(39, 2));
         Assert.Equal(PathOutcome.Found, full.Status);
     }
+
+    [Theory]
+    [InlineData(GridAlgorithm.AStar)]
+    [InlineData(GridAlgorithm.Jps)]
+    [InlineData(GridAlgorithm.JpsPlus)]
+    public void OneCellWideAndTallGridsWork(GridAlgorithm alg)
+    {
+        var column = new Grid(1, 9);
+        column.SetWalkable(0, 6, false);
+        var row = new Grid(9, 1);
+        row.SetWalkable(6, 0, false);
+        var o = new GridOptions { Algorithm = alg };
+        Assert.Equal(5.0, column.FindPath(new Cell(0, 0), new Cell(0, 5), o).Cost, 9);
+        Assert.Equal(PathOutcome.NoPath, column.FindPath(new Cell(0, 0), new Cell(0, 8), o).Status);
+        Assert.Equal(5.0, row.FindPath(new Cell(0, 0), new Cell(5, 0), o).Cost, 9);
+        Assert.Equal(PathOutcome.NoPath, row.FindPath(new Cell(0, 0), new Cell(8, 0), o).Status);
+    }
 }

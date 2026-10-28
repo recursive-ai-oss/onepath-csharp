@@ -181,6 +181,7 @@ internal sealed class OctileAStar : IOctileEngine
         IndexedHeap open = _open;
         uint openBase = _generation << 4;
         int stride = _stride;
+        ulong recip = (ulong.MaxValue / (ulong)stride) + 1; // the padded stride is at least 3
         while (budget > 0)
         {
             if (!open.Pop(out HeapItem item))
@@ -206,7 +207,7 @@ internal sealed class OctileAStar : IOctileEngine
             {
                 _expanded.Add(ToCell(node));
             }
-            int y = node / stride;
+            int y = (int)Math.BigMul((ulong)node, recip, out _); // node / stride without a division: recip = ceil(2^64 / stride), exact for node < 2^32
             int x = node - (y * stride);
             ref AStarNode rn = ref nodes[node - stride];
             ref AStarNode re = ref nodes[node + 1];

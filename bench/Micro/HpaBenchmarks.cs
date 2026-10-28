@@ -10,7 +10,7 @@ namespace RecursiveAI.OnePath.Micro;
 /// same search objects. Answers carry no reference; the rows compare against this library's own A*.
 /// </summary>
 [MemoryDiagnoser]
-public sealed class HpaBenchmarks : System.IDisposable
+public class HpaBenchmarks : System.IDisposable
 {
     private readonly GridAStarBenchmarks _inputs = new();
     private Grid _grid = null!;
@@ -40,7 +40,11 @@ public sealed class HpaBenchmarks : System.IDisposable
     [GlobalCleanup]
     public void Cleanup() => Dispose();
 
-    public void Dispose() => _hierarchy?.Dispose();
+    public void Dispose()
+    {
+        _hierarchy?.Dispose();
+        System.GC.SuppressFinalize(this);
+    }
 
     [Benchmark]
     public int BuildHierarchy()

@@ -17,6 +17,7 @@
     <InternalsVisibleTo Include="OnePath.Bar" />
     <InternalsVisibleTo Include="Micro" />
     <InternalsVisibleTo Include="OnePath.Tests" />
+    <InternalsVisibleTo Include="GridOptima" />
   </ItemGroup>
 
   <ItemGroup>
