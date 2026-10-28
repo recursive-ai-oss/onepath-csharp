@@ -545,16 +545,20 @@ allocated.
 
 For a lockstep or rollback host whose simulation ticks must not allocate.
 
-**`GridSearch`** (`Grid.CreateSearch(options)`) is a non-generic resumable A\*: `TryBegin(start, goal)` returns
+**`GridSearch`** (`Grid.CreateSearch(options)`) is a non-generic resumable A\*, JPS or JPS+: `TryBegin(start, goal)` returns
 `InProgress`, `StartInvalid` or `GoalInvalid` (the checks `FindPath` makes: inside the grid, clearance for `AgentSize`, `Blocked`; a refusal leaves the
 running search alone; `Begin` is the throwing twin), `Step(n)` pops at most `n` times and returns `InProgress`, `Found` or `NoPath`, `CopyPath(Span<Cell>)` /
-`CopyPath(Span<int>)` write the path, `SaveState`/`RestoreState` snapshot it (`grids-state.md`, kind 12). It supports `GridAlgorithm.AStar` only. It
-chooses its engine exactly as `FindPath` does: the specialised octile engine when the options allow it, otherwise the generic
-`AStar<SquareTopology, ...>` instantiation `FindPath` would build. `FindPath(start, goal, o)` is `TryBegin` then
+`CopyPath(Span<int>)` write the path, `SaveState`/`RestoreState` snapshot it (`grids-state.md`, kind 12). It supports `GridAlgorithm.AStar`, `Jps` and `JpsPlus` (the others throw `ArgumentException`). It
+chooses its engine exactly as `FindPath` does: for A\* the specialised octile engine when the options allow it, otherwise the generic
+`AStar<SquareTopology, ...>` instantiation `FindPath` would build; for JPS and JPS+ the specialised octile jump point engine when the options allow it,
+otherwise the generic `JumpSearch` over the block map (JPS) or the JPS+ tables, and options a jump point search cannot honour (four moves, agent
+size above 1, area costs that differ, callbacks, a weighted or Manhattan estimate) run plain generic A\*, as `FindPath` does. One iteration of a
+jump point search is one pop of a jump point (the scans that find jump points are not counted). `FindPath(start, goal, o)` is `TryBegin` then
 `Step(o.IterationBudget)`, so for every slicing the handle returns cell for cell the path `FindPath` returns, with the same
-`ExpandedCount` and cost bits (tested on generated random, room, maze, cave and area-cost maps and eight option variants). The grid must not be edited
-while a search is in progress (`Step` throws `InvalidOperationException`). After the first search `TryBegin`, `Step`, `CopyPath`, and (specialised engine) `SaveState(Span<byte>)`
-and `RestoreState` allocate nothing; a state save costs a pass over the cells plus the visited cells.
+`ExpandedCount` and cost bits (tested on generated random, room, maze, cave and area-cost maps and eight option variants for A\*, nine for JPS and JPS+). The grid must not be edited
+while a search is in progress (`Step` throws `InvalidOperationException`). After the first search `TryBegin`, `Step`, `CopyPath`, `GetStateSize`, `SaveState(Span<byte>)`
+and `RestoreState` allocate nothing on every engine; a state save costs a pass over the cells plus the visited cells (the generic engines serialise
+their own state into a buffer the handle keeps, which grows to the largest state seen).
 
 **Which engine breaks ties how.** The specialised engine (`Grids/Fast`) keeps costs as exact integer pairs
 (straight steps, diagonal steps), orders its open list by `f`, then larger `g` rounded to float32, then smaller cell index, and

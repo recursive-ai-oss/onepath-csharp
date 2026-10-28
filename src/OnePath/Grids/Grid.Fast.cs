@@ -39,6 +39,42 @@ public sealed partial class Grid
         return false;
     }
 
+    // What GridSearch needs to run the jump point searches over the grid's own, shared structures (the same ones FindPath uses).
+    // True when FindPath serves these options with a jump point search; fast = the specialised octile engines, plus = JPS+ tables.
+    internal bool UsesJumpSearch(GridOptions o, out double unitCost, out bool fast, out bool plus)
+    {
+        unitCost = 1.0;
+        fast = false;
+        plus = false;
+        if ((o.Algorithm != GridAlgorithm.Jps && o.Algorithm != GridAlgorithm.JpsPlus) || !JumpSearchApplies(o, out unitCost))
+        {
+            return false;
+        }
+        fast = FastApplies(o, out _);
+        plus = o.Algorithm == GridAlgorithm.JpsPlus && Width <= JpsPlusIndex.MaxSide && Height <= JpsPlusIndex.MaxSide;
+        return true;
+    }
+
+    internal OctileMap SharedOctileMap() => GetOctileMap();
+
+    internal JpsPlusIndex SharedJpsPlus()
+    {
+        lock (_sync)
+        {
+            _jpsPlus ??= new JpsPlusIndex(this);
+            _jpsPlus.Refresh();
+            return _jpsPlus;
+        }
+    }
+
+    internal BlockMap SharedBlockMap()
+    {
+        lock (_sync)
+        {
+            return _blockMap ??= new BlockMap(this);
+        }
+    }
+
     // After a state restore grid versions can repeat, so nothing derived from the grid may be trusted.
     private void DropOctileCaches()
     {

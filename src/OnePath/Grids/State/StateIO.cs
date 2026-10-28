@@ -59,12 +59,18 @@ internal sealed class StateWriter
     private byte[] _buffer = new byte[256];
     private int _length;
 
-    internal StateWriter(StateKind kind)
+    internal StateWriter(StateKind kind) => Reset(kind);
+
+    /// <summary>Starts a new blob in the same buffer, so a writer kept by its owner allocates only while its blobs are still growing.</summary>
+    internal void Reset(StateKind kind)
     {
+        _length = 0;
         U32(Magic);
         U16(FormatVersion);
         U16((ushort)kind);
     }
+
+    internal ReadOnlySpan<byte> Written => _buffer.AsSpan(0, _length);
 
     private Span<byte> Reserve(int count)
     {

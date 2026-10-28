@@ -63,6 +63,42 @@ internal sealed class FastHeap
         _level = double.NaN;
     }
 
+    // State access for GridSearch's save and restore. The pop order depends on how the entries were pushed (the current level is a
+    // stack), so a saved search keeps the heap array, the stack and the level exactly as they lie.
+    internal int HeapCount => _n;
+
+    internal int StackCount => _sn;
+
+    internal double Level => _level;
+
+    internal HeapItem HeapAt(int i) => _h[i];
+
+    internal int StackAt(int i) => _stack[i];
+
+    internal void BeginLoad(double level)
+    {
+        Clear();
+        _level = level;
+    }
+
+    internal void LoadHeap(double f, ulong t)
+    {
+        if (_n == _h.Length)
+        {
+            Array.Resize(ref _h, _h.Length * 2);
+        }
+        _h[_n++] = new HeapItem { F = f, T = t };
+    }
+
+    internal void LoadStack(int node)
+    {
+        if (_sn == _stack.Length)
+        {
+            Array.Resize(ref _stack, _sn * 2);
+        }
+        _stack[_sn++] = node;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool Less(in HeapItem a, in HeapItem b) => a.F < b.F || (a.F == b.F && a.T < b.T);
 

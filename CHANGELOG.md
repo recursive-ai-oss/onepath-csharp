@@ -4,6 +4,14 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- **`GridSearch` runs JPS and JPS+:** `Grid.CreateSearch` accepts `GridAlgorithm.Jps` and `GridAlgorithm.JpsPlus` on the engines `FindPath` uses (the specialised octile jump point search, the generic block-map and JPS+ table searches, or plain A\* where `FindPath` falls back to it), so a budgeted jump point search resumes with `Step(budget)`, returns cell for cell the path and cost bits `FindPath` returns for every slicing, and saves and restores byte-exactly. One iteration is one pop of a jump point. State kind 12 gains mode 3 (specialised jump point engine), documented in `docs/grids-state.md`; existing states are unchanged.
+
+### Changed
+
+- `GridSearch.SaveState(Span<byte>)`, `GetStateSize` and `RestoreState` allocate nothing in steady state on the generic engine too (the handle keeps one serialisation buffer); `GridSearch.UsesSpecializedEngine` now answers from the options and the grid before the first search.
+
 ## [0.4.0-preview.2]
 
 ### Added

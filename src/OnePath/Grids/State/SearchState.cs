@@ -81,6 +81,8 @@ public sealed partial class ReplanOpenSet
 
 public sealed partial class GridSearchBuffers
 {
+    private byte[] _colourScratch = [];
+
     // Writes the search in progress over the first nodeCount nodes: nodes seen by the current search in index order (index, closed flag,
     // g, parent), the open heap, and the recorded expansion list. Marks are written relative to the current search, so the
     // epoch counter itself (which never affects a result) is not part of the state.
@@ -120,7 +122,13 @@ public sealed partial class GridSearchBuffers
     internal bool ParentLinksAcyclic(int nodeCount)
     {
         uint b = _base;
-        var colour = new byte[nodeCount]; // 0 not seen, 1 on the walk being made, 2 known to end
+        // 0 not seen, 1 on the walk being made, 2 known to end; the scratch is kept so a restore allocates nothing once it has run.
+        if (_colourScratch.Length < nodeCount)
+        {
+            _colourScratch = new byte[nodeCount];
+        }
+        byte[] colour = _colourScratch;
+        Array.Clear(colour, 0, nodeCount);
         for (int i = 0; i < nodeCount; i++)
         {
             if (Mark[i] < b || colour[i] == 2)

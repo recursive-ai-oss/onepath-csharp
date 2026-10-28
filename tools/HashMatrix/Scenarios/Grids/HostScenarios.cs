@@ -8,7 +8,7 @@ namespace RecursiveAI.OnePath.HashMatrix;
 
 /// <summary>
 /// The grid calls a deterministic host makes every tick: the resumable search handle (path, cost bits and saved state in the middle of
-/// a search, on both engines), TryReplan, the content hash, nearest walkable cell and the fixed-point cost.
+/// a search, on every engine: A*, JPS and JPS+, specialised and generic), TryReplan, the content hash, nearest walkable cell and the fixed-point cost.
 /// </summary>
 internal static class HostScenarios
 {
@@ -18,6 +18,10 @@ internal static class HostScenarios
         Scenarios.Register("grids/host/search-specialised", ctx => Search(ctx, 0x7001, new GridOptions(), false));
         Scenarios.Register("grids/host/search-generic", ctx => Search(ctx, 0x7002, new GridOptions { SpecializedEngines = false }, true));
         Scenarios.Register("grids/host/search-weighted-areas", ctx => Search(ctx, 0x7003, new GridOptions { HeuristicWeight = 1.5, AgentSize = 2 }, true));
+        Scenarios.Register("grids/host/search-jps", ctx => Search(ctx, 0x7011, new GridOptions { Algorithm = GridAlgorithm.Jps }, false));
+        Scenarios.Register("grids/host/search-jps-plus", ctx => Search(ctx, 0x7012, new GridOptions { Algorithm = GridAlgorithm.JpsPlus }, false));
+        Scenarios.Register("grids/host/search-jps-generic", ctx => Search(ctx, 0x7013, new GridOptions { Algorithm = GridAlgorithm.Jps, SpecializedEngines = false }, false));
+        Scenarios.Register("grids/host/search-jps-plus-generic", ctx => Search(ctx, 0x7014, new GridOptions { Algorithm = GridAlgorithm.JpsPlus, SpecializedEngines = false }, false));
         Scenarios.Register("grids/host/replan-hash-nearest", ReplanHashNearest);
     }
 

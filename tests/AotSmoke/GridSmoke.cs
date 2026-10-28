@@ -115,6 +115,25 @@ internal static class GridSmoke
             ok &= handle.Step(int.MaxValue) == hostGrid.FindPath(new Cell(0, 0), new Cell(7, 4), new GridOptions { SpecializedEngines = specialised }).Status;
             ok &= handle.Status == SearchStatus.Found && handle.PathLength > 1 && handle.UsesSpecializedEngine == specialised;
         }
+        // The same handle running JPS and JPS+ on the specialised and the generic jump point engines, with a saved state in the middle.
+        foreach (GridAlgorithm jump in new[] { GridAlgorithm.Jps, GridAlgorithm.JpsPlus })
+        {
+            foreach (bool specialised in new[] { true, false })
+            {
+                var jumpOptions = new GridOptions { Algorithm = jump, SpecializedEngines = specialised };
+                GridSearch handle = hostGrid.CreateSearch(jumpOptions);
+                ok &= handle.TryBegin(new Cell(0, 0), new Cell(7, 4)) == PathStatus.InProgress;
+                handle.Step(2);
+                var jumpSaved = new byte[handle.GetStateSize()];
+                ok &= handle.SaveState(jumpSaved) == jumpSaved.Length;
+                handle.Step(1);
+                handle.RestoreState(jumpSaved);
+                GridPath jumpExpected = hostGrid.FindPath(new Cell(0, 0), new Cell(7, 4), jumpOptions);
+                ok &= handle.Step(int.MaxValue) == jumpExpected.Status && handle.UsesSpecializedEngine == specialised;
+                var jumpCells = new Cell[handle.PathLength];
+                ok &= handle.CopyPath(jumpCells) == jumpCells.Length && jumpExpected.Cells.SequenceEqual(jumpCells);
+            }
+        }
         foreach (GridHeuristic h in new[] { GridHeuristic.Zero, GridHeuristic.Manhattan, GridHeuristic.Euclidean, GridHeuristic.Octile })
         {
             GridSearch viaDelegate = hostGrid.CreateSearch(new GridOptions { Heuristic = h, StepCost = (_, _, c) => c });
