@@ -37,10 +37,26 @@ internal static class OursCrowd
         // method is "warm, in-process": run the whole row once untimed, let the promotions finish, then run it for the numbers.
         if (Arg(t, "prewarm", "1") != "0")
         {
-            _ = circle ? Circle(row, t) : City(row, t);
-            System.Threading.Thread.Sleep(500);
-            _ = circle ? Circle(row, t) : City(row, t);
-            System.Threading.Thread.Sleep(500);
+            // Repeat untimed runs (a pause after each so promotions finish) until two in a row agree within 3%: the JIT has settled.
+            double previous = 0;
+            for (int run = 0; run < 10; run++)
+            {
+                List<Row> rows = circle ? Circle(row, t) : City(row, t);
+                System.Threading.Thread.Sleep(500);
+                double rate = 0;
+                foreach (Row r in rows)
+                {
+                    if (r.Metric == "agents_per_ms")
+                    {
+                        rate = double.Parse(r.Value, CultureInfo.InvariantCulture);
+                    }
+                }
+                if (run >= 2 && previous > 0 && Math.Abs(rate - previous) <= 0.03 * previous)
+                {
+                    break;
+                }
+                previous = rate;
+            }
         }
         return circle ? Circle(row, t) : City(row, t);
     }
