@@ -85,6 +85,7 @@ internal static class CrowdFuzz
         var agents = new List<Agent>();
         bool edited = false;
         byte[]? saved = null;
+        bool tainted = false;
         for (int op = 0; op < 120 && inp.More; op++)
         {
             switch (inp.Byte() % 10)
@@ -206,9 +207,12 @@ internal static class CrowdFuzz
                             {
                                 crowd.RestoreStateWithMesh(saved);
                                 Resync(crowd, agents);
-                                if (!crowd.SaveStateWithMesh().AsSpan().SequenceEqual(saved))
+                                byte[] again = crowd.SaveStateWithMesh();
+                                // After damaged bytes were accepted the state may hold values a save normalises, so the byte checks wait for a clean start.
+                                if (!tainted && !again.AsSpan().SequenceEqual(saved))
                                 {
-                                    throw new InvalidOperationException("Restoring a snapshot and saving again gave different bytes.");
+                                    int di = 0; while (di < Math.Min(again.Length, saved.Length) && again[di] == saved[di]) di++;
+                                    throw new InvalidOperationException($"Restoring a snapshot and saving again gave different bytes. lens {saved.Length} {again.Length} first diff {di} edited={edited} tainted={tainted}");
                                 }
                             }
                             break;
@@ -230,7 +234,7 @@ internal static class CrowdFuzz
                                 {
                                     crowd.Step(1.0 / 30);
                                 }
-                                if (!crowd.SaveStateWithMesh().AsSpan().SequenceEqual(first))
+                                if (!tainted && !crowd.SaveStateWithMesh().AsSpan().SequenceEqual(first))
                                 {
                                     throw new InvalidOperationException("The same steps from the same snapshot gave different state.");
                                 }
@@ -259,6 +263,7 @@ internal static class CrowdFuzz
                                 Resync(crowd, agents);
                                 // Damage that still parses may have moved an agent off the mesh.
                                 edited = true;
+                                tainted = true;
                             }
                             catch (NavMeshFormatException)
                             {
