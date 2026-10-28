@@ -10,7 +10,7 @@ namespace RecursiveAI.OnePath.Bar;
 
 /// <summary>
 /// Our side of the navmesh build rows, and the mesh the query rows use: the OBJ level is built with our 3D builder on the settings the reference
-/// driver prints for the same row (cell 0.3, cell height 0.2, agent 0.6 / 2 / 0.9 / 45 degrees, region sizes 8 and 20, edge 12 cells, error 1.3, 6 vertices,
+/// driver prints for the same row (cell 0.3, cell height 0.2, agent 0.6 / 2 / 0.9 / 45 degrees, region sizes 8 and 20, edge 12 world units, error 1.3, 6 vertices,
 /// detail distance 6 cells and error 1 row). Solo rows build the whole level in one tile; tiled rows use tiles of <c>--tile-size</c> cells
 /// from the level's minimum corner. The metrics have the reference's names; coverage is the sum of polygon areas projected on the ground plane.
 /// </summary>
@@ -34,6 +34,7 @@ internal static class OursBuild
         (double[] verts, int[] idx) = LoadObj(obj);
         var times = new List<double>();
         NavMesh? last = null;
+        WarmUp(() => Build(verts, idx, tiled, tileCells));
         for (int i = 0; i < reps; i++)
         {
             long start = Stopwatch.GetTimestamp();
@@ -41,6 +42,7 @@ internal static class OursBuild
             times.Add((Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency);
         }
         times.Sort();
+        List<Row> profile = Environment.GetEnvironmentVariable("ONEPATH_PROFILE") == "1" ? StageProfile.Run(row, verts, idx, SettingsFor(verts, tiled, tileCells)) : new List<Row>();
         long polys = 0, nv = 0;
         int tiles = 0;
         for (int s = 0; s < last!.Tiles.SlotCount; s++)
@@ -56,7 +58,7 @@ internal static class OursBuild
         }
         string side = OurScenarios.Side;
         Row R(string metric, double v, string unit) => new(row.Part, row.Id, side, metric, v.ToString("R", CultureInfo.InvariantCulture), unit);
-        return new List<Row>
+        var rows = new List<Row>
         {
             R("time_best", times[0], "ms"),
             R("time_median", times[times.Count / 2], "ms"),
@@ -68,6 +70,29 @@ internal static class OursBuild
             R("peak_rss", Process.GetCurrentProcess().PeakWorkingSet64 / (1024.0 * 1024.0), "MB"),
             new Row(row.Part, row.Id, side, "settings", Describe(tiled, tileCells), "text"),
         };
+        rows.AddRange(profile);
+        return rows;
+    }
+
+    /// <summary>
+    /// Untimed runs until the runtime has finished optimizing the builder: the first runs execute unoptimized code (tiered compilation promotes methods
+    /// in the background after they have been called many times), which the native reference never pays and the "warm" method excludes. Stops when three
+    /// runs in a row are within 5% of each other, after at most 40 runs or 30 seconds (the wall clock bounds only the warm-up, never a result).
+    /// </summary>
+    internal static void WarmUp(Action run)
+    {
+        var last = new double[3];
+        long begin = Stopwatch.GetTimestamp();
+        for (int i = 0; i < 40; i++)
+        {
+            long start = Stopwatch.GetTimestamp();
+            run();
+            last[i % 3] = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
+            if ((i >= 4 && last.Max() <= last.Min() * 1.05) || (Stopwatch.GetTimestamp() - begin) / (double)Stopwatch.Frequency > 30)
+            {
+                return;
+            }
+        }
     }
 
     public static string Describe(bool tiled, int tileCells) =>
@@ -79,12 +104,18 @@ internal static class OursBuild
     /// <summary>The settings <see cref="Build"/> uses: the reference rows' humanoid values, the level's minimum corner as origin.</summary>
     public static NavSettings SettingsFor(double[] verts, bool tiled, int tileCells)
     {
-        double minX = double.MaxValue, minZ = double.MaxValue;
+        double minX = double.MaxValue, minZ = double.MaxValue, maxX = double.MinValue, maxZ = double.MinValue;
         for (int i = 0; i < verts.Length; i += 3)
         {
             minX = Math.Min(minX, verts[i]);
             minZ = Math.Min(minZ, verts[i + 2]);
+            maxX = Math.Max(maxX, verts[i]);
+            maxZ = Math.Max(maxZ, verts[i + 2]);
         }
+        // The solo build is one tile that covers the level and one cell more, like the reference's grid over the input bounds: an oversized tile
+        // would make our side voxelize, filter and trace a grid several times larger than the reference's.
+        double cs = (double)0.3f;
+        double soloSize = (double)(float)((Math.Ceiling(Math.Max(maxX - minX, maxZ - minZ) / cs) + 1) * cs);
         return new NavSettings
         {
             CellSize = (double)0.3f,
@@ -96,14 +127,14 @@ internal static class OursBuild
             MaxVertsPerPoly = 6,
             MinRegionArea = 64,
             MergeRegionArea = 400,
-            MaxEdgeLength = 12 * (double)0.3f,
+            // The references take 12 world units (40 cells at this cell size): their setting is a length, the cell count is derived from it.
+            MaxEdgeLength = 12.0,
             ContourMaxError = 1.3f,
             DetailSampleDistance = 6 * (double)0.3f,
             DetailMaxError = 1 * (double)0.2f,
             OriginX = minX,
             OriginZ = minZ,
-            // A tile of tileCells cells; the solo build is one tile large enough for any level in the suite.
-            TileSize = tiled ? (double)(tileCells * 0.3f) : 512,
+            TileSize = tiled ? (double)(tileCells * 0.3f) : soloSize,
         };
     }
 
