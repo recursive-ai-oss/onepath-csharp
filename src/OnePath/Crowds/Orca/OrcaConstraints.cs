@@ -189,6 +189,10 @@ public static class OrcaConstraints
     {
         double aa = Vector2D.Dot(a, a);
         bool overlapping = aa <= r * r;
+        if (!overlapping)
+        {
+            return Truncated(a, aa, r, tau, x, share, origin);
+        }
         bool domain = !overlapping;
         double t = overlapping ? dt : tau;
         Vector2D wa = x - a / t;
@@ -228,6 +232,54 @@ public static class OrcaConstraints
         double d = best - r / t;
         Vector2D u = new(-d * bestN.X, -d * bestN.Y);
         return new HalfPlane(origin + u * share, bestN);
+    }
+
+    // The truncated velocity obstacle of another agent, case by case (van den Berg et al. 2011, section 4, figure 2): the cone from the
+    // origin around the direction of the agent a, cut off at time tau by the disc of radius r/tau around a/tau. The point of its boundary
+    // closest to the relative velocity x is on the disc's arc (the cutoff case) or on one of the two legs (tangents from the origin).
+    // Requires |a| > r. The unit normal is the obstacle's outward normal there, the vector u runs from x to that point.
+    private static HalfPlane Truncated(Vector2D a, double aa, double r, double tau, Vector2D x, double share, Vector2D origin)
+    {
+        double wx = x.X - (a.X / tau);
+        double wy = x.Y - (a.Y / tau);
+        double wLenSq = (wx * wx) + (wy * wy);
+        double dot1 = (wx * a.X) + (wy * a.Y);
+        double nx, ny, ux, uy;
+        if (dot1 < 0 && dot1 * dot1 > r * r * wLenSq)
+        {
+            // Cutoff case: x projects onto the arc. The outward normal is the direction from the disc's centre to x.
+            double wLen = Math.Sqrt(wLenSq);
+            nx = wx / wLen;
+            ny = wy / wLen;
+            double move = (r / tau) - wLen;
+            ux = nx * move;
+            uy = ny * move;
+        }
+        else
+        {
+            // Leg case: the left leg when x is counter-clockwise of the cone's axis (cross(a, w) > 0), else the right leg.
+            // The leg is the ray from the origin along dir, the tangent direction of length 1 (cos = leg / |a|, sin = r / |a|).
+            double leg = Math.Sqrt(aa - (r * r));
+            double dx, dy;
+            if ((a.X * wy) - (a.Y * wx) > 0)
+            {
+                dx = ((a.X * leg) - (a.Y * r)) / aa;
+                dy = ((a.X * r) + (a.Y * leg)) / aa;
+                nx = -dy;
+                ny = dx;
+            }
+            else
+            {
+                dx = ((a.X * leg) + (a.Y * r)) / aa;
+                dy = ((a.Y * leg) - (a.X * r)) / aa;
+                nx = dy;
+                ny = -dx;
+            }
+            double along = (x.X * dx) + (x.Y * dy);
+            ux = (along * dx) - x.X;
+            uy = (along * dy) - x.Y;
+        }
+        return new HalfPlane(new Vector2D(origin.X + (ux * share), origin.Y + (uy * share)), new Vector2D(nx, ny));
     }
 
     private static void ConsiderPoint(Vector2D n, Vector2D wa, bool domain, Vector2D a, double r, double tol, ref double best, ref Vector2D bestN)
