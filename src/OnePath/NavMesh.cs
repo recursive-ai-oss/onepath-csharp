@@ -59,7 +59,7 @@ public sealed partial class NavMesh
     /// Builds a mesh from a square <see cref="Grid"/>: every cell that is not a wall is walkable. The mesh equals
     /// <see cref="Build2D(ReadOnlySpan{bool}, int, int, double, Vector2D, NavSettings?)"/> called with the grid's walkability, the cell size
     /// <see cref="GridSpace.CellSize"/> and the origin (<see cref="GridSpace.OriginX"/>, <see cref="GridSpace.OriginY"/>) of <see cref="Grid.Space"/>:
-    /// grid column x is world X, grid row y is world Z, and the floor is at <see cref="NavSettings.Height"/>.
+    /// grid column x is world X, grid row y is world Z, and the floor is at <see cref="NavSettings.FloorY"/>.
     /// <para>
     /// Clearance: the walkable cells are shrunk by <see cref="NavSettings.AgentRadius"/> like every 2D build, so an agent's centre may
     /// stand where its disc fits inside the walkable cells; the grid's own agent-size clearance is not used.
