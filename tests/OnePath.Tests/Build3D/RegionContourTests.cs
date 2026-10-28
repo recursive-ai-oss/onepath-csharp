@@ -493,6 +493,31 @@ public class ContourTests
         Assert.True(rev[0] >= pairs[0] * 0.8 && rev[2] >= pairs[2] * 0.8, stats);
     }
 
+    // The layer partition takes a shortcut (union-find over linked same-area spans) when no column holds two walkable spans; it must give exactly the
+    // regions the sweep and merge give, on fields with and without second floors, one or two area ids, holes and small regions.
+    [Fact]
+    public void LayerShortcutMatchesSweepAndMerge()
+    {
+        var rng = new TestRng(733);
+        int shortcut = 0;
+        for (int n = 0; n < 1500; n++)
+        {
+            bool single = n % 4 != 0;
+            var a = Fields.Random(rng, 4, 24, !single);
+            var b = a.Clone();
+            var rs = new RegionSettings { Partition = PartitionType.Layers, MinRegionArea = rng.Int(3) * 4, MergeRegionArea = 0 };
+            Regions.BuildLayers(a, rs);
+            Regions.BuildLayersGeneral(b, rs);
+            Assert.Equal(Fields.Region(b), Fields.Region(a));
+            Assert.Equal(b.RegionCount, a.RegionCount);
+            if (single && Fields.Region(a).Any(r => r > 0))
+            {
+                shortcut++;
+            }
+        }
+        Assert.True(shortcut > 500, $"{shortcut} fields used the shortcut");
+    }
+
     // Regression: a link from one span to a neighbour can exist without the link back (several close floors in a cell). Following such
     // links made contour tracing run off its loop; region and contour work only use mutual links. Here one-way links are made by
     // severing single directions. Holes simplified on their own can also cross the simplified outline; the raw loops are joined then.

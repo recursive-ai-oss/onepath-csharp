@@ -24,6 +24,9 @@ built and as first built, and the tile data of the first build:
 - a rebuild whose areas equal the last build's changes nothing (queueing is generous, so most rebuilds of a tile next to an obstacle find this);
 - a rebuild whose areas equal the first build's reuses the first build's tile data (taking the last obstacle off a tile costs no partition).
 
+The links between spans do not depend on areas or regions, so the span graph (mutual links, column of each span) is built once per cached tile and shared by every rebuild
+of it; this saves time and changes no result.
+
 Neither shortcut changes a result: a tile is a function of its areas. After a restore the last-built areas are forgotten (the mesh may hold
 anything), so the next rebuild of each queued tile runs in full.
 
