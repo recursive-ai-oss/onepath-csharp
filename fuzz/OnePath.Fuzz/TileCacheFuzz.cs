@@ -13,11 +13,51 @@ namespace RecursiveAI.OnePath.Fuzz;
 /// </summary>
 internal static class TileCacheFuzz
 {
-    private static readonly NavSettings s_settings = new() { CellSize = 0.5, CellHeight = 0.25, TileSize = 8, AgentRadius = 0.5f, AgentHeight = 1.8f, WalkableClimb = 0.4f };
-    private static readonly double[] s_soup = { 0, 0, 0, 0, 0, 16, 16, 0, 16, 16, 0, 0, 4, 1, 4, 4, 1, 12, 12, 1, 12, 12, 1, 4 };
-    private static readonly int[] s_index = { 0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7 };
-    private static readonly TileCache s_cache = new Mesh3DPipeline(s_settings).BuildSoupCached(s_soup, s_index);
-    private static readonly byte[] s_base = s_cache.Snapshot();
+    // Two subjects: the general path (watershed, height detail) and the layer-by-layer path (layers, no detail sampling) on a level with a bridge, so that
+    // a tile holds two layers. Bit 1 of the first byte picks one.
+    private sealed class Subject
+    {
+        public Subject(NavSettings settings, double[] soup, int[] index)
+        {
+            Settings = settings;
+            Soup = soup;
+            Index = index;
+            Cache = new Mesh3DPipeline(settings).BuildSoupCached(soup, index);
+            Base = Cache.Snapshot();
+        }
+
+        public NavSettings Settings { get; }
+
+        public double[] Soup { get; }
+
+        public int[] Index { get; }
+
+        public TileCache Cache { get; }
+
+        public byte[] Base { get; }
+    }
+
+    private static readonly Subject s_general = new(
+        new NavSettings { CellSize = 0.5, CellHeight = 0.25, TileSize = 8, AgentRadius = 0.5f, AgentHeight = 1.8f, WalkableClimb = 0.4f },
+        new double[] { 0, 0, 0, 0, 0, 16, 16, 0, 16, 16, 0, 0, 4, 1, 4, 4, 1, 12, 12, 1, 12, 12, 1, 4 },
+        new[] { 0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7 });
+
+    private static readonly Subject s_layers = new(
+        new NavSettings { Partition = PartitionType.Layers, CellSize = 0.5, CellHeight = 0.25, TileSize = 8, AgentRadius = 0.5f, AgentHeight = 1.8f, WalkableClimb = 0.4f, DetailSampleDistance = 0 },
+        new double[] { 0, 0, 0, 0, 0, 16, 16, 0, 16, 16, 0, 0, 3, 2, 3, 3, 2, 13, 13, 2, 13, 13, 2, 3 },
+        new[] { 0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7 });
+
+    private static Subject s_cur = s_general;
+
+    private static TileCache s_cache => s_cur.Cache;
+
+    private static byte[] s_base => s_cur.Base;
+
+    private static NavSettings s_settings => s_cur.Settings;
+
+    private static double[] s_soup => s_cur.Soup;
+
+    private static int[] s_index => s_cur.Index;
 
     private static readonly double[] Special =
     {
@@ -53,6 +93,7 @@ internal static class TileCacheFuzz
         {
             return;
         }
+        s_cur = (data[0] & 2) != 0 ? s_layers : s_general;
         s_cache.Restore(s_base);
         if ((data[0] & 1) == 0)
         {

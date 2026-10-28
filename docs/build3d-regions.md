@@ -46,6 +46,8 @@ instead. A test compares both on random fields.
 the layer partition above with every island kept, then layers assigned as in `build3d-polys.md` (overlapping regions on different layers). The tile's regions are then the connected components of "linked, same
 layer and same area" (union over the −x and −z links, ids in order of first span), followed by the island removal of §5. Because the layers stay fixed, a rebuild after an area change is one labelling pass; it
 never takes the sweep-and-merge path. A cached rebuild and a plain build use the same layers, so they give the same bytes. A pipeline whose `Regions.Partition` step was replaced uses that step instead.
+*Layer-by-layer build.* When the contour, polygon and detail steps are the default ones and the detail stage does not sample heights (`DetailSampleDistance` at most 0.9 cells), each layer of the tile is built on its own from its own spans
+(`build3d-runtime.md`, "Layer-first tiles"); otherwise all layers of a tile are partitioned, traced and polygonized together as described here.
 On the generated quality levels the polygon counts and walkable area under `Layers` equal the previous rule's (one level moves two polygon groups to another layer).
 
 ## 5. Filtering and numbering (`Regions.FilterRegions`)

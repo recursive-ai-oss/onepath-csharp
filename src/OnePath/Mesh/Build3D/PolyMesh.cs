@@ -88,7 +88,9 @@ public static class Polygonizer
         {
             throw new ArgumentOutOfRangeException(nameof(maxVertsPerPoly), maxVertsPerPoly, "The polygon vertex limit must be 3 to 16.");
         }
-        var weld = new Dictionary<(int, int), List<int>>();
+        // Welded vertices by position: the first vertex created at (x, z), and per vertex the next one created at the same place.
+        var weld = new Dictionary<long, int>();
+        var sameAt = new List<int>();
         var verts = new List<int>();
         var counts = new List<int>();
         var indices = new List<int>();
@@ -113,25 +115,33 @@ public static class Polygonizer
             var global = new int[v.Length];
             for (int i = 0; i < v.Length; i++)
             {
-                var key = (v[i].X, v[i].Z);
-                if (!weld.TryGetValue(key, out List<int>? ids))
-                {
-                    ids = new List<int>(1);
-                    weld.Add(key, ids);
-                }
+                long key = ((long)v[i].X << 32) | (uint)v[i].Z;
                 int id = -1;
-                foreach (int cand in ids)
+                int last = -1;
+                if (weld.TryGetValue(key, out int cand))
                 {
-                    if (Math.Abs(verts[(3 * cand) + 1] - v[i].Y) <= 1)
+                    for (; cand >= 0; cand = sameAt[cand])
                     {
-                        id = cand;
-                        break;
+                        last = cand;
+                        if (Math.Abs(verts[(3 * cand) + 1] - v[i].Y) <= 1)
+                        {
+                            id = cand;
+                            break;
+                        }
                     }
                 }
                 if (id < 0)
                 {
                     id = verts.Count / 3;
-                    ids.Add(id);
+                    sameAt.Add(-1);
+                    if (last >= 0)
+                    {
+                        sameAt[last] = id;
+                    }
+                    else
+                    {
+                        weld[key] = id;
+                    }
                     verts.Add(v[i].X);
                     verts.Add(v[i].Y);
                     verts.Add(v[i].Z);
@@ -400,18 +410,38 @@ public static class Polygonizer
         {
             return;
         }
+        // Whether a pair can merge depends only on the two polygons (and the wall edges, which change only when a merge drops a joint), so each pair is
+        // tested once: polygons carry an id that changes when they are merged.
+        var ids = new List<int>(polys.Count);
+        for (int i = 0; i < polys.Count; i++)
+        {
+            ids.Add(i);
+        }
+        int nextId = polys.Count;
+        var valid = new Dictionary<long, bool>();
         while (true)
         {
-            // Directed edge (a, b) of polygon p, edge e: look up the polygon holding (b, a).
-            var edgeOwner = new Dictionary<(int, int), (int Poly, int Edge)>();
+            // Directed edge (a, b) of polygon p, edge e: look up the polygon holding (b, a). The edges are sorted by (a, b, order of listing); the last of equal
+            // edges is the owner.
+            int edgeCount = 0;
+            for (int p = 0; p < polys.Count; p++)
+            {
+                edgeCount += polys[p].Length;
+            }
+            var edgeKey = new long[edgeCount];
+            var edgeVal = new int[edgeCount];
+            int ne = 0;
             for (int p = 0; p < polys.Count; p++)
             {
                 int[] pv = polys[p];
                 for (int e = 0; e < pv.Length; e++)
                 {
-                    edgeOwner[(pv[e], pv[(e + 1) % pv.Length])] = (p, e);
+                    edgeKey[ne] = ((long)pv[e] << 42) | ((long)pv[(e + 1) % pv.Length] << 21) | (uint)ne;
+                    edgeVal[ne] = (p << 8) | e;
+                    ne++;
                 }
             }
+            Array.Sort(edgeKey, edgeVal);
             long best = -1;
             int bestA = -1, bestEa = -1, bestB = -1, bestEb = -1;
             for (int pa = 0; pa < polys.Count; pa++)
@@ -420,10 +450,11 @@ public static class Polygonizer
                 for (int ea = 0; ea < A.Length; ea++)
                 {
                     int a = A[ea], b = A[(ea + 1) % A.Length];
-                    if (!edgeOwner.TryGetValue((b, a), out var other) || other.Poly <= pa)
+                    if (!FindEdge(edgeKey, edgeVal, b, a, out int ownerVal) || (ownerVal >> 8) <= pa)
                     {
                         continue;
                     }
+                    var other = (Poly: ownerVal >> 8, Edge: ownerVal & 0xFF);
                     int[] B = polys[other.Poly];
                     if (A.Length + B.Length - 2 > maxVerts)
                     {
@@ -431,7 +462,17 @@ public static class Polygonizer
                     }
                     long dx = verts[3 * a] - verts[3 * b], dz = verts[(3 * a) + 2] - verts[(3 * b) + 2];
                     long len = (dx * dx) + (dz * dz);
-                    if (len <= best || TryMerge(A, ea, B, other.Edge, verts, map, walls, null) is null)
+                    if (len <= best)
+                    {
+                        continue;
+                    }
+                    long pairKey = ((long)ids[pa] << 40) | ((long)ea << 32) | (uint)ids[other.Poly];
+                    if (!valid.TryGetValue(pairKey, out bool ok))
+                    {
+                        ok = TryMerge(A, ea, B, other.Edge, verts, map, walls, null) is not null;
+                        valid[pairKey] = ok;
+                    }
+                    if (!ok)
                     {
                         continue;
                     }
@@ -452,8 +493,41 @@ public static class Polygonizer
             {
                 walls.Add(w);
             }
+            if (added.Count > 0)
+            {
+                valid.Clear();
+            }
+            ids[bestA] = nextId++;
             polys.RemoveAt(bestB);
+            ids.RemoveAt(bestB);
         }
+    }
+
+    // The value of the last edge (a, b) in the sorted keys; false if there is none.
+    private static bool FindEdge(long[] keys, int[] vals, int a, int b, out int value)
+    {
+        long prefix = ((long)a << 42) | ((long)b << 21);
+        long limit = prefix | 0x1FFFFF;
+        int lo = 0, hi = keys.Length;
+        while (lo < hi)
+        {
+            int mid = (lo + hi) >> 1;
+            if (keys[mid] <= limit)
+            {
+                lo = mid + 1;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+        if (lo > 0 && keys[lo - 1] >= prefix)
+        {
+            value = vals[lo - 1];
+            return true;
+        }
+        value = 0;
+        return false;
     }
 
     // Merged ring: A from b round to a, then B's vertices after a up to before b.

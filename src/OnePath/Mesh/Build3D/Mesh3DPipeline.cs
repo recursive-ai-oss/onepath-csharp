@@ -421,7 +421,20 @@ public sealed class Mesh3DPipeline
         // Erosion and the pipeline's own volumes come first and only depend on the geometry, so the cache keeps the result; obstacles are
         // marked on a copy afterwards, with their footprint grown by the agent radius (see TileObstacle).
         CompactHeightfield chf = Regions.Spans.Finish(Regions.Spans.Prepare(solid));
+        if (UsesLeanLayers)
+        {
+            chf.ShareGraph();
+        }
+
         int[]? layers = UsesLayerFirst ? ComputeSpanLayers(chf) : null;
+        if (layers is not null && UsesLeanLayers)
+        {
+            var lean = LeanTile.Create(chf, layers, this, tx, tz);
+            lean.BuildFirst(this, cache?.Work ?? new LayerWork(), output);
+            cache?.StoreLean(lean);
+            return;
+        }
+
         if (cache is not null)
         {
             cache.Store(tx, tz, chf, layers);
@@ -691,9 +704,99 @@ public sealed class Mesh3DPipeline
     }
 
     private static readonly Action<CompactHeightfield, RegionSettings> s_defaultPartition = RegionStage.Build;
+    private static readonly Func<CompactHeightfield, ContourSettings, ContourSet> s_defaultTrace = Contours.Build;
+    private static readonly Func<ContourSet, int, int, TileCoordinates, PolyMesh> s_defaultPolygonize = Polygonizer.Build;
+    private static readonly Func<PolyMesh, CompactHeightfield, TileCoordinates, DetailSettings, DetailMeshSet> s_defaultDetail = DetailMeshBuilder.Build;
 
     // The layer-first path needs the default partition step: a replaced step decides regions itself.
     private bool UsesLayerFirst => Settings.Partition == PartitionType.Layers && Regions.RegionOptions.Partition == PartitionType.Layers && Regions.Partition == s_defaultPartition;
+
+    // The layer-first build runs on each layer's own arrays (LayerTileBuilder) when every step it replaces is the default one and the detail stage does not
+    // sample heights (it would read the tile's region ids, which the layer builder does not write).
+    internal bool UsesLeanLayers =>
+        UsesLayerFirst && Regions.Trace == s_defaultTrace && Polygonize == s_defaultPolygonize && BuildDetail == s_defaultDetail && !(Detail.SampleDistance / CellSize > 0.9);
+
+    /// <summary>
+    /// Polygons to the tile data of one layer: the vertical origin is the layer's lowest vertex, vertices are the ones its polygons use (in order of first appearance),
+    /// areas and flags come from the settings. Null when the polygons need no tile.
+    /// </summary>
+    internal NavTileData EmitLayerTile(PolyMesh mesh, CompactHeightfield chf, int tx, int tz, int layer, HeightfieldFrame f)
+    {
+        ReadOnlySpan<int> mv = mesh.Vertices;
+        int minRow = int.MaxValue, maxRow = int.MinValue;
+        for (int i = 0; i < mv.Length; i += 3)
+        {
+            minRow = Math.Min(minRow, mv[i + 1]);
+            maxRow = Math.Max(maxRow, mv[i + 1]);
+        }
+
+        double extent = (maxRow - minRow + (2 * (double)(SpanOptions.WalkableClimb + 1))) * Settings.CellHeight;
+        if (extent > Params.MaxLocalExtent)
+        {
+            throw new InvalidOperationException($"Tile ({tx}, {tz}) holds walkable surfaces spanning {extent:R} vertically; the format supports {Params.MaxLocalExtent:R} (16384 cells). Use a larger cell size.");
+        }
+
+        var map = new TileCoordinates(Border, TileCells, CellSize, Params.TileSize, Settings.CellHeight, minRow);
+        DetailMeshSet detail = BuildDetail(mesh, chf, map, Detail);
+        double originY = f.OriginY + (minRow * Settings.CellHeight);
+        int nv = mesh.VertexCount;
+        int np = mesh.PolygonCount;
+        ReadOnlySpan<int> counts = mesh.PolygonVertexCounts;
+        ReadOnlySpan<int> idx = mesh.PolygonIndices;
+        var remap = new int[nv];
+        Array.Fill(remap, -1);
+        for (int k = 0; k < idx.Length; k++)
+        {
+            remap[idx[k]] = 0;
+        }
+
+        int next = 0;
+        for (int v = 0; v < nv; v++)
+        {
+            if (remap[v] == 0)
+            {
+                remap[v] = next++;
+            }
+        }
+
+        if (next > ushort.MaxValue + 1)
+        {
+            throw new InvalidOperationException($"Tile ({tx}, {tz}) layer {layer} has {next} vertices; at most 65536 are supported. Use a smaller tile size.");
+        }
+
+        var lv = new float[next * 3];
+        for (int v = 0; v < nv; v++)
+        {
+            int r = remap[v];
+            if (r >= 0)
+            {
+                lv[3 * r] = map.Local(mv[3 * v]);
+                lv[(3 * r) + 1] = map.LocalY(mv[(3 * v) + 1]);
+                lv[(3 * r) + 2] = map.Local(mv[(3 * v) + 2]);
+            }
+        }
+
+        var li = new int[idx.Length];
+        for (int k = 0; k < idx.Length; k++)
+        {
+            li[k] = remap[idx[k]];
+        }
+
+        var la = new byte[np];
+        var lf = new ushort[np];
+        for (int p = 0; p < np; p++)
+        {
+            byte area = mesh.Areas[p];
+            la[p] = area == SpanSettings.WalkableArea ? Settings.Area : area;
+            lf[p] = Settings.Flags;
+        }
+
+        NavTileData data = NavTileAssembler.FromLocalPolygons(Params, tx, tz, layer, originY, lv, counts.ToArray(), li, la, lf);
+        data.DetailMeshes = detail.Meshes;
+        data.DetailVertices = detail.Vertices;
+        data.DetailTriangles = detail.Triangles;
+        return data;
+    }
 
     // The layer of every span of the tile, decided once from the geometry-only heightfield (before obstacles): the layer partition with every island kept,
     // then overlapping regions are put on different layers (AssignLayers). Spans that are not walkable get layer 0.
@@ -709,6 +812,28 @@ public sealed class Mesh3DPipeline
             int r = ws[i].Region;
             layers[i] = r > 0 ? layerOfRegion[r] : 0;
         }
+
+        // An eroded span (not walkable) goes with a walkable neighbour, so a layer keeps the spans around its floor.
+        SpanGraph g = SpanGraph.For(chf);
+        for (int i = 0; i < layers.Length; i++)
+        {
+            if (ws[i].Region > 0)
+            {
+                continue;
+            }
+
+            for (int d = 0; d < 4; d++)
+            {
+                int t = g.Nbr[(4 * i) + d];
+                if (t >= 0 && ws[t].Region > 0)
+                {
+                    layers[i] = layers[t];
+                    break;
+                }
+            }
+        }
+
+        g.Release();
         return layers;
     }
 

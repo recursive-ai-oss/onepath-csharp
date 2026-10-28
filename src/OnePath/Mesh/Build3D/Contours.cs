@@ -136,8 +136,8 @@ public static class Contours
 
         byte[] visited = Scratch.RentZeroed<byte>(n);
         var traceBuffer = new List<ContourVertex>(256);
-        var outers = new List<(ContourVertex[] Raw, long Area)>[maxRegion + 1];
-        var holes = new List<ContourVertex[]>[maxRegion + 1];
+        var outers = new List<(ContourVertex[] Raw, long Area)>?[maxRegion + 1];
+        var holes = new List<ContourVertex[]>?[maxRegion + 1];
         int guard = (4 * n) + 8;
         int[] nbrs = g.Nbr;
         for (int i = 0; i < n; i++)
@@ -174,6 +174,15 @@ public static class Contours
         }
         Scratch.Return(region);
         Scratch.Return(visited);
+        return Assemble(chf.Frame, maxRegion, regionArea, outers, holes, settings);
+    }
+
+    /// <summary>
+    /// Simplifies the traced loops of every region and joins holes to their outlines: the second half of <see cref="Build"/>, shared with the layer-first tile builder,
+    /// which traces its loops itself.
+    /// </summary>
+    internal static ContourSet Assemble(HeightfieldFrame frame, int maxRegion, byte[] regionArea, List<(ContourVertex[] Raw, long Area)>?[] outers, List<ContourVertex[]>?[] holes, ContourSettings settings)
+    {
         var result = new List<Contour>();
         int dropped = 0;
         int droppedHoles = 0;
@@ -241,7 +250,7 @@ public static class Contours
                     }
                     droppedHoles += failed;
                     // A region that overlaps itself seen from above (a spiral ramp) can have holes that cover the outline; keep the outline then.
-                    if (SignedArea2(poly.ToArray()) <= 0)
+                    if (SignedArea2(poly) <= 0)
                     {
                         droppedHoles += holesOf[k].Count - failed;
                         poly = outlineOnly;
@@ -250,7 +259,7 @@ public static class Contours
                 result.Add(new Contour(r, regionArea[r], poly.ToArray(), settings.KeepRawVertices ? rawOf[k] : null, settings.KeepRawVertices ? rawHolesOf[k]?.ToArray() ?? Array.Empty<ContourVertex[]>() : null));
             }
         }
-        return new ContourSet(chf.Frame, result, maxRegion, dropped, droppedHoles, fallbacks);
+        return new ContourSet(frame, result, maxRegion, dropped, droppedHoles, fallbacks);
     }
 
     // Joins the holes to the outline in order of their leftmost vertex; returns how many could not be joined.
@@ -349,6 +358,16 @@ public static class Contours
             }
         }
         return h;
+    }
+
+    internal static long SignedArea2(List<ContourVertex> p)
+    {
+        long a = 0;
+        for (int i = 0, j = p.Count - 1; i < p.Count; j = i++)
+        {
+            a += ((long)p[j].X * p[i].Z) - ((long)p[i].X * p[j].Z);
+        }
+        return a;
     }
 
     internal static long SignedArea2(ReadOnlySpan<ContourVertex> p)
@@ -530,7 +549,8 @@ public static class Contours
             }
         }
         long rawArea = SignedArea2(raw);
-        if (outLoop.Count < 3 || SignedArea2(outLoop.ToArray()) == 0 || Math.Sign(SignedArea2(outLoop.ToArray())) != Math.Sign(rawArea))
+        long outArea = outLoop.Count < 3 ? 0 : SignedArea2(outLoop);
+        if (outLoop.Count < 3 || outArea == 0 || Math.Sign(outArea) != Math.Sign(rawArea))
         {
             return null;
         }
@@ -652,7 +672,7 @@ public static class Contours
             {
                 continue;
             }
-            long a = SignedArea2(p.ToArray());
+            long a = SignedArea2(p);
             if (a < ownerArea)
             {
                 ownerArea = a;

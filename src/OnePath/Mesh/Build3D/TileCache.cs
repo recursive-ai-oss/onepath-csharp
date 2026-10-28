@@ -30,6 +30,8 @@ public sealed class TileCache
     private readonly List<long> _queue = new();
     private readonly HashSet<long> _queued = new();
     private readonly TileRef[] _refs = new TileRef[NavMeshFormat.MaxLayer + 1];
+    private readonly List<TileObstacle> _obstacleList = new();
+    private readonly List<ConvexVolume> _volumeList = new();
     private int _nextObstacle = 1;
     private int _nextVolume = 1;
     private TiledNavMesh? _mesh;
@@ -43,6 +45,17 @@ public sealed class TileCache
             TileZ = tz;
             Chf = chf;
         }
+
+        public Entry(LeanTile lean)
+        {
+            Lean = lean;
+            TileX = lean.TileX;
+            TileZ = lean.TileZ;
+            Chf = lean.Chf;
+        }
+
+        /// <summary>The tile split into layers, each rebuilt on its own (see <c>docs/build3d-runtime.md</c>), or null for the general path.</summary>
+        public LeanTile? Lean { get; }
 
         public int TileX { get; }
 
@@ -91,6 +104,11 @@ public sealed class TileCache
     public int CachedTileCount => _entries.Count;
 
     internal void SetMesh(TiledNavMesh mesh) => _mesh = mesh;
+
+    /// <summary>Buffers of the layer builder, reused by every rebuild.</summary>
+    internal LayerWork Work { get; } = new();
+
+    internal void StoreLean(LeanTile tile) => _entries[Key(tile.TileX, tile.TileZ)] = new Entry(tile);
 
     internal void Store(int tx, int tz, CompactHeightfield chf, int[]? layers)
     {
@@ -258,6 +276,12 @@ public sealed class TileCache
 
     private void RebuildTile(Entry e)
     {
+        if (e.Lean is not null)
+        {
+            RebuildLean(e.Lean);
+            return;
+        }
+
         var obstacles = new List<TileObstacle>(_obstacles.Count);
         foreach ((int _, TileObstacle o) in _obstacles)
         {
@@ -320,6 +344,147 @@ public sealed class TileCache
         foreach (int layer in gone)
         {
             mesh.RemoveTile(old[layer]);
+        }
+    }
+
+    // Layer-first tile: every layer is marked and compared with what the mesh holds for it; only the layers whose areas changed are built again.
+    // A layer whose areas are those of the first build gets the first build's tile back.
+    private void RebuildLean(LeanTile t)
+    {
+        Mesh3DPipeline p = _pipeline;
+        TiledNavMesh mesh = Mesh;
+        int nl = t.Layers.Length;
+        int existing = Math.Min(mesh.GetTilesAt(t.TileX, t.TileZ, _refs), _refs.Length);
+        var present = new TileRef?[nl];
+        for (int i = 0; i < existing; i++)
+        {
+            NavTile? nt = mesh.GetTile(_refs[i]);
+            if (nt is not null && nt.Layer < nl)
+            {
+                present[nt.Layer] = _refs[i];
+            }
+        }
+
+        // Obstacles and volumes in force, in the order they were added.
+        var obstacles = _obstacleList;
+        var volumes = _volumeList;
+        obstacles.Clear();
+        foreach ((int _, TileObstacle o) in _obstacles)
+        {
+            obstacles.Add(o);
+        }
+
+        volumes.Clear();
+        foreach ((int _, ConvexVolume v) in _volumes)
+        {
+            volumes.Add(v);
+        }
+
+        // Off-mesh links go to the layer that fits them best, so with links the whole tile is built again whenever any layer changed.
+        bool links = p.Settings.OffMeshLinks is { Count: > 0 };
+        LayerWork work = Work;
+        var fresh = new NavTileData?[nl];
+        var changed = new bool[nl];
+        var newArea = new byte[nl][];
+        bool any = false;
+        for (int l = 0; l < nl; l++)
+        {
+            LayerSpans ls = t.Layers[l];
+            bool marked = t.Mark(p, l, obstacles, volumes, work);
+            byte[]? last = t.LastArea[l];
+            // Nothing extra reaches the layer: its areas are the first build's.
+            bool same = last is not null && (marked ? work.Area.AsSpan(0, ls.Count).SequenceEqual(last) : ReferenceEquals(last, t.BaseArea[l]) || last.AsSpan().SequenceEqual(t.BaseArea[l]));
+            // The mesh must hold what the last build produced for the layer; a tile removed or replaced from outside is rebuilt.
+            if (same && (t.LastData[l] is null) == (present[l] is null))
+            {
+                continue;
+            }
+
+            changed[l] = true;
+            any = true;
+            if (!marked)
+            {
+                newArea[l] = t.BaseArea[l];
+                fresh[l] = t.BaseData[l];
+                continue;
+            }
+
+            newArea[l] = work.Area.AsSpan(0, ls.Count).ToArray();
+            if (!links)
+            {
+                fresh[l] = newArea[l].AsSpan().SequenceEqual(t.BaseArea[l])
+                    ? t.BaseData[l]
+                    : LayerTileBuilder.Build(p, ls, work.Area, work, t.Chf, t.TileX, t.TileZ);
+            }
+        }
+
+        if (!any)
+        {
+            return;
+        }
+
+        if (links)
+        {
+            // Every layer fresh, so that the links choose among all of them as in the first build.
+            var built = new List<NavTileData>();
+            for (int l = 0; l < nl; l++)
+            {
+                LayerSpans ls = t.Layers[l];
+                if (!t.Mark(p, l, obstacles, volumes, work))
+                {
+                    Array.Copy(t.BaseArea[l], work.Area, ls.Count);
+                }
+
+                newArea[l] = work.Area.AsSpan(0, ls.Count).ToArray();
+                changed[l] = true;
+                fresh[l] = LayerTileBuilder.Build(p, ls, work.Area, work, t.Chf, t.TileX, t.TileZ);
+                if (fresh[l] is not null)
+                {
+                    built.Add(fresh[l]!);
+                }
+            }
+
+            OffMeshLinkBaker.Attach(p.Params, p.Settings.OffMeshLinks, built, 0);
+        }
+
+        // Swap in layer order from the lowest: a layer that builds to the content the mesh holds keeps its tile (polygon references into it stay valid and its
+        // run-time polygon edits stay), a changed one replaces its tile, a new one is added; layers that no longer have a tile are removed last, lowest first.
+        for (int l = 0; l < nl; l++)
+        {
+            if (!changed[l])
+            {
+                continue;
+            }
+
+            NavTileData? prev = t.LastData[l];
+            NavTileData? d = fresh[l];
+            t.LastArea[l] = newArea[l];
+            t.LastData[l] = d;
+            if (d is null)
+            {
+                continue;
+            }
+
+            if (present[l] is not null && prev is not null && LeanTile.SameContent(prev, d))
+            {
+                continue;
+            }
+
+            NavTile tile = NavTile.Create(d, mesh.Params);
+            if (present[l] is not null && prev is null && mesh.GetTile(present[l]!.Value)!.ContentId.Equals(tile.ContentId))
+            {
+                continue;
+            }
+
+            mesh.ReplaceTile(tile);
+        }
+
+        for (int l = 0; l < nl; l++)
+        {
+            if (changed[l] && fresh[l] is null && present[l] is TileRef r)
+            {
+                mesh.RemoveTile(r);
+            }
         }
     }
 
@@ -515,6 +680,12 @@ public sealed class TileCache
         foreach (Entry e in _entries.Values)
         {
             e.LastAreas = null;
+            if (e.Lean is not null)
+            {
+                // The mesh holds anything now: forget both what each layer was built from and the tile data it was built to.
+                Array.Clear(e.Lean.LastArea);
+                Array.Clear(e.Lean.LastData);
+            }
         }
         _nextObstacle = (int)nextObstacle;
         _nextVolume = (int)nextVolume;
