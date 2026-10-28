@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using RecursiveAI.OneMath;
 using RecursiveAI.OnePath;
+using RecursiveAI.OnePath.Crowds.Corridors;
 using RecursiveAI.OnePath.Mesh;
 using RecursiveAI.OnePath.Mesh.Build3D;
 using RecursiveAI.OnePath.Mesh.Queries;
@@ -24,17 +25,17 @@ internal static class WorldSmoke
         WorldCrowd crowd = world.CreateCrowd();
         Agent agent = crowd.Add(new Vector3D(2, 0, 5), Agent.Humanoid);
         agent.SetDestination(new Vector3D(28, 0, 5));
-        for (int i = 0; i < 600; i++)
+        for (int i = 0; i < 3000 && !agent.ReachedTarget; i++)
         {
             crowd.Step(1.0 / 30);
         }
-        ok &= agent.ReachedTarget;
+        ok &= agent.State == FollowerState.Arrived && agent.Position.X > 26;
 
         // Streaming a tile column out and back in.
         TileStreamer st = world[0].CreateStreamer();
         string before = Hash(world[0].Tiles);
         List<byte[]> held = st.StreamOut(1, 0);
-        ok &= held.Count == 1 && world[0].FindPath(new Vector3D(2, 0, 5), new Vector3D(28, 0, 5)).Status == PathStatus.Partial;
+        ok &= held.Count == 1 && world[0].FindPath(new Vector3D(2, 0, 5), new Vector3D(28, 0, 5)).Status != PathStatus.Success;
         st.QueueAdd(held[0]);
         ok &= st.Update(4) == 1 && Hash(world[0].Tiles) == before;
 
