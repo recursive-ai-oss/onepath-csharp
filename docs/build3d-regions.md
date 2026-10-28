@@ -38,6 +38,10 @@ Start from the unfiltered monotone regions. Two regions *overlap* if some column
 that does not overlap `a`, merge the larger id into the smaller one (overlap and adjacency sets are unioned) and restart for the next `a`. The result is a set of layers in which no column holds two spans of one layer, and any two adjacent same-area layers overlap.
 Then only the island removal of §5 runs (minimum area; no merging).
 
+*Shortcut (same result).* When no column holds two walkable spans, no two regions overlap, so every pair of adjacent same-area regions merges and the partition is the connected components of "linked and same area". The
+implementation then labels components directly (union over the −x and −z links, ids in order of first span) and skips the sweep and the merge; when a component is smaller than the minimum area it uses the general code
+instead. A test compares both on random fields.
+
 ## 5. Filtering and numbering (`Regions.FilterRegions`)
 
 1. *Islands:* a region with fewer than `MinRegionArea` spans that has no neighbouring region of any area (no link from any of its spans to a span with a different, non-zero region) is removed: its spans get region 0.
