@@ -91,6 +91,17 @@ A lockstep or rollback host needs five things; each has its own tests and is doc
 | Iteration budgets | Sliced grid, graph, mesh and tile-cache work counts iterations, never time; the unit of one iteration per family is stated in each document | [grids.md](grids.md), [grids-state.md](grids-state.md), [navmesh-queries.md](navmesh-queries.md), [build3d-runtime.md](build3d-runtime.md) |
 | Debug geometry | Polygons, links, paths, corridors, agent velocities and grid state as plain data (namespace `RecursiveAI.OnePath.Debug`) | [navmesh-format.md](navmesh-format.md), [crowds.md](crowds.md), [grids-state.md](grids-state.md) |
 
+## Saved formats and their fixtures
+
+Every 1.x release reads every format written by an earlier 1.x release: navigation meshes and tiles, mesh and tile-cache snapshots, crowd state (with and without the mesh), path corridors and followers, grid, hex and voxel state, search, replanner and flow-field state, graphs and landmark tables. Reading is backward only; a later release may write a newer version marker.
+
+The rule that keeps it true:
+
+- A change to a format bumps that format's version marker. The reader keeps reading every earlier 1.x version.
+- Each release has a directory `tests/OnePath.Tests/Fixtures/<release>/` of small files its own code wrote (made by `tools/FormatFixtures` from generated scenes, with a `fixtures.tsv` manifest). A fixture is never regenerated or edited. A release that adds or changes a format adds a directory of its own and appends it to the list in `FormatFixtureTests`.
+- The expectation recorded beside each fixture is what the loaded state does, not its bytes: queries, searches, steps and edits after the load are run and hashed (SHA-256 of a transcript written only through the public API). Re-writing and comparing bytes would break the first time a release writes a newer marker.
+- `FormatFixtureTests` loads every fixture of every release with the current readers and compares. It also lists every public method that returns a byte array or fills a `Span<byte>`, and fails for one that has no fixture, so a new saved format cannot ship without one.
+
 ## Determinism and measurement
 
 | Document | Covers |

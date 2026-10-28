@@ -23,6 +23,7 @@ CORE_PROJECTS=(
   bench/Micro/Micro.csproj
   tools/HashMatrix/HashMatrix.csproj
   tools/GridOptima/GridOptima.csproj
+  tools/FormatFixtures/FormatFixtures.csproj
 )
 
 if [ -z "${ONEMATH_FEED:-}" ] && [ -d "$HOME/onepath/feed" ]; then
