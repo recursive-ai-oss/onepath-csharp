@@ -59,6 +59,8 @@ snapped to the nearest polygon within a (2, 4, 2) box and pairs with an unsnappe
 `findPath` followed by `findStraightPath`; an incomplete path (goal unreachable) is counted in `path_partial` and
 measured to the closest reachable point. Raycasts go from the first to the second point of each pair.
 
+Our side of a crowd row is run twice untimed in the same process (with a pause after each, so the JIT finishes promoting hot methods) before the timed run: a native reference is optimized from its first instruction, and a few dozen steps of a small crowd never reach the JIT's promotion thresholds.  turns it off.
+
 The crowd scenarios: **navmesh crowd** — N agents start at the query points and walk to other query points
 (humanoid parameters: radius 0.6, height 2.0, max speed 3.5, max acceleration 8, separation weight 2, all steering flags on),
 fixed step 0.05 s, 50 warm-up steps then the timed steps. **Circle** — N agents evenly on a circle (radius
