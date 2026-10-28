@@ -8,8 +8,14 @@
     <VersionSuffix Condition="'$(VersionSuffix)' == ''">dev</VersionSuffix>
     <Authors>Recursive AI, LLC</Authors>
     <Company>Recursive AI, LLC</Company>
-    <Copyright>Copyright (c) Recursive AI, LLC</Copyright>
+    <Copyright>Copyright © Recursive AI, LLC</Copyright>
     <PackageLicenseExpression>MIT OR Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/recursive-ai-oss/onepath-csharp</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>
+    <!-- Source Link ships in the SDK; it only adds repository metadata to the package, no runtime dependency. -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
   </PropertyGroup>
 
   <!--
