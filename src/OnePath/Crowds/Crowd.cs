@@ -21,7 +21,7 @@ namespace RecursiveAI.OnePath;
 /// with of the others. A crowd is not thread-safe; its state is plain data (see <c>docs/crowds.md</c>).
 /// </para>
 /// </summary>
-public sealed class Crowd
+public sealed partial class Crowd
 {
     private const int ChunkSize = 32;
     private const int MaxNeighborSlots = 12;
@@ -143,6 +143,8 @@ public sealed class Crowd
         _agentOpt[slot] = options;
         _priority[slot] = options.Priority;
         _flags[slot] = FlagActive;
+        _prefX[slot] = 0;
+        _prefZ[slot] = 0;
         _wallStamp[slot] = -1;
         _wallCount[slot] = 0;
         _count++;

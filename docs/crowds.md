@@ -321,13 +321,64 @@ off (a crowd stands in queues; `Path` can turn it on). `CrowdOptions`: 65536 age
   floor is still a neighbour in X/Z).
 - `ApplyCrowd` follows the corridor, not the neighbours: an agent pushed far off its corridor is brought back by `MovePosition` and the follower's repair, not by a new search.
 
-## State and snapshots
+## State and snapshots (`Crowd.SaveState`, `RestoreState`, `SaveStateWithMesh`, `RestoreStateWithMesh`)
 
-The crowd's state is plain data, written down here so the snapshot unit can serialize it without changing the step: per slot the agent's id, options (a
-record of doubles, enums and a nullable `FollowerOptions`), priority (changeable at any time), the follower's state (the follower's own bytes above), the wall cache (its
-centre and its pieces, at most `MaxWallsPerAgent`, or "stale"); per crowd the next id, the step count and the lowest free slot hint. Not state: the neighbour grid (rebuilt
-every step), the workers' buffers, the wanted/solved velocities (recomputed every step), the recorded constraints. A restore must mark every wall cache stale (the mesh edit counter
-is not saved), which only costs a lookup. The step does not depend on anything else.
+A host that rolls back gets the same crowd, bit for bit, as one that never left: the step after a restore equals the step after the
+save, for any thread count, and saving again gives the same bytes.
+
+**What is state.** Per crowd: the slot count (slots are never given back), the agent count, the lowest-free-slot hint, the next
+agent id and the step count. Per active slot: the agent's id, its options, its priority (changeable at any time), the flags of the last
+step (walking, crossing) and wanted velocity (both only for debug views: every step sets them before use), the follower's own bytes
+(above; the corridor and a replan in progress are in them), and the wall cache.
+
+**The wall cache is state, not an optimisation.** A cache is refreshed when the agent has moved more than `WallRefreshDistance` from
+where it was filled or the mesh was edited, so the pieces an agent avoids depend on *where the cache was filled*. A restore that
+dropped it would refill at the current position and the next steps would differ (a test that does this fails within a few steps).
+The cache is written only while it is valid for the mesh as it is now (stamp equal to `Mesh.EditCount`): its centre and the pieces in
+cache order. A stale cache is written as "stale" and refilled by the next step, exactly as the run that was saved would have done. On
+restore a valid cache is stamped with the restored mesh's current edit count. **The mesh must therefore be restored to the saved
+state first**; `RestoreStateWithMesh` does it in that order.
+
+**Not state** (rebuilt by the step, never read before being written): the neighbour grid and its sort keys, the snapshot of positions and
+velocities every agent sees, the solved velocities, the workers' query objects and buffers, the recorded constraint lines (they read
+as empty until the next step). `CrowdOptions` are not saved; the crowd restored into is created with the same options (the filter is a
+delegate and cannot be saved). `MaxWallsPerAgent` is checked against the bytes; `MaxAgents` bounds the slot count.
+There is no clock, random number or other hidden state: a step reads only the above, the mesh and `dt`.
+
+**Byte format, version 1** (little-endian, doubles by bit pattern; a flag is 0 or 1, anything else is an error):
+
+| Field | Type |
+|---|---|
+| magic `4F 50 43 53` ("OPCS"), format version | u32, u16 = 1 |
+| kind: 1 crowd, 2 crowd with mesh | u16 |
+| `MaxWallsPerAgent` | i32 |
+| slot count, agent count, lowest free slot | i32 ×3 |
+| next id, step count | u64 ×2 (at most 2^63 − 1) |
+| per slot, in slot order: active flag | u8 |
+| — if active: id (below the next id, no two equal) | u64 |
+| priority (above 0), flags (bit 0 active must be set; bit 1 walking, bit 2 crossing), preferred velocity x and z | f64, u8, f64 ×2 |
+| agent options: radius, max speed, max acceleration, arrival radius, priority, quality (u8), wall clearance, separation distance, separation weight, side preference, path-settings flag, and if set every `FollowerOptions` field in declaration order (doubles as f64, ints as i32, off-mesh mode as u8, search extents as three f64) | see order |
+| wall cache valid flag; if 1: centre x, z (f64 ×2), piece count (≤ `MaxWallsPerAgent`), per piece: ax ay az bx by bz (f64 ×6), polygon ref (u64), edge (i32) | u8, … |
+| follower byte length, follower bytes (`PathFollower.Write`) | i32, bytes |
+
+Kind 2 is: header, i32 mesh length, the mesh snapshot (`navmesh-snapshot.md`, in full or referenced mode), i32 crowd length, a kind-1 crowd state.
+
+**Reading.** Every count is bounded by the options and the bytes left; coordinates are finite and within ±2^21; the options pass the
+same validation as `Crowd.Add`; each follower is read by `PathFollower.Read` (its corridor must fit the capacity the options give);
+slots below the lowest-free hint must be active; the active slots must number the agent count. The reader is structural: positions,
+corridors and cached walls are not checked against the mesh (a snapshot of your own memory; stale ones are repaired by the steps),
+but nothing indexes out of range. Failures throw `NavMeshFormatException` naming the field and byte offset. **A restore is all or
+nothing**: everything is parsed into new objects first and nothing changes if any part is rejected (`RestoreStateWithMesh` also
+checks the crowd part before touching the mesh, and the mesh restore is itself all or nothing).
+
+**Agent objects.** Agents that are in the snapshot and still in the crowd keep their `Agent` object and their follower object (read in
+place). Agents added since are deactivated. Agents in the snapshot but removed since come back as new `Agent` objects with the same id
+(`Crowd.GetAgent(id)`, `CopyAgents`): a removed `Agent` is never revived. The next added agent gets the rewound id and the lowest
+free slot, as in the saved run.
+
+**Order for a host** that also holds other state: restore the mesh (or use the combined call), then the crowd, then anything built
+on them. Mesh edits made after the snapshot are undone by the mesh restore; agents' wall caches are valid again because the cache
+stamp is set from the restored mesh.
 
 ## Debug geometry
 
