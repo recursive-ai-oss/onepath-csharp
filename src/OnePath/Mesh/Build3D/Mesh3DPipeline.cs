@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using RecursiveAI.OneMath;
+using RegionStage = RecursiveAI.OnePath.Mesh.Build3D.Regions;
 
 namespace RecursiveAI.OnePath.Mesh.Build3D;
 
@@ -415,13 +416,14 @@ public sealed class Mesh3DPipeline
         // Erosion and the pipeline's own volumes come first and only depend on the geometry, so the cache keeps the result; obstacles are
         // marked on a copy afterwards, with their footprint grown by the agent radius (see TileObstacle).
         CompactHeightfield chf = Regions.Spans.Finish(Regions.Spans.Prepare(solid));
+        int[]? layers = UsesLayerFirst ? ComputeSpanLayers(chf) : null;
         if (cache is not null)
         {
-            cache.Store(tx, tz, chf);
+            cache.Store(tx, tz, chf, layers);
             chf = chf.Clone();
         }
         int from = output.Count;
-        FinishTile(chf, tx, tz, null, null, output);
+        FinishTile(chf, tx, tz, layers, null, null, output);
         cache?.StoreBase(tx, tz, output, from);
     }
 
@@ -429,10 +431,10 @@ public sealed class Mesh3DPipeline
     /// The obstacle-dependent half of a tile build, from the cached eroded compact heightfield (which it modifies, so pass a clone): obstacles (the
     /// pipeline's, then <paramref name="extraObstacles"/>) → <paramref name="extraVolumes"/> → regions → contours → polygons → detail → tile data.
     /// </summary>
-    internal void FinishTile(CompactHeightfield chf, int tx, int tz, IReadOnlyList<TileObstacle>? extraObstacles, IReadOnlyList<ConvexVolume>? extraVolumes, List<NavTileData> output)
+    internal void FinishTile(CompactHeightfield chf, int tx, int tz, int[]? layers, IReadOnlyList<TileObstacle>? extraObstacles, IReadOnlyList<ConvexVolume>? extraVolumes, List<NavTileData> output)
     {
         MarkObstacles(chf, extraObstacles, extraVolumes);
-        FinishMarked(chf, tx, tz, output);
+        FinishMarked(chf, tx, tz, layers, output);
     }
 
     /// <summary>Marks the pipeline's obstacles, then the extra ones, then applies the extra volumes, on an eroded compact heightfield.</summary>
@@ -460,48 +462,81 @@ public sealed class Mesh3DPipeline
     }
 
     /// <summary>Regions to tile data of a compact heightfield whose areas are final.</summary>
-    internal void FinishMarked(CompactHeightfield chf, int tx, int tz, List<NavTileData> output)
+    internal void FinishMarked(CompactHeightfield chf, int tx, int tz, int[]? spanLayers, List<NavTileData> output)
     {
         int first = output.Count;
-        FinishMarkedCore(chf, tx, tz, output);
+        FinishMarkedCore(chf, tx, tz, spanLayers, output);
         // Authored off-mesh links belong to the tile that holds their start, so every build and every rebuild of that tile bakes them in.
         OffMeshLinkBaker.Attach(Params, Settings.OffMeshLinks, output, first);
     }
 
-    private void FinishMarkedCore(CompactHeightfield chf, int tx, int tz, List<NavTileData> output)
+    private void FinishMarkedCore(CompactHeightfield chf, int tx, int tz, int[]? spanLayers, List<NavTileData> output)
     {
-        Regions.Partition(chf, Regions.RegionOptions);
+        int[]? regionLayer = null;
+        if (spanLayers is not null)
+        {
+            // Layer-first: regions are the connected same-area spans of one layer; a region's layer is the layer of its spans.
+            RegionStage.BuildLayerComponents(chf, spanLayers, Regions.RegionOptions);
+            regionLayer = new int[chf.RegionCount + 2];
+            ReadOnlySpan<CompactSpan> rs = chf.Spans;
+            for (int i = 0; i < rs.Length; i++)
+            {
+                int r = rs[i].Region;
+                if (r > 0)
+                {
+                    regionLayer[r] = spanLayers[i];
+                }
+            }
+        }
+        else
+        {
+            Regions.Partition(chf, Regions.RegionOptions);
+        }
         // Cut the border away: its spans become one extra region whose contours are ignored. The edges between it and the tile's
         // regions are then region-to-region edges, which contour simplification keeps straight between their end vertices, so they
         // stay exactly on the tile boundary.
         Span<CompactSpan> spans = chf.Spans;
         int maxRegion = 0;
-        for (int i = 0; i < spans.Length; i++)
+        if (regionLayer is not null)
         {
-            maxRegion = Math.Max(maxRegion, spans[i].Region);
+            // The layer-first partition numbers regions 1..RegionCount.
+            maxRegion = chf.RegionCount;
+        }
+        else
+        {
+            for (int i = 0; i < spans.Length; i++)
+            {
+                maxRegion = Math.Max(maxRegion, spans[i].Region);
+            }
         }
         int borderId = maxRegion + 1;
         HeightfieldFrame f = chf.Frame;
         bool any = false;
+        // Spans are stored column by column, so a run of columns is a run of spans: the rows above and below the tile and the strips left and
+        // right of it are cut in one go each, and only the tile's own columns are scanned for a region.
+        ReadOnlySpan<int> cellFirst = chf.CellFirst;
+        int cols = f.ColumnCount;
+        int total = spans.Length;
+        int inLo = Border, inHi = Border + TileCells;
         for (int z = 0; z < f.Depth; z++)
         {
-            for (int x = 0; x < f.Width; x++)
+            int row = z * f.Width;
+            if (z < inLo || z >= inHi)
             {
-                bool inside = x >= Border && x < Border + TileCells && z >= Border && z < Border + TileCells;
-                int col = x + (z * f.Width);
-                int first = chf.CellFirst[col], cnt = chf.CellCount[col];
-                for (int s = first; s < first + cnt; s++)
+                CutRange(spans, borderId, cellFirst[row], row + f.Width == cols ? total : cellFirst[row + f.Width]);
+                continue;
+            }
+            CutRange(spans, borderId, cellFirst[row], cellFirst[row + inLo]);
+            int a0 = cellFirst[row + inLo], a1 = cellFirst[row + inHi];
+            for (int i = a0; i < a1; i++)
+            {
+                if (spans[i].Region > 0)
                 {
-                    if (!inside && spans[s].Region > 0)
-                    {
-                        spans[s].Region = borderId;
-                    }
-                    else if (inside && spans[s].Region > 0)
-                    {
-                        any = true;
-                    }
+                    any = true;
+                    break;
                 }
             }
+            CutRange(spans, borderId, a1, row + f.Width == cols ? total : cellFirst[row + f.Width]);
         }
         if (!any)
         {
@@ -540,7 +575,7 @@ public sealed class Mesh3DPipeline
             local[(3 * i) + 2] = map.Local(mv[(3 * i) + 2]);
         }
 
-        int[] layerOfRegion = Settings.Partition == PartitionType.Layers ? AssignLayers(chf, borderId) : Array.Empty<int>();
+        int[] layerOfRegion = regionLayer ?? (Settings.Partition == PartitionType.Layers ? AssignLayers(chf, borderId) : Array.Empty<int>());
         int np = mesh.PolygonCount;
         var layerOfPoly = new int[np];
         int layers = 1;
@@ -636,6 +671,40 @@ public sealed class Mesh3DPipeline
             data.DetailTriangles = dts.ToArray();
             output.Add(data);
         }
+    }
+
+    // Spans [from, to) are outside the tile: those in a region join the border region.
+    private static void CutRange(Span<CompactSpan> spans, int borderId, int from, int to)
+    {
+        for (int i = from; i < to; i++)
+        {
+            if (spans[i].Region > 0)
+            {
+                spans[i].Region = borderId;
+            }
+        }
+    }
+
+    private static readonly Action<CompactHeightfield, RegionSettings> s_defaultPartition = RegionStage.Build;
+
+    // The layer-first path needs the default partition step: a replaced step decides regions itself.
+    private bool UsesLayerFirst => Settings.Partition == PartitionType.Layers && Regions.RegionOptions.Partition == PartitionType.Layers && Regions.Partition == s_defaultPartition;
+
+    // The layer of every span of the tile, decided once from the geometry-only heightfield (before obstacles): the layer partition with every island kept,
+    // then overlapping regions are put on different layers (AssignLayers). Spans that are not walkable get layer 0.
+    private static int[] ComputeSpanLayers(CompactHeightfield chf)
+    {
+        CompactHeightfield work = chf.Clone();
+        RegionStage.BuildLayers(work, new RegionSettings { Partition = PartitionType.Layers, MinRegionArea = 0, MergeRegionArea = 0 });
+        int[] layerOfRegion = AssignLayers(work, work.RegionCount + 1);
+        ReadOnlySpan<CompactSpan> ws = work.Spans;
+        var layers = new int[ws.Length];
+        for (int i = 0; i < layers.Length; i++)
+        {
+            int r = ws[i].Region;
+            layers[i] = r > 0 ? layerOfRegion[r] : 0;
+        }
+        return layers;
     }
 
     // Overlapping regions (sharing a column) go to different layers; otherwise a region joins the lowest layer holding a neighbour of it that is free,

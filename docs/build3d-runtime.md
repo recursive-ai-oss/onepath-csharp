@@ -31,7 +31,7 @@ Neither shortcut changes a result: a tile is a function of its areas. After a re
 anything), so the next rebuild of each queued tile runs in full.
 
 Building with a cache (`Mesh3DPipeline.BuildSoupCached`, `BuildChunkCached`, `BuildHeightfieldCached`) produces exactly the mesh the
-plain build produces; the pipeline runs the same code on a copy.
+plain build produces; the pipeline runs the same code on a copy. With `PartitionType.Layers` the cache also keeps each span's layer from the first build (see the layer-first partition in `build3d-regions.md`).
 
 The rebuild's cost is the partition and contour stages of `NavSettings.Partition`. `PartitionType.Layers` (monotone regions on height layers)
 with `DetailSampleDistance = 0` is the cheapest setting, and is what a host that adds and removes obstacles often should choose; watershed
