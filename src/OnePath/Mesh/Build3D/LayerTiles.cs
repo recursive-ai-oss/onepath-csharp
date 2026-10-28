@@ -187,7 +187,7 @@ internal sealed class LayerSpans
     }
 
     /// <summary>Sets area 0 on every walkable span this obstacle covers (see <see cref="TileObstacle.Mark"/>).</summary>
-    public void Mark(TileObstacle o, double grow, byte[] area)
+    public void Mark(TileObstacle o, double grow, byte[] area, LayerWork? delta = null)
     {
         HeightfieldFrame f = Frame;
         double reach = grow + f.CellSize;
@@ -222,6 +222,7 @@ internal sealed class LayerSpans
                 if (wy >= o.MinY && wy <= o.MaxY)
                 {
                     area[i] = 0;
+                    delta?.AddDelta(i);
                 }
             }
         }
@@ -288,6 +289,46 @@ internal sealed class LayerWork
     public byte[] HasNeighbor = Array.Empty<byte>();
     public byte[] Area = Array.Empty<byte>();
     public ContourVertex[] Loop = new ContourVertex[1024];
+    public int[] Keys = new int[1024];
+
+    /// <summary>Spans whose area an obstacle set to 0 in the last <see cref="LeanTile.Mark"/>, and whether that list says everything that changed (false when a volume applied).</summary>
+    public int[] Delta = new int[256];
+    public int DeltaCount;
+    public bool DeltaOk;
+
+    /// <summary>How many layer builds repaired the first build's contours, and how many with a repair on offer started from scratch (diagnostics for tests).</summary>
+    public bool LastRepaired;
+    public int Repaired;
+    public int Scratch;
+
+    // Scratch of the incremental repair (LayerRepair).
+    public int[] Stamp = Array.Empty<int>();
+    public int[] RingStamp = Array.Empty<int>();
+    public int[] Queue = Array.Empty<int>();
+    public int StampId;
+
+    public int[] Ring = new int[256];
+    public int RingCount;
+
+    public void AddRing(int span)
+    {
+        if (RingCount == Ring.Length)
+        {
+            Array.Resize(ref Ring, RingCount * 2);
+        }
+
+        Ring[RingCount++] = span;
+    }
+
+    public void AddDelta(int span)
+    {
+        if (DeltaCount == Delta.Length)
+        {
+            Array.Resize(ref Delta, DeltaCount * 2);
+        }
+
+        Delta[DeltaCount++] = span;
+    }
 
     public void Ensure(int n)
     {
@@ -302,6 +343,10 @@ internal sealed class LayerWork
             Map = new int[m + 1];
             HasNeighbor = new byte[m + 1];
             Area = new byte[m];
+            Stamp = new int[m];
+            RingStamp = new int[m];
+            Queue = new int[m];
+            StampId = 0;
         }
     }
 }
@@ -316,7 +361,7 @@ internal static class LayerTileBuilder
     /// <summary>
     /// Builds the tile of one layer from the areas in <paramref name="area"/>. Returns null when the layer has no walkable region inside the tile.
     /// </summary>
-    public static NavTileData? Build(Mesh3DPipeline p, LayerSpans ls, byte[] area, LayerWork w, CompactHeightfield chf, int tx, int tz)
+    public static NavTileData? Build(Mesh3DPipeline p, LayerSpans ls, byte[] area, LayerWork w, CompactHeightfield chf, int tx, int tz, LayerBase? capture = null, LayerBase? repairFrom = null)
     {
         int n = ls.Count;
         if (n == 0)
@@ -325,6 +370,42 @@ internal static class LayerTileBuilder
         }
 
         w.Ensure(n);
+        ContourSet? contours = null;
+        int borderId = 0;
+        w.LastRepaired = false;
+        // Obstacles only remove walkable spans: the contours of the first build are repaired where the removed spans are, when that can be shown safe.
+        if (repairFrom is { Ready: true } && w.DeltaOk)
+        {
+            contours = LayerRepair.Repair(p, ls, repairFrom, area, w);
+            borderId = repairFrom.BorderId;
+            w.LastRepaired = contours is not null;
+            w.Repaired += contours is not null ? 1 : 0;
+            w.Scratch += contours is null ? 1 : 0;
+        }
+
+        if (contours is null)
+        {
+            contours = FromScratch(p, ls, area, w, capture, out borderId);
+            if (contours is null)
+            {
+                return null;
+            }
+        }
+
+        PolyMesh mesh = p.Polygonize(contours, p.Settings.MaxVertsPerPoly, borderId, new TileCoordinates(p.Border, p.TileCells, p.CellSize, p.Params.TileSize, p.Settings.CellHeight, 0));
+        if (mesh.PolygonCount == 0)
+        {
+            return null;
+        }
+
+        return p.EmitLayerTile(mesh, chf, tx, tz, ls.Layer, ls.Frame);
+    }
+
+    // Regions and contours of a layer from scratch. Null when the layer has no region inside the tile.
+    private static ContourSet? FromScratch(Mesh3DPipeline p, LayerSpans ls, byte[] area, LayerWork w, LayerBase? capture, out int borderId)
+    {
+        int n = ls.Count;
+        borderId = 0;
         int[] nbr = ls.Nbr;
         int[] lab = w.Lab;
         int[] parent = w.Parent;
@@ -455,14 +536,21 @@ internal static class LayerTileBuilder
             return null;
         }
 
-        int borderId = count + 1;
+        borderId = count + 1;
         int[] region = w.Region;
         byte[] core = ls.Core;
         bool any = false;
         var regionArea = new byte[borderId + 1];
+        int[]? comp = capture?.Begin(n, count);
         for (int i = 0; i < n; i++)
         {
             int r = lab[i] == 0 ? 0 : map[lab[i]];
+            if (comp is not null)
+            {
+                comp[i] = r;
+                capture!.Note(r, i);
+            }
+
             if (r > 0)
             {
                 if (core[i] != 0)
@@ -485,8 +573,9 @@ internal static class LayerTileBuilder
         }
 
         // Contours: loops of the unit boundary edges of every region (a boundary edge has the region on its left).
-        var outers = new List<(ContourVertex[] Raw, long Area)>?[borderId + 1];
-        var holes = new List<ContourVertex[]>?[borderId + 1];
+        var outers = new List<TracedLoop>?[borderId + 1];
+        var holes = new List<TracedLoop>?[borderId + 1];
+        int loopCount = 0;
         byte[] visited = w.Visited;
         Array.Clear(visited, 0, n);
         int guard = (4 * n) + 8;
@@ -522,29 +611,34 @@ internal static class LayerTileBuilder
 
                 ContourVertex[] raw = Trace(nbr, region, sx, sz, sy, visited, i, d, guard, w);
                 long a2 = Contours.SignedArea2(raw);
+                // Loops are found in order of their smallest edge key, so a loop starts at its smallest key.
+                var loop = new TracedLoop(raw, a2) { Region = r, MinKey = (4 * i) + d };
+                if (capture is not null)
+                {
+                    loop.Keys = w.Keys.AsSpan(0, raw.Length).ToArray();
+                    capture.AddLoop(loop, loopCount);
+                }
+
+                loopCount++;
                 if (a2 > 0)
                 {
-                    (outers[r] ??= new List<(ContourVertex[], long)>()).Add((raw, a2));
+                    (outers[r] ??= new List<TracedLoop>()).Add(loop);
                 }
                 else
                 {
-                    (holes[r] ??= new List<ContourVertex[]>()).Add(raw);
+                    (holes[r] ??= new List<TracedLoop>()).Add(loop);
                 }
             }
         }
 
-        ContourSet contours = Contours.Assemble(ls.Frame, borderId, regionArea, outers, holes, new ContourSettings { MaxError = p.Regions.ContourOptions.MaxError, MaxEdgeLength = p.Regions.ContourOptions.MaxEdgeLength, KeepRawVertices = p.Regions.ContourOptions.KeepRawVertices, StraightRegionBorders = p.Regions.ContourOptions.StraightRegionBorders, BorderRegion = borderId });
-        PolyMesh mesh = p.Polygonize(contours, p.Settings.MaxVertsPerPoly, borderId, new TileCoordinates(p.Border, p.TileCells, p.CellSize, p.Params.TileSize, p.Settings.CellHeight, 0));
-        if (mesh.PolygonCount == 0)
-        {
-            return null;
-        }
-
-        return p.EmitLayerTile(mesh, chf, tx, tz, ls.Layer, ls.Frame);
+        var settings = new ContourSettings { MaxError = p.Regions.ContourOptions.MaxError, MaxEdgeLength = p.Regions.ContourOptions.MaxEdgeLength, KeepRawVertices = p.Regions.ContourOptions.KeepRawVertices, StraightRegionBorders = p.Regions.ContourOptions.StraightRegionBorders, BorderRegion = borderId };
+        ContourSet contours = Contours.Assemble(ls.Frame, borderId, regionArea, outers, holes, settings, capture is not null);
+        capture?.End(contours, regionArea, outers, holes, loopCount, settings.KeepRawVertices, region);
+        return contours;
     }
 
     // Walks one boundary loop with the region on the left. State (span, dir) is "at the start of edge dir of span".
-    private static ContourVertex[] Trace(int[] nbr, int[] region, int[] sx, int[] sz, int[] sy, byte[] visited, int start, int startDir, int guard, LayerWork w)
+    internal static ContourVertex[] Trace(int[] nbr, int[] region, int[] sx, int[] sz, int[] sy, byte[] visited, int start, int startDir, int guard, LayerWork w)
     {
         ContourVertex[] loop = w.Loop;
         int count = 0;
@@ -575,6 +669,12 @@ internal static class LayerTileBuilder
                     w.Loop = loop;
                 }
 
+                if (count == w.Keys.Length)
+                {
+                    Array.Resize(ref w.Keys, count * 2);
+                }
+
+                w.Keys[count] = (4 * s) + dir;
                 loop[count++] = new ContourVertex(cx, CornerHeight(nbr, sy, s, dir), cz, nv);
                 dir = (dir + 3) & 3;
             }
@@ -667,7 +767,11 @@ internal sealed class LeanTile
         LastData = new NavTileData?[layers.Length];
         BaseArea = new byte[layers.Length][];
         BaseData = new NavTileData?[layers.Length];
+        Bases = new LayerBase?[layers.Length];
     }
+
+    /// <summary>Per layer, what the first build left for repairing its contours (null: none).</summary>
+    public LayerBase?[] Bases { get; }
 
     public CompactHeightfield Chf { get; }
 
@@ -708,6 +812,8 @@ internal sealed class LeanTile
     public bool Mark(Mesh3DPipeline p, int layer, IReadOnlyList<TileObstacle>? extraObstacles, IReadOnlyList<ConvexVolume>? extraVolumes, LayerWork w)
     {
         LayerSpans ls = Layers[layer];
+        w.DeltaCount = 0;
+        w.DeltaOk = false;
         double grow = p.SpanOptions.WalkableRadius * ls.Frame.CellSize;
         double reach = grow + ls.Frame.CellSize;
         bool touched = false;
@@ -735,13 +841,16 @@ internal sealed class LeanTile
         w.Ensure(ls.Count);
         byte[] area = w.Area;
         Array.Copy(BaseArea[layer], area, ls.Count);
+        // Obstacles only take walkability away, so the spans they changed are a list the contour repair can start from; a volume can give spans another
+        // area, and then the layer is built from scratch.
+        w.DeltaOk = true;
         if (extraObstacles is not null)
         {
             foreach (TileObstacle o in extraObstacles)
             {
                 if (ls.Overlaps(o.MinX, o.MaxX, o.MinZ, o.MaxZ, reach))
                 {
-                    ls.Mark(o, grow, area);
+                    ls.Mark(o, grow, area, w);
                 }
             }
         }
@@ -753,6 +862,7 @@ internal sealed class LeanTile
                 if (ls.Overlaps(v.MinX, v.MaxX, v.MinZ, v.MaxZ, 0))
                 {
                     ls.Apply(v, area);
+                    w.DeltaOk = false;
                 }
             }
         }
@@ -765,6 +875,7 @@ internal sealed class LeanTile
     {
         LayerSpans ls = Layers[layer];
         w.Ensure(ls.Count);
+        w.DeltaOk = false;
         Array.Copy(ls.BaseArea, w.Area, ls.Count);
         double grow = p.SpanOptions.WalkableRadius * ls.Frame.CellSize;
         foreach (TileObstacle o in p.Obstacles)
@@ -791,7 +902,9 @@ internal sealed class LeanTile
         for (int l = 0; l < Layers.Length; l++)
         {
             MarkFirst(p, l, w);
-            NavTileData? d = LayerTileBuilder.Build(p, Layers[l], w.Area, w, Chf, TileX, TileZ);
+            var capture = p.Regions.ContourOptions.KeepRawVertices ? null : new LayerBase();
+            NavTileData? d = LayerTileBuilder.Build(p, Layers[l], w.Area, w, Chf, TileX, TileZ, capture);
+            Bases[l] = capture;
             BaseArea[l] = LastArea[l] = w.Area.AsSpan(0, Layers[l].Count).ToArray();
             BaseData[l] = LastData[l] = d;
             if (d is not null)

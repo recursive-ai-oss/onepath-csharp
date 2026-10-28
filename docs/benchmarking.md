@@ -181,7 +181,10 @@ of `--reps` builds of the level with its cache, layers stored uncompressed). Qua
 obstacles in force and after they are removed (`polys_restored` and `coverage_area_restored` must equal the initial values).
 
 Warm-up: our 3D build and tile-cache rows run untimed builds (obstacle cycles for `tilecache`) first, until three in a row are within 5%
-(at most 40, or 30 s; the clock bounds only the warm-up). Setting `ONEPATH_PROFILE=1` adds per-stage rows to our side: `stage_*_ms` is the
+(at most 40, or 30 s; the clock bounds only the warm-up). A `tilecache` cycle takes a millisecond or two, so three similar cycles say nothing about
+optimized code: the runtime promotes a method only after a quiet 100 ms and enough calls (twice with profile-guided optimization), and five
+unoptimized cycles are over in 15 ms. The `tilecache` warm-up therefore also runs for at least two seconds. Measured on the same machine and code, a cycle
+took 2.65 ms with the short warm-up and 1.2 ms with the two-second one; the earlier method measured mostly unoptimized code. Setting `ONEPATH_PROFILE=1` adds per-stage rows to our side: `stage_*_ms` is the
 time spent in each replaceable stage of `Mesh3DPipeline` (the public hooks, wrapped with a clock; summed over tiles, best of several
 runs), `stage_other_ms` the rest (triangle binning, voxelizing, tile data, stitching) and `stage_voxelize_standalone_ms` the voxelize step
 timed alone. Our `tilecache` rows use the partition and detail work DetourTileCache does on a rebuild (layer partition, no detail sampling) by

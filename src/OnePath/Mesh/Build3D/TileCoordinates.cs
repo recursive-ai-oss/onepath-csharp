@@ -25,7 +25,16 @@ public sealed class TileCoordinates
         TileSize = (float)tileSize;
         CellHeight = cellHeight;
         MinRow = minRow;
+        // Grid coordinates run from 0 to the cells across the grid (the tile's cells and a border on both sides).
+        long span = tileCells + (2L * border);
+        SafeCross = ((span * span) >> 19) + 1;
     }
+
+    /// <summary>
+    /// A turn of at least this many cell areas (twice the signed triangle area in cells) has the same sign at the float32 positions of its three corners:
+    /// each position is off by at most 2^-24 of the grid's extent W, which moves the determinant by less than 2^-21 W^2, and this is that bound plus a factor of four.
+    /// </summary>
+    internal long SafeCross { get; }
 
     /// <summary>Border cells on each side.</summary>
     public int Border { get; }
