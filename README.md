@@ -181,7 +181,7 @@ The snippets above are compiled and run by `tests/OnePath.Tests/ReadmeQuickstart
 ## Speed against the references
 
 Every row is **our time divided by the reference's** (below 1.00 is faster than the reference), warm, in-process, best of
-three, on the same inputs and settings, with grid costs checked against the optimal costs. The bar is 1.15 for navmesh parts and 1.00 for grids. Grid, query, build and tile-cache rows are from one locked run; the crowd rows are from the locked run before it, because the crowd code has not changed since. Rows refreshed after each
+three, on the same inputs and settings, with grid costs checked against the optimal costs. The bar is 1.15 for navmesh parts and 1.00 for grids. Grid, build and tile-cache rows are from one locked run; the path-query rows ("later run") are from a short locked run after the partial-path fix; the crowd rows are from the locked run before, because crowd stepping has not changed since. Rows refreshed after each
 run. Millisecond-scale rows (queries, tile cache) warm up for at least two seconds before timing. Method: [docs/benchmarking.md](docs/benchmarking.md).
 
 - **x64:** AMD Ryzen 9 7950X3D (16 cores, 32 threads), Linux, .NET 10.0.13.
@@ -195,12 +195,12 @@ run. Millisecond-scale rows (queries, tile cache) warm up for at least two secon
 | Grid JPS+ | 9 Moving AI maps | Warthog | 0.64-0.85 | 0.45-0.82 | |
 | Grid JPS, improved pruning | 9 Moving AI maps | Warthog | 0.71-0.88 | 0.57-0.88 | |
 | Grid JPS+, improved pruning | 9 Moving AI maps | Warthog | 0.80-1.00 | 0.58-0.95 | |
-| Path query | city, tiled | Detour | 0.60 | 0.51 | |
-| Path query | terraces, tiled | Detour | 0.57 | 0.46 | |
-| Path query | terraces, single tile | Detour | 0.73 | 0.58 | |
-| Path query | overlapping floors, single tile | Detour | 0.17 | 0.16 | |
-| Path query | city, single tile | Detour | 0.97 | 1.00 | |
-| Path query | tile map, tiled | Detour | **1.40** | **1.26** | misses the bar (1.05 / 0.95 in the previous run); under investigation |
+| Path query | city, tiled | Detour | 0.53 | 0.45 | later run |
+| Path query | terraces, tiled | Detour | 0.50 | 0.40 | later run |
+| Path query | terraces, single tile | Detour | 0.73 | 0.57 | later run |
+| Path query | overlapping floors, single tile | Detour | 0.14 | 0.13 | later run |
+| Path query | city, single tile | Detour | 0.92 | 0.91 | later run |
+| Path query | tile map, tiled | Detour | 1.04 | 0.94 | later run (1.40 / 1.26 before the partial-path fix) |
 | 3D build | 8 levels, solo and tiled | Recast | 0.23-0.89 | 0.24-1.06 | same settings; walkable coverage within 0.35% of Recast's on every level |
 | 2D build | tile map, solo and tiled, radius 0.5 / 0.75 / 1.0 | Recast | 0.42-0.89 | 0.43-0.95 | see the coverage note below |
 | Crowd | 100-5000 agents on a city mesh | DetourCrowd | 0.47-0.72 | 0.48-0.66 | earlier run (crowd code unchanged) |

@@ -4,6 +4,12 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.4.0-preview.3]
+
+### Fixed
+
+- **Path queries with an unreachable goal are fast again.** In the polygon node model (the default), a path whose goal cannot be reached ran a second search toward the nearest reachable polygon; on tiled tile maps, where most such queries end partial, that made path queries 1.40x (x64) and 1.26x (arm64) Detour's time. Nodes are now relaxed on cost plus the remaining straight-line estimate from their entry point, which gives the same corridors without the second search: that row now measures 1.04 / 0.94, and every path-query row is within the bar on both machines. Partial paths still end at the reachable polygon nearest the goal; path lengths on the 3D quality levels move by at most 0.4%, all toward shorter.
+
 ## [0.4.0-preview.2]
 
 ### Added
@@ -48,6 +54,7 @@ These types carry `[Experimental]` and may change or move in any preview:
 - Peak memory is higher than the native references'.
 - Path queries on one large single-tile city mesh ran 1.6-1.8x slower than Detour in the last locked run (a later change to the mesh contours is not yet re-measured), and the tile cache is 4-6x slower than DetourTileCache; the README table lists the rows.
 
-[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.2...HEAD
+[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.3...HEAD
+[0.4.0-preview.3]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.2...v0.4.0-preview.3
 [0.4.0-preview.2]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.1...v0.4.0-preview.2
 [0.4.0-preview.1]: https://github.com/recursive-ai-oss/onepath-csharp/releases/tag/v0.4.0-preview.1
