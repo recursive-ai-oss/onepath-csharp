@@ -11,7 +11,7 @@ using RecursiveAI.OnePath.Bar;
 //   <out>/report.md  one line per row: ours vs reference, ratio, memory, verdict
 // Usage: bar run --suite <file.tsv> [--ours-only 1] [--in-process 1] [--light 1] [--out <dir>] [--reps N] [--only <substring>] [--home <dir>] [--machine <name>]
 //        bar env
-// Heavy runs take the worker lock outside this program: tools/bench/locked-run.sh.
+// Heavy runs take the benchmark host's lock outside this program: tools/bench/locked-run.sh.
 return Cli.Execute(args);
 
 internal static class Cli
