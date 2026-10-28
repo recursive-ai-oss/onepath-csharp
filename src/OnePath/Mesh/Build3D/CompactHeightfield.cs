@@ -110,70 +110,87 @@ public sealed class CompactHeightfield
         HeightfieldFrame f = solid.Frame;
         ReadOnlySpan<int> heads = solid.Heads;
         int cols = f.ColumnCount;
-        int total = 0;
-        for (int c = 0; c < cols; c++)
-        {
-            for (int i = heads[c]; i != -1; i = solid.Span(i).Next)
-            {
-                if (solid.Span(i).Area != 0)
-                {
-                    total++;
-                }
-            }
-        }
+        int total = solid.CountWalkable();
         var first = new int[cols];
         var count = new int[cols];
         var spans = new CompactSpan[total];
+        SolidSpan[] raw = solid.RawSpans;
         int n = 0;
         for (int c = 0; c < cols; c++)
         {
             first[c] = n;
             for (int i = heads[c]; i != -1;)
             {
-                ref SolidSpan s = ref solid.Span(i);
+                ref SolidSpan s = ref raw[i];
+                int next = s.Next;
                 if (s.Area != 0)
                 {
-                    int h = s.Next == -1 ? 65535 : Math.Min(65535, solid.Span(s.Next).Min - s.Max);
-                    spans[n++] = new CompactSpan { Y = s.Max, Height = h, Area = s.Area, Connections = AllUnconnected, Region = 0 };
-                    count[c]++;
+                    int h = next == -1 ? 65535 : Math.Min(65535, raw[next].Min - s.Max);
+                    ref CompactSpan o = ref spans[n++];
+                    o.Y = s.Max;
+                    o.Height = h;
+                    o.Area = s.Area;
+                    o.Connections = AllUnconnected;
                 }
-                i = s.Next;
+                i = next;
             }
+            count[c] = n - first[c];
         }
 
-        for (int z = 0; z < f.Depth; z++)
+        int width = f.Width;
+        int depth = f.Depth;
+        for (int z = 0; z < depth; z++)
         {
-            for (int x = 0; x < f.Width; x++)
+            for (int x = 0; x < width; x++)
             {
-                int c = f.Column(x, z);
-                for (int k = first[c]; k < first[c] + count[c]; k++)
+                int c = (z * width) + x;
+                int end = first[c] + count[c];
+                for (int k = first[c]; k < end; k++)
                 {
                     ref CompactSpan s = ref spans[k];
-                    for (int dir = 0; dir < 4; dir++)
+                    int conn = AllUnconnected;
+                    // Columns beyond the grid have no spans. Directions: 0 = -x, 1 = +z, 2 = +x, 3 = -z.
+                    if (x > 0)
                     {
-                        int nx = x + DirX[dir];
-                        int nz = z + DirZ[dir];
-                        if ((uint)nx >= (uint)f.Width || (uint)nz >= (uint)f.Depth)
-                        {
-                            continue;
-                        }
-                        int nc = f.Column(nx, nz);
-                        for (int m = 0; m < count[nc] && m < NotConnected; m++)
-                        {
-                            ref readonly CompactSpan t = ref spans[first[nc] + m];
-                            int bottom = Math.Max(s.Y, t.Y);
-                            int top = Math.Min(s.Y + s.Height, t.Y + t.Height);
-                            if (top - bottom >= walkableHeight && Math.Abs(t.Y - s.Y) <= walkableClimb)
-                            {
-                                s.Connections = (s.Connections & ~(0x3f << (dir * 6))) | (m << (dir * 6));
-                                break;
-                            }
-                        }
+                        conn = Link(conn, 0, spans, first, count, c - 1, in s, walkableHeight, walkableClimb);
                     }
+                    if (z < depth - 1)
+                    {
+                        conn = Link(conn, 1, spans, first, count, c + width, in s, walkableHeight, walkableClimb);
+                    }
+                    if (x < width - 1)
+                    {
+                        conn = Link(conn, 2, spans, first, count, c + 1, in s, walkableHeight, walkableClimb);
+                    }
+                    if (z > 0)
+                    {
+                        conn = Link(conn, 3, spans, first, count, c - width, in s, walkableHeight, walkableClimb);
+                    }
+                    s.Connections = conn;
                 }
             }
         }
         return new CompactHeightfield(f, walkableHeight, walkableClimb, first, count, spans);
+    }
+
+    // The lowest span of column nc that span s can step to, written into direction dir of conn; conn unchanged when there is none.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private static int Link(int conn, int dir, CompactSpan[] spans, int[] first, int[] count, int nc, in CompactSpan s, int walkableHeight, int walkableClimb)
+    {
+        int limit = Math.Min(count[nc], NotConnected);
+        int nf = first[nc];
+        int sTop = s.Y + s.Height;
+        for (int m = 0; m < limit; m++)
+        {
+            ref readonly CompactSpan t = ref spans[nf + m];
+            int bottom = Math.Max(s.Y, t.Y);
+            int top = Math.Min(sTop, t.Y + t.Height);
+            if (top - bottom >= walkableHeight && Math.Abs(t.Y - s.Y) <= walkableClimb)
+            {
+                return (conn & ~(0x3f << (dir * 6))) | (m << (dir * 6));
+            }
+        }
+        return conn;
     }
 
     private const int AllUnconnected = NotConnected | (NotConnected << 6) | (NotConnected << 12) | (NotConnected << 18);

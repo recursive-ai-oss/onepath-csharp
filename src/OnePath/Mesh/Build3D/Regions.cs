@@ -10,53 +10,41 @@ namespace RecursiveAI.OnePath.Mesh.Build3D;
 /// </summary>
 internal sealed class SpanGraph
 {
+    private readonly CompactHeightfield _chf;
+    private int[]? _cellX;
+    private int[]? _cellZ;
+
     public SpanGraph(CompactHeightfield chf)
+        : this(chf, SpanLinks.Build(chf))
     {
+    }
+
+    /// <summary>Builds the graph from the raw links of <paramref name="chf"/> (see <see cref="SpanLinks.Build"/>). The graph takes ownership of the array and rewrites it in place.</summary>
+    public SpanGraph(CompactHeightfield chf, int[] rawLinks)
+    {
+        _chf = chf;
         HeightfieldFrame f = chf.Frame;
         Width = f.Width;
         Depth = f.Depth;
         Count = chf.SpanCount;
-        Nbr = new int[4 * Count];
-        CellX = new int[Count];
-        CellZ = new int[Count];
-        ReadOnlySpan<int> first = chf.CellFirst;
-        ReadOnlySpan<int> count = chf.CellCount;
-        Span<CompactSpan> spans = chf.Spans;
-        for (int z = 0; z < f.Depth; z++)
-        {
-            for (int x = 0; x < f.Width; x++)
-            {
-                int c = f.Column(x, z);
-                for (int i = first[c]; i < first[c] + count[c]; i++)
-                {
-                    CellX[i] = x;
-                    CellZ[i] = z;
-                    for (int d = 0; d < 4; d++)
-                    {
-                        int con = CompactHeightfield.GetConnection(spans[i], d);
-                        Nbr[(4 * i) + d] = con == CompactHeightfield.NotConnected
-                            ? -1
-                            : first[f.Column(x + CompactHeightfield.DirX[d], z + CompactHeightfield.DirZ[d])] + con;
-                    }
-                }
-            }
-        }
+        int[] nbr = rawLinks;
+        Nbr = nbr;
         for (int i = 0; i < Count; i++)
         {
             for (int d = 0; d < 4; d++)
             {
-                int t = Nbr[(4 * i) + d];
-                if (t >= 0 && Nbr[(4 * t) + ((d + 2) & 3)] != i)
+                int t = nbr[(4 * i) + d];
+                if (t >= 0 && nbr[(4 * t) + ((d + 2) & 3)] != i)
                 {
-                    Nbr[(4 * i) + d] = -2; // one-way: dropped after all pairs are examined
+                    nbr[(4 * i) + d] = -2; // one-way: dropped after all pairs are examined
                 }
             }
         }
-        for (int k = 0; k < Nbr.Length; k++)
+        for (int k = 0; k < nbr.Length; k++)
         {
-            if (Nbr[k] == -2)
+            if (nbr[k] == -2)
             {
-                Nbr[k] = -1;
+                nbr[k] = -1;
             }
         }
     }
@@ -69,9 +57,49 @@ internal sealed class SpanGraph
 
     public int[] Nbr { get; }
 
-    public int[] CellX { get; }
+    public int[] CellX
+    {
+        get
+        {
+            EnsureCells();
+            return _cellX!;
+        }
+    }
 
-    public int[] CellZ { get; }
+    public int[] CellZ
+    {
+        get
+        {
+            EnsureCells();
+            return _cellZ!;
+        }
+    }
+
+    private void EnsureCells()
+    {
+        if (_cellX != null)
+        {
+            return;
+        }
+        int w = Width;
+        var cx = new int[Count];
+        var cz = new int[Count];
+        ReadOnlySpan<int> first = _chf.CellFirst;
+        ReadOnlySpan<int> count = _chf.CellCount;
+        for (int z = 0, c = 0; z < Depth; z++)
+        {
+            for (int x = 0; x < w; x++, c++)
+            {
+                for (int i = first[c]; i < first[c] + count[c]; i++)
+                {
+                    cx[i] = x;
+                    cz[i] = z;
+                }
+            }
+        }
+        _cellX = cx;
+        _cellZ = cz;
+    }
 
     public bool OutsideGrid(int span, int dir)
     {
@@ -138,17 +166,28 @@ public static class Regions
         ArgumentNullException.ThrowIfNull(chf);
         ArgumentNullException.ThrowIfNull(settings);
         settings.Validate();
-        var g = new SpanGraph(chf);
+        int[] links = SpanLinks.Build(chf);
+        int[] dist = Erosion.ComputeBoundaryDistance(chf, links, 1 << 28);
+        var g = new SpanGraph(chf, links);
         Span<CompactSpan> spans = chf.Spans;
         int n = g.Count;
-        int[] dist = BuildDistanceField(chf, out int maxDist);
+        int maxDist = 0;
+        foreach (int d in dist)
+        {
+            maxDist = Math.Max(maxDist, d);
+        }
         var region = new int[n];
+        byte[] areaOf = GC.AllocateUninitializedArray<byte>(n);
+        for (int i = 0; i < n; i++)
+        {
+            areaOf[i] = spans[i].Area;
+        }
 
         // Counting sort of walkable spans by distance, ascending index inside a level.
         var start = new int[maxDist + 2];
         for (int i = 0; i < n; i++)
         {
-            if (spans[i].Area != 0)
+            if (areaOf[i] != 0)
             {
                 start[dist[i] + 1]++;
             }
@@ -158,10 +197,10 @@ public static class Regions
             start[l + 1] += start[l];
         }
         var fill = new int[maxDist + 1];
-        var order = new int[start[maxDist + 1]];
+        int[] order = GC.AllocateUninitializedArray<int>(start[maxDist + 1]);
         for (int i = 0; i < n; i++)
         {
-            if (spans[i].Area != 0)
+            if (areaOf[i] != 0)
             {
                 order[start[dist[i]] + fill[dist[i]]++] = i;
             }
@@ -170,9 +209,17 @@ public static class Regions
         int next = 0;
         var mark = new int[n];
         int stamp = 0;
-        var frontier = new List<int>();
-        var assign = new List<(int Span, int Region)>();
-        var queue = new Queue<int>();
+        int[] nbr = g.Nbr;
+        // The frontier and the round's assignments are plain arrays sized to the largest level; a queue of the same size serves the basin floods.
+        int widest = 0;
+        for (int l = 0; l <= maxDist; l++)
+        {
+            widest = Math.Max(widest, start[l + 1] - start[l]);
+        }
+        var frontier = new int[widest];
+        var next2 = new int[widest];
+        var assignRegion = new int[widest];
+        var queue = new int[widest];
         for (int level = maxDist; level >= 0; level--)
         {
             int lo = start[level];
@@ -182,50 +229,58 @@ public static class Regions
                 continue;
             }
             // Round 1: every span of this level that touches a region.
-            frontier.Clear();
-            for (int k = lo; k < hi; k++)
+            int fc = hi - lo;
+            Array.Copy(order, lo, frontier, 0, fc);
+            while (fc > 0)
             {
-                frontier.Add(order[k]);
-            }
-            while (frontier.Count > 0)
-            {
-                assign.Clear();
-                foreach (int s in frontier)
+                // Rounds are synchronous: every choice is made before any is applied, so the order inside the frontier does not matter.
+                int ac = 0;
+                for (int k = 0; k < fc; k++)
                 {
+                    int s = frontier[k];
                     int best = 0;
+                    byte a = areaOf[s];
                     for (int d = 0; d < 4; d++)
                     {
-                        int t = g.Nbr[(4 * s) + d];
-                        if (t >= 0 && region[t] > 0 && spans[t].Area == spans[s].Area && (best == 0 || region[t] < best))
+                        int t = nbr[(4 * s) + d];
+                        if (t >= 0)
                         {
-                            best = region[t];
+                            int rt = region[t];
+                            if (rt > 0 && areaOf[t] == a && (best == 0 || rt < best))
+                            {
+                                best = rt;
+                            }
                         }
                     }
                     if (best > 0)
                     {
-                        assign.Add((s, best));
+                        frontier[ac] = s;
+                        assignRegion[ac] = best;
+                        ac++;
                     }
                 }
-                foreach (var (s, r) in assign)
+                for (int k = 0; k < ac; k++)
                 {
-                    region[s] = r;
+                    region[frontier[k]] = assignRegion[k];
                 }
                 // Next round: unassigned spans of this level next to a span assigned just now.
                 stamp++;
-                frontier.Clear();
-                foreach (var (s, _) in assign)
+                int nc = 0;
+                for (int k = 0; k < ac; k++)
                 {
+                    int s = frontier[k];
                     for (int d = 0; d < 4; d++)
                     {
-                        int t = g.Nbr[(4 * s) + d];
-                        if (t >= 0 && region[t] == 0 && spans[t].Area != 0 && dist[t] == level && mark[t] != stamp)
+                        int t = nbr[(4 * s) + d];
+                        if (t >= 0 && region[t] == 0 && areaOf[t] != 0 && dist[t] == level && mark[t] != stamp)
                         {
                             mark[t] = stamp;
-                            frontier.Add(t);
+                            next2[nc++] = t;
                         }
                     }
                 }
-                frontier.Sort();
+                (frontier, next2) = (next2, frontier);
+                fc = nc;
             }
             // New basins: what is left of this level.
             for (int k = lo; k < hi; k++)
@@ -237,17 +292,19 @@ public static class Regions
                 }
                 int id = ++next;
                 region[s0] = id;
-                queue.Enqueue(s0);
-                while (queue.Count > 0)
+                int qh = 0, qt = 0;
+                queue[qt++] = s0;
+                byte area0 = areaOf[s0];
+                while (qh < qt)
                 {
-                    int s = queue.Dequeue();
+                    int s = queue[qh++];
                     for (int d = 0; d < 4; d++)
                     {
-                        int t = g.Nbr[(4 * s) + d];
-                        if (t >= 0 && region[t] == 0 && spans[t].Area == spans[s0].Area && dist[t] == level)
+                        int t = nbr[(4 * s) + d];
+                        if (t >= 0 && region[t] == 0 && areaOf[t] == area0 && dist[t] == level)
                         {
                             region[t] = id;
-                            queue.Enqueue(t);
+                            queue[qt++] = t;
                         }
                     }
                 }
@@ -520,11 +577,10 @@ public static class Regions
         Span<CompactSpan> spans = chf.Spans;
         var size = new int[count + 1];
         var area = new byte[count + 1];
-        var nei = new SortedDictionary<int, int>[count + 1];
-        for (int r = 1; r <= count; r++)
-        {
-            nei[r] = new SortedDictionary<int, int>();
-        }
+        int[] nbr = g.Nbr;
+        // Boundary lengths between regions, first as a flat array per region (in neighbour-id order), turned into sorted dictionaries only for the
+        // few regions the merge below looks at.
+        var off = new int[count + 2];
         for (int i = 0; i < n; i++)
         {
             int r = region[i];
@@ -536,13 +592,44 @@ public static class Regions
             area[r] = spans[i].Area;
             for (int d = 0; d < 4; d++)
             {
-                int t = g.Nbr[(4 * i) + d];
-                if (t >= 0 && region[t] > 0 && region[t] != r)
+                int t = nbr[(4 * i) + d];
+                if (t >= 0)
                 {
-                    nei[r][region[t]] = nei[r].GetValueOrDefault(region[t]) + 1;
+                    int rt = region[t];
+                    if (rt > 0 && rt != r)
+                    {
+                        off[r + 1]++;
+                    }
                 }
             }
         }
+        for (int r = 0; r <= count; r++)
+        {
+            off[r + 1] += off[r];
+        }
+        var raw = new int[off[count + 1]];
+        var fillAt = new int[count + 1];
+        for (int i = 0; i < n; i++)
+        {
+            int r = region[i];
+            if (r == 0)
+            {
+                continue;
+            }
+            for (int d = 0; d < 4; d++)
+            {
+                int t = nbr[(4 * i) + d];
+                if (t >= 0)
+                {
+                    int rt = region[t];
+                    if (rt > 0 && rt != r)
+                    {
+                        raw[off[r] + fillAt[r]++] = rt;
+                    }
+                }
+            }
+        }
+        var nei = new RegionNeighbors(off, raw, count);
         var alias = new int[count + 1];
         for (int r = 0; r <= count; r++)
         {
@@ -553,7 +640,7 @@ public static class Regions
         {
             for (int r = 1; r <= count; r++)
             {
-                if (size[r] > 0 && size[r] < minArea && nei[r].Count == 0)
+                if (size[r] > 0 && size[r] < minArea && off[r + 1] == off[r])
                 {
                     removed[r] = true;
                 }
@@ -631,3 +718,40 @@ public static class Regions
         chf.RegionCount = next;
     }
 }
+
+/// <summary>
+/// Region adjacency with boundary lengths. Built from a flat list of neighbour ids per region (one entry per touching span edge); a region's
+/// sorted map of neighbour id → edge count is made on first use, so the merge pays only for the regions it visits.
+/// </summary>
+internal sealed class RegionNeighbors
+{
+    private readonly int[] _off;
+    private readonly int[] _raw;
+    private readonly SortedDictionary<int, int>?[] _maps;
+
+    public RegionNeighbors(int[] off, int[] raw, int count)
+    {
+        _off = off;
+        _raw = raw;
+        _maps = new SortedDictionary<int, int>?[count + 1];
+    }
+
+    public SortedDictionary<int, int> this[int r]
+    {
+        get
+        {
+            SortedDictionary<int, int>? m = _maps[r];
+            if (m == null)
+            {
+                m = new SortedDictionary<int, int>();
+                for (int k = _off[r]; k < _off[r + 1]; k++)
+                {
+                    m[_raw[k]] = m.GetValueOrDefault(_raw[k]) + 1;
+                }
+                _maps[r] = m;
+            }
+            return m;
+        }
+    }
+}
+

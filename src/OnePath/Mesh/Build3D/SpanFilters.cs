@@ -61,19 +61,22 @@ public static class SpanFilters
         CheckHeightClimb(walkableHeight, walkableClimb);
         HeightfieldFrame f = hf.Frame;
         ReadOnlySpan<int> heads = hf.Heads;
-        for (int z = 0; z < f.Depth; z++)
+        SolidSpan[] spans = hf.RawSpans;
+        int width = f.Width;
+        int depth = f.Depth;
+        for (int z = 0; z < depth; z++)
         {
-            for (int x = 0; x < f.Width; x++)
+            for (int x = 0; x < width; x++)
             {
-                for (int i = heads[f.Column(x, z)]; i != -1;)
+                for (int i = heads[x + (z * width)]; i != -1;)
                 {
-                    ref SolidSpan s = ref hf.Span(i);
+                    ref SolidSpan s = ref spans[i];
                     int next = s.Next;
                     if (s.Area != 0)
                     {
                         int floor = s.Max;
-                        int ceiling = next == -1 ? Unbounded : hf.Span(next).Min;
-                        if (IsLedge(hf, x, z, floor, ceiling, walkableHeight, walkableClimb))
+                        int ceiling = next == -1 ? Unbounded : spans[next].Min;
+                        if (IsLedge(heads, spans, width, depth, x, z, floor, ceiling, walkableHeight, walkableClimb))
                         {
                             s.Area = 0;
                         }
@@ -109,33 +112,39 @@ public static class SpanFilters
         }
     }
 
-    private static bool IsLedge(SolidHeightfield hf, int x, int z, int floor, int ceiling, int height, int climb)
+    private static bool IsLedge(ReadOnlySpan<int> heads, SolidSpan[] spans, int width, int depth, int x, int z, int floor, int ceiling, int height, int climb)
     {
-        HeightfieldFrame f = hf.Frame;
-        int lowestDrop = Unbounded;
         int minAccessible = Unbounded;
         int maxAccessible = -Unbounded;
         for (int dir = 0; dir < 4; dir++)
         {
-            int nx = x + CompactHeightfield.DirX[dir];
-            int nz = z + CompactHeightfield.DirZ[dir];
-            if ((uint)nx >= (uint)f.Width || (uint)nz >= (uint)f.Depth)
+            // Direction order does not matter: any drop below the climb (or a missing column) makes a ledge, and the spread is a minimum and a maximum.
+            int col = dir switch
+            {
+                0 => x > 0 ? (x - 1) + (z * width) : -1,
+                1 => z < depth - 1 ? x + ((z + 1) * width) : -1,
+                2 => x < width - 1 ? (x + 1) + (z * width) : -1,
+                _ => z > 0 ? x + ((z - 1) * width) : -1,
+            };
+            if (col < 0)
             {
                 // Beyond the grid there is nothing to stand on.
-                lowestDrop = Math.Min(lowestDrop, -climb - 1);
-                continue;
+                return true;
             }
-            int first = hf.Heads[f.Column(nx, nz)];
+            int first = heads[col];
             // The gap below the column's first span is a floor at -climb: it counts as a drop for anything that stands higher.
             int nFloor = -climb;
-            int nCeil = first == -1 ? Unbounded : hf.Span(first).Min;
+            int nCeil = first == -1 ? Unbounded : spans[first].Min;
             int cur = first;
             while (true)
             {
                 if (Math.Min(ceiling, nCeil) - Math.Max(floor, nFloor) >= height)
                 {
                     int diff = nFloor - floor;
-                    lowestDrop = Math.Min(lowestDrop, diff);
+                    if (diff < -climb)
+                    {
+                        return true;
+                    }
                     if (Math.Abs(diff) <= climb)
                     {
                         minAccessible = Math.Min(minAccessible, nFloor);
@@ -146,15 +155,11 @@ public static class SpanFilters
                 {
                     break;
                 }
-                ref readonly SolidSpan ns = ref hf.Span(cur);
+                ref readonly SolidSpan ns = ref spans[cur];
                 nFloor = ns.Max;
-                nCeil = ns.Next == -1 ? Unbounded : hf.Span(ns.Next).Min;
+                nCeil = ns.Next == -1 ? Unbounded : spans[ns.Next].Min;
                 cur = ns.Next;
             }
-        }
-        if (lowestDrop < -climb)
-        {
-            return true;
         }
         return minAccessible != Unbounded && maxAccessible - minAccessible > climb;
     }
