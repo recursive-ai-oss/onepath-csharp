@@ -21,11 +21,7 @@ public class LayerTileTests
 
     private static TiledNavMesh Baked(Soup s, IEnumerable<TileObstacle> obstacles, NavSettings? st = null, IEnumerable<ConvexVolume>? volumes = null)
     {
-        var p = new Mesh3DPipeline(st ?? Lean);
-        foreach (TileObstacle o in obstacles)
-        {
-            p.Obstacles.Add(o);
-        }
+        var p = new Mesh3DPipeline(st ?? Lean) { Obstacles = [.. obstacles] };
         if (volumes is not null)
         {
             foreach (ConvexVolume v in volumes)

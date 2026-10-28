@@ -5,17 +5,20 @@ namespace RecursiveAI.OnePath.Mesh.Queries;
 /// <summary>Outcome of a polygon-set query (circle, shape, local neighbourhood) or of beginning one.</summary>
 public enum AreaQueryStatus
 {
+    /// <summary>No query has produced a result: the value of <c>default(AreaQueryStatus)</c>.</summary>
+    None = 0,
+
     /// <summary>The search finished; the result lists every polygon reached.</summary>
-    Success = 0,
+    Success = 1,
 
     /// <summary>A sliced search has not finished; finishing it now lists the polygons expanded so far.</summary>
-    InProgress = 1,
+    InProgress = 2,
 
     /// <summary>The start polygon reference is invalid, stale or rejected by the filter.</summary>
-    InvalidStartPoly = 2,
+    InvalidStartPoly = 3,
 
     /// <summary>The shape is not a convex polygon of 3 to 64 vertices with non-zero area (or has a vertex that is not finite).</summary>
-    InvalidShape = 3,
+    InvalidShape = 4,
 }
 
 /// <summary>Which polygons a polygon-set search keeps.</summary>

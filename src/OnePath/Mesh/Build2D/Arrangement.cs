@@ -3,12 +3,32 @@ using System.Collections.Generic;
 
 namespace RecursiveAI.OnePath.Mesh.Build2D;
 
-/// <summary>Thrown when an internal invariant of the geometry pipeline fails; this indicates a defect, never bad input.</summary>
-public sealed class GeometryException : InvalidOperationException
+/// <summary>
+/// Thrown when an internal invariant of the 2D geometry pipeline fails on the given input. Messy input is handled, so this
+/// indicates a defect in the builder: report it with the input that triggered it. It is a data error (the input could not be
+/// built into a mesh), so it shares <see cref="OnePathFormatException"/> with the other data errors and never derives from
+/// <see cref="InvalidOperationException"/>, which a host may catch for unrelated reasons.
+/// </summary>
+public sealed class GeometryException : OnePathFormatException
 {
+    /// <summary>Creates the exception with a default message.</summary>
+    public GeometryException()
+        : base("A geometry invariant failed.")
+    {
+    }
+
     /// <summary>Creates the exception with a message naming the failed invariant.</summary>
+    /// <param name="message">The failed invariant.</param>
     public GeometryException(string message)
         : base(message)
+    {
+    }
+
+    /// <summary>Creates the exception with a message and a cause.</summary>
+    /// <param name="message">The failed invariant.</param>
+    /// <param name="innerException">The cause.</param>
+    public GeometryException(string message, Exception? innerException)
+        : base(message, innerException)
     {
     }
 }

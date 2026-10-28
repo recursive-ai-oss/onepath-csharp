@@ -693,7 +693,7 @@ public class NavMeshQueryTests
             PathResult sync = q.FindPath(a, b, opt, cancellationToken: TestContext.Current.CancellationToken);
             foreach (int slice in new[] { 1, 5, 64 })
             {
-                PathResult asy = await q.FindPathAsync(a, b, opt, slice, TestContext.Current.CancellationToken);
+                PathResult asy = await q.FindPathAsync(a, b, opt with { IterationsPerSlice = slice }, TestContext.Current.CancellationToken);
                 Assert.Equal(sync.Status, asy.Status);
                 Assert.Equal(sync.Cost, asy.Cost);
                 Assert.True(System.Linq.Enumerable.SequenceEqual(sync.Points, asy.Points));
@@ -704,7 +704,7 @@ public class NavMeshQueryTests
         {
             var cts = new System.Threading.CancellationTokenSource();
             cts.Cancel();
-            await q.FindPathAsync(new Vector3D(-14.3, 0.2, -14.3), new Vector3D(-1.7, 0.2, -1.7), null, 1, cts.Token);
+            await q.FindPathAsync(new Vector3D(-14.3, 0.2, -14.3), new Vector3D(-1.7, 0.2, -1.7), new PathOptions { IterationsPerSlice = 1 }, cts.Token);
         });
     }
 

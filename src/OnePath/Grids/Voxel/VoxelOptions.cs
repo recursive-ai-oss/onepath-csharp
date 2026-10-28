@@ -39,11 +39,8 @@ public enum VoxelCornerRule
 }
 
 /// <summary>Options of a one-line voxel query. Plain values and delegates, no struct callbacks.</summary>
-public sealed class VoxelOptions
+public sealed record VoxelOptions
 {
-    private double _heuristicWeight = 1.0;
-    private int _iterationBudget = int.MaxValue;
-
     /// <summary>The moves allowed. Default 26 (<see cref="VoxelConnectivity.TwentySix"/>).</summary>
     public VoxelConnectivity Connectivity { get; init; } = VoxelConnectivity.TwentySix;
 
@@ -62,18 +59,7 @@ public sealed class VoxelOptions
     /// Multiplier on the estimate, 1 by default. Above 1 the search is faster and no longer optimal. Must be finite and not negative.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is negative, infinite or NaN.</exception>
-    public double HeuristicWeight
-    {
-        get => _heuristicWeight;
-        init
-        {
-            if (!(value >= 0.0) || double.IsPositiveInfinity(value))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value), value, "The heuristic weight must be finite and not negative.");
-            }
-            _heuristicWeight = value;
-        }
-    }
+    public double HeuristicWeight { get; init => field = Require.That(value >= 0.0 && double.IsFinite(value), value, nameof(HeuristicWeight), "finite and not negative"); } = 1.0;
 
     /// <summary>
     /// Optional cost adjustment: called with (from, to, grid's own cost) for every move considered; return the cost to use.
@@ -93,15 +79,7 @@ public sealed class VoxelOptions
     /// counts iterations, never time. Default unlimited. For a resumable search use <see cref="AStar{TTopology, TCost, THeuristic}"/>.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is below 1.</exception>
-    public int IterationBudget
-    {
-        get => _iterationBudget;
-        init
-        {
-            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
-            _iterationBudget = value;
-        }
-    }
+    public int IterationBudget { get; init => field = Require.That(value >= 1, value, nameof(IterationBudget), "at least 1"); } = int.MaxValue;
 
     /// <summary>26-connected, no corner cutting: the Moving AI voxel benchmark convention.</summary>
     public static VoxelOptions Default => new();
@@ -111,10 +89,6 @@ public sealed class VoxelOptions
 
     /// <summary>Face and edge moves.</summary>
     public static VoxelOptions EighteenConnected => new() { Connectivity = VoxelConnectivity.Eighteen };
-
-    /// <summary>A copy of these options.</summary>
-    /// <returns>A new, independent options object.</returns>
-    public VoxelOptions Clone() => (VoxelOptions)MemberwiseClone();
 }
 
 /// <summary>The result of a one-line voxel query. Immutable.</summary>

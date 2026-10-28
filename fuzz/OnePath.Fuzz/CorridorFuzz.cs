@@ -160,7 +160,7 @@ internal static class CorridorFuzz
                             g.Read(b);
                             g.Step(q, 1.0 / 30, filter);
                         }
-                        catch (NavMeshFormatException)
+                        catch (OnePathFormatException)
                         {
                         }
                         break;

@@ -97,7 +97,7 @@ each landmark `L`, `d(L, v)` (forward Dijkstra) and `d(v, L)` (Dijkstra over the
 - **Serialization** (`Serialize`/`Deserialize`), little-endian: `"OPLM"`, u32 format version `1`, i32 node count, i32
   landmark count, u64 graph fingerprint, i32 landmark ids, forward table, backward table (f64 bit patterns, landmark-major).
   `Deserialize(bytes, graph)` is strict: exact length, count in `1..N`, ids in range, fingerprint equal to the graph's,
-  every distance `>= 0` or +infinity (NaN and negatives rejected), landmark-to-itself distance 0. Anything else is a `GraphFormatException`.
+  every distance `>= 0` or +infinity (NaN and negatives rejected), landmark-to-itself distance 0. Anything else is a `GraphStateException`.
 - **Staleness:** a table belongs to the graph it was built for. A query with `GraphOptions.Landmarks` compares the table's
   graph (same object, or same node count and fingerprint) with the queried graph and throws `InvalidOperationException` on a
   mismatch, so edits to a `Graph` after building landmarks are caught. Tables assume edge costs are not below the stored
@@ -144,7 +144,7 @@ steady stream of queries allocates only the result. Concurrent queries on an une
   both equals an independent O(V^2) Dijkstra on 12,000 generated graphs (sparse directed with zero weights, dense,
   grid-like, road-like), with paths checked edge by edge; fractional-weight point graphs agree to 1e-9 relative.
 - Landmark bounds never exceed true distances and are consistent on 200 graphs; serialization round-trips and hostile bytes
-  give `GraphFormatException`.
+  give `GraphStateException`.
 - Sliced equals unsliced for several budgets; link building equals brute force and is permutation-stable.
 - Hash-matrix scenarios `graphs/*`; fuzz targets `graph-query`, `graph-landmarks`, `graph-points`.
 - `tools/GraphRoad` prints expansion counts for the four searches on a DIMACS road graph (`--gr`) or a generated planar road-like graph (`--generate`).

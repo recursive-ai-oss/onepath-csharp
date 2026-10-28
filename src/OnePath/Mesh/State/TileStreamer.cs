@@ -105,7 +105,7 @@ public sealed class TileStreamer
     /// </summary>
     /// <param name="tileX">Tile column.</param>
     /// <param name="tileZ">Tile row.</param>
-    public List<byte[]> StreamOut(int tileX, int tileZ)
+    public IReadOnlyList<byte[]> StreamOut(int tileX, int tileZ)
     {
         var result = new List<byte[]>();
         TileRef[] refs = Column(tileX, tileZ);

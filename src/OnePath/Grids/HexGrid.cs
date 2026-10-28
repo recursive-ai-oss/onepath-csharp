@@ -299,7 +299,7 @@ public sealed partial class HexGrid
     /// <returns>A view of this grid.</returns>
     public HexTopology CreateTopology() => new(this);
 
-    /// <summary>Finds a least-cost path between two cells.</summary>
+    /// <summary>Finds a least-cost path between two cells. There is no sliced async form on hex grids; to keep a frame loop responsive run this inside <c>Task.Run</c> (do not edit the grid meanwhile).</summary>
     /// <param name="start">Start cell (column, row).</param>
     /// <param name="goal">Goal cell.</param>
     /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>. Only the heuristic, weight, step cost, blocked filter, recording and iteration budget apply; the agent size must be 1.</param>
@@ -331,40 +331,6 @@ public sealed partial class HexGrid
             return new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         return FindPathCore(sc, gc, options ?? DefaultOptions, true, cancellationToken);
-    }
-
-    /// <summary>
-    /// Same as <see cref="FindPath(Cell, Cell, GridOptions?, CancellationToken)"/>, run on the thread pool so the calling thread
-    /// (a frame loop, a UI thread) is not blocked. The result equals the synchronous one for the same grid and options; nothing
-    /// depends on timing or on which thread runs it. Do not edit the grid until the task has completed. On single-threaded
-    /// WebAssembly the work runs on the same thread when you yield: always await the task, never block on it.
-    /// </summary>
-    /// <param name="start">Start cell.</param>
-    /// <param name="goal">Goal cell.</param>
-    /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
-    /// <param name="cancellationToken">Checked every 256 iterations; the task then ends cancelled.</param>
-    /// <returns>A task for the result.</returns>
-    /// <exception cref="ArgumentException">The options ask for an agent size other than 1 (thrown through the task).</exception>
-    /// <exception cref="OperationCanceledException">Cancellation was requested (thrown through the task).</exception>
-    public Task<GridPath> FindPathAsync(Cell start, Cell goal, GridOptions? options = null, CancellationToken cancellationToken = default)
-    {
-        GridOptions o = options ?? DefaultOptions;
-        // Task.Run only moves the work; the search is the synchronous one, so the result is the same.
-        return Task.Run(() => FindPathCore(start, goal, o, false, cancellationToken), cancellationToken);
-    }
-
-    /// <summary>World-position form of <see cref="FindPathAsync(Cell, Cell, GridOptions?, CancellationToken)"/>; the result carries world-space cell centres.</summary>
-    /// <param name="start">Start position.</param>
-    /// <param name="goal">Goal position.</param>
-    /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
-    /// <param name="cancellationToken">Checked every 256 iterations; the task then ends cancelled.</param>
-    /// <returns>A task for the result.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN or beyond ±2^21 (thrown through the task).</exception>
-    /// <exception cref="ArgumentException">The options ask for an agent size other than 1 (thrown through the task).</exception>
-    /// <exception cref="OperationCanceledException">Cancellation was requested (thrown through the task).</exception>
-    public Task<GridPath> FindPathAsync(WorldPoint start, WorldPoint goal, GridOptions? options = null, CancellationToken cancellationToken = default)
-    {
-        return Task.Run(() => FindPath(start, goal, options, cancellationToken), cancellationToken);
     }
 
     /// <summary>Creates an incremental search that keeps the path up to date as the grid is edited and the start moves; see <see cref="Grid.CreateReplanner"/>.</summary>

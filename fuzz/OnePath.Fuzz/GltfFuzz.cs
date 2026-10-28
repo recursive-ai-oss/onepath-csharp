@@ -132,10 +132,10 @@ internal static class GltfFuzz
                 case 0:
                     if (!held.ContainsKey(col))
                     {
-                        List<byte[]> o = st.StreamOut(col, 0);
+                        IReadOnlyList<byte[]> o = st.StreamOut(col, 0);
                         if (o.Count > 0)
                         {
-                            held[col] = o;
+                            held[col] = [.. o];
                         }
                     }
                     break;

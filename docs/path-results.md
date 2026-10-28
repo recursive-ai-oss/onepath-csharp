@@ -6,15 +6,20 @@ Every one-call path query reports through the same vocabulary, whatever the worl
 
 | Value | Number | Meaning |
 |---|---|---|
-| `Found` | 0 | A path to the goal exists in the result. |
-| `StartInvalid` | 1 | Start outside the world, blocked, or no walkable surface near it. |
-| `GoalInvalid` | 2 | Same for the goal. |
-| `NoPath` | 3 | The reachable set was exhausted; grid and graph queries return no best-effort path. |
-| `BudgetExhausted` | 4 | The iteration budget ran out; a sliced query may be continued. |
-| `Partial` | 5 | Goal unreachable (or node limit hit); the path leads to the closest reachable place. Navmesh queries and crowd agents. |
-| `InProgress` | 6 | Not finished; later crowd steps continue it. |
+| `None` | 0 | No query has produced a result. This is `default(PathStatus)`: an unassigned result, a zeroed array slot or a default struct field never reads as success. |
+| `Found` | 1 | A path to the goal exists in the result. |
+| `StartInvalid` | 2 | Start outside the world, blocked, or no walkable surface near it. |
+| `GoalInvalid` | 3 | Same for the goal. |
+| `NoPath` | 4 | The reachable set was exhausted; grid and graph queries return no best-effort path. |
+| `BudgetExhausted` | 5 | The iteration budget ran out; a sliced query may be continued. |
+| `Partial` | 6 | Goal unreachable (or node limit hit); the path leads to the closest reachable place. Navmesh queries and crowd agents. |
+| `InProgress` | 7 | Not finished; later crowd steps continue it. |
 
-The numbers are fixed (hash scenarios and logs write them). `HasPath()` is true for `Found` and `Partial`.
+The numbers are fixed (hash scenarios and logs write them). `HasPath()` is true for `Found` and `Partial` and false for `None`.
+
+**Zero is never success.** Every status enum a result can carry starts with a neutral value at 0 (`None`, or `NotStarted` for a search that
+has not begun), so `default` means "nothing happened". The success value is 1 in `PathStatus` (`Found`), `QueryStatus` (`Success`),
+`AreaQueryStatus` (`Success`) and `RaycastStatus` (`Ok`).
 
 ## Result members
 
@@ -27,14 +32,19 @@ The numbers are fixed (hash scenarios and logs write them). `HasPath()` is true 
 | Discrete path | `Cells` | `Cells` | `Nodes` | `Corridor` (polygons) |
 | World-space path | `Points` (`WorldPoint`) | `Points` (`VoxelPoint`) | `Points` (`Point3`, point graphs) | `Points` (`StraightPathPoint`) |
 
+`GridSearch.Status` and `GridSearch.Step` speak the same vocabulary: `None` before a search has begun, `InProgress` while it has work left,
+then `Found` or `NoPath`. The raw engines (`AStar`, `JumpSearch`, `ThetaSearch`, `GraphAStar`) keep `SearchStatus`
+(`NotStarted`, `Running`, `Found`, `NotFound`).
+
 `Agent.SetDestination` returns a `PathStatus`: `Found`, `Partial`, `InProgress`, `GoalInvalid` (nothing walkable near the destination)
 or `StartInvalid` (the agent is not on the mesh).
 
 ## Tier 2 and 3 keep their detail
 
 `QueryStatus` (namespace `RecursiveAI.OnePath.Mesh.Queries`) is the polygon-level outcome of `NavMeshQuery`'s sliced and span forms,
-straight paths and path corridors: `Success`, `Partial`, `InProgress`, `InvalidStartPoly`, `InvalidEndPoly`, `NoStartNearby`,
-`NoEndNearby`, `InvalidCorridor`. `QueryStatus.ToPathStatus()` maps it: Success→Found, Partial→Partial, InProgress→InProgress,
-the start errors→StartInvalid, the end errors→GoalInvalid, InvalidCorridor→NoPath. `SearchStatus` (grid sliced search), `RaycastStatus`,
-`AreaQueryStatus`, `CorridorStatus` and `FlowFieldStatus` describe their own operations and stay as they are.
+straight paths and path corridors: `None` (0), `Success` (1), `Partial` (2), `InProgress` (3), `InvalidStartPoly` (4), `InvalidEndPoly` (5),
+`NoStartNearby` (6), `NoEndNearby` (7), `InvalidCorridor` (8). `QueryStatus.ToPathStatus()` maps it: None→None, Success→Found,
+Partial→Partial, InProgress→InProgress, the start errors→StartInvalid, the end errors→GoalInvalid, InvalidCorridor→NoPath.
+`AreaQueryStatus` is `None` (0), `Success` (1), `InProgress` (2), `InvalidStartPoly` (3), `InvalidShape` (4); `RaycastStatus` is `None` (0), `Ok` (1),
+`InvalidStartPoly` (2), `StartOutsidePolygon` (3). `SearchStatus` (the raw engines), `CorridorStatus` and `FlowFieldStatus` describe their own operations and stay as they are.
 

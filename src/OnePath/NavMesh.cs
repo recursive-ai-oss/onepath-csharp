@@ -8,8 +8,7 @@ namespace RecursiveAI.OnePath;
 
 /// <summary>
 /// A navigation mesh for one agent class: the tiled mesh and the settings it was built with. Build it from outlines or
-/// a tile map with <see cref="Build2D(IEnumerable{Outline}, NavSettings?)"/>. The type is partial so that the
-/// query layer adds its members in a file of its own.
+/// a tile map with <see cref="Build2D(IEnumerable{Outline}, NavSettings?)"/>.
 /// </summary>
 public sealed partial class NavMesh
 {
@@ -28,7 +27,7 @@ public sealed partial class NavMesh
     /// <summary>
     /// Builds a mesh from walkable outlines: the union of the outlines (each the even-odd region of its rings) is the
     /// walkable area, which is shrunk by the agent radius and cut into tiles. Plane x is world X, plane y is world Z;
-    /// the floor is at <see cref="NavSettings.Height"/>.
+    /// the floor is at <see cref="NavSettings.FloorY"/>.
     /// </summary>
     /// <param name="walkable">The walkable outlines.</param>
     /// <param name="settings">Build settings; null means <see cref="NavSettings.Humanoid"/>.</param>

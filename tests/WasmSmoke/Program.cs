@@ -1,13 +1,14 @@
 using System;
+using RecursiveAI.OneMath;
 using RecursiveAI.OnePath;
 
 // Exercises the public surface under NativeAOT and full trimming. Exit code 0 means it ran.
 Console.WriteLine($"OnePath {OnePathInfo.Version}");
 Console.WriteLine($"OneMath {OnePathInfo.OneMathVersion}");
-bool ok = OnePathInfo.FixedToDouble(3L << 31) == 1.5;
+bool ok = FixedBridge.ToDouble(3L << 31) == 1.5;
 try
 {
-    OnePathInfo.FixedToDouble(long.MaxValue);
+    FixedBridge.ToDouble(long.MaxValue);
     ok = false;
 }
 catch (ArgumentOutOfRangeException)

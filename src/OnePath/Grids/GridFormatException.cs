@@ -6,7 +6,7 @@ using System.Text;
 namespace RecursiveAI.OnePath;
 
 /// <summary>Thrown when a map or scenario file does not follow its format; the message says what was wrong and where.</summary>
-public sealed class GridFormatException : FormatException
+public sealed class GridFormatException : OnePathFormatException
 {
     /// <summary>Creates the exception with a default message.</summary>
     public GridFormatException()

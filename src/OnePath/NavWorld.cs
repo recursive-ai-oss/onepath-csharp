@@ -130,12 +130,12 @@ public sealed class NavWorld
         int fit = -1, biggest = 0;
         for (int i = 0; i < _meshes.Length; i++)
         {
-            float r = _meshes[i].Settings.AgentRadius;
-            if (r > _meshes[biggest].Settings.AgentRadius)
+            double r = (float)_meshes[i].Settings.AgentRadius;
+            if (r > (float)_meshes[biggest].Settings.AgentRadius)
             {
                 biggest = i;
             }
-            if (r >= radius && (fit < 0 || r < _meshes[fit].Settings.AgentRadius))
+            if (r >= radius && (fit < 0 || r < (float)_meshes[fit].Settings.AgentRadius))
             {
                 fit = i;
             }
@@ -152,10 +152,10 @@ public sealed class NavWorld
     /// <param name="end">End (world).</param>
     /// <param name="radius">The agent's radius.</param>
     /// <param name="options">Path options; null means the defaults.</param>
-    /// <param name="cancellationToken">Checked every 256 expansions; see <see cref="NavMesh.FindPath(Vector3D, Vector3D, Mesh.Queries.PathOptions?, System.Threading.CancellationToken)"/>.</param>
+    /// <param name="cancellationToken">Checked every 256 expansions; see <see cref="NavMesh.FindPath(Vector3D, Vector3D, PathOptions?, System.Threading.CancellationToken)"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is not finite or beyond ±2^21, or the radius is negative.</exception>
     /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
-    public Mesh.Queries.PathResult FindPath(Vector3D start, Vector3D end, double radius, Mesh.Queries.PathOptions? options = null, System.Threading.CancellationToken cancellationToken = default) =>
+    public PathResult FindPath(Vector3D start, Vector3D end, double radius, PathOptions? options = null, System.Threading.CancellationToken cancellationToken = default) =>
         MeshFor(radius).FindPath(start, end, options, cancellationToken);
 
     /// <summary>Creates a crowd front with one crowd per class; see <see cref="WorldCrowd"/>.</summary>

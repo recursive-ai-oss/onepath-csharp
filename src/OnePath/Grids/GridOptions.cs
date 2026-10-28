@@ -8,14 +8,8 @@ namespace RecursiveAI.OnePath;
 /// Every default is documented here; the static presets cover the usual cases. Costs and filters are plain
 /// delegates: nothing here asks for a struct callback (those live in <see cref="AStar{TTopology, TCost, THeuristic}"/>).
 /// </summary>
-public sealed class GridOptions
+public sealed record GridOptions
 {
-    private int _agentSize = 1;
-    private double _heuristicWeight = 1.0;
-    private int _iterationBudget = int.MaxValue;
-    private int _nearestRadius = int.MaxValue;
-    private int _hpaChunkSize = 16;
-
     /// <summary>The moves allowed on a square grid. Default <see cref="OnePath.Connectivity.Eight"/>. Ignored on hex grids (always six).</summary>
     public Connectivity Connectivity { get; init; } = Connectivity.Eight;
 
@@ -27,16 +21,7 @@ public sealed class GridOptions
     /// (see docs/grids.md). Default 1. Hex grids support only 1.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is outside 1..255.</exception>
-    public int AgentSize
-    {
-        get => _agentSize;
-        init
-        {
-            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 255);
-            _agentSize = value;
-        }
-    }
+    public int AgentSize { get; init => field = Require.That(value is >= 1 and <= 255, value, nameof(AgentSize), "1 to 255"); } = 1;
 
     /// <summary>The distance estimate. Default <see cref="GridHeuristic.Auto"/>.</summary>
     public GridHeuristic Heuristic { get; init; } = GridHeuristic.Auto;
@@ -46,18 +31,7 @@ public sealed class GridOptions
     /// be longer than optimal.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is negative, infinite or NaN.</exception>
-    public double HeuristicWeight
-    {
-        get => _heuristicWeight;
-        init
-        {
-            if (!(value >= 0.0) || double.IsPositiveInfinity(value))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value), value, "The heuristic weight must be finite and not negative.");
-            }
-            _heuristicWeight = value;
-        }
-    }
+    public double HeuristicWeight { get; init => field = Require.That(value >= 0.0 && double.IsFinite(value), value, nameof(HeuristicWeight), "finite and not negative"); } = 1.0;
 
     /// <summary>
     /// Optional cost adjustment: called with (from, to, grid's own cost) for every move considered; return the cost
@@ -78,16 +52,7 @@ public sealed class GridOptions
 
     /// <summary>Chunk side in cells for <see cref="GridAlgorithm.Hpa"/> (2..1024). Default 16.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is outside 2..1024.</exception>
-    public int HpaChunkSize
-    {
-        get => _hpaChunkSize;
-        init
-        {
-            ArgumentOutOfRangeException.ThrowIfLessThan(value, 2);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 1024);
-            _hpaChunkSize = value;
-        }
-    }
+    public int HpaChunkSize { get; init => field = Require.That(value is >= 2 and <= 1024, value, nameof(HpaChunkSize), "2 to 1024"); } = 16;
 
     /// <summary>Whether <see cref="GridAlgorithm.Hpa"/> smooths the refined path (see <see cref="HpaSearch"/>). Default true.</summary>
     public bool HpaSmoothing { get; init; } = true;
@@ -116,30 +81,21 @@ public sealed class GridOptions
     /// examines. Default <see cref="int.MaxValue"/>: the whole grid.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is negative.</exception>
-    public int NearestRadius
-    {
-        get => _nearestRadius;
-        init
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(value);
-            _nearestRadius = value;
-        }
-    }
+    public int NearestRadius { get; init => field = Require.That(value >= 0, value, nameof(NearestRadius), "0 or more"); } = int.MaxValue;
 
     /// <summary>
     /// Most iterations (node expansions) a query may use before it gives up with <see cref="PathStatus.BudgetExhausted"/>;
     /// counts iterations, never time. Default unlimited.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is below 1.</exception>
-    public int IterationBudget
-    {
-        get => _iterationBudget;
-        init
-        {
-            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
-            _iterationBudget = value;
-        }
-    }
+    public int IterationBudget { get; init => field = Require.That(value >= 1, value, nameof(IterationBudget), "at least 1"); } = int.MaxValue;
+
+    /// <summary>
+    /// Iterations (node expansions) <see cref="Grid.FindPathAsync(Cell, Cell, GridOptions?, System.Threading.CancellationToken)"/> searches between
+    /// yields to the caller's context. Counts iterations, never time, and never changes the result. Default 256.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value is below 1.</exception>
+    public int IterationsPerSlice { get; init => field = Require.That(value >= 1, value, nameof(IterationsPerSlice), "at least 1"); } = 256;
 
     /// <summary>Eight-connected, no corner cutting, agent size 1: the Moving AI benchmark convention.</summary>
     public static GridOptions Default => new();
@@ -155,10 +111,6 @@ public sealed class GridOptions
     /// <returns>A new options object.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The size is outside 1..255.</exception>
     public static GridOptions ForAgentSize(int cells) => new() { AgentSize = cells };
-
-    /// <summary>A copy of these options.</summary>
-    /// <returns>A new, independent options object.</returns>
-    public GridOptions Clone() => (GridOptions)MemberwiseClone();
 }
 
 /// <summary>The result of a one-line grid query. Immutable.</summary>

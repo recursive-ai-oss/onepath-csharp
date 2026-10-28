@@ -29,7 +29,7 @@ the navmesh (its own snapshot: `docs/navmesh-snapshot.md`). Tier-1 one-shot quer
 * Objects that are *built over* something (a replanner, a flow field, a sliced search) are restored in place into an object that was
   created the same way: same grid (restored first), same options (agent size, connectivity, diagonal rule, algorithm, delegate hooks,
   heuristic weight). Delegates cannot be saved, so the caller supplies them again. What can be checked is checked: sizes, algorithm,
-  mode, goals and the heuristic weight must match, otherwise `GridStateException` names the mismatch.
+  mode, goals and the heuristic weight must match, otherwise `GridStateException` names the mismatch. (Graph state, saved by `Graph.SaveState` and `GraphAStar`, throws `GraphStateException` instead; both are `OnePathFormatException`.)
 * **Order:** restore the grid, then everything built on it. Restoring a grid tells its listeners: flow fields, replanners and
   HPA\* hierarchies drop what they derived and rebuild on next use; other listeners see each cell that differs as an ordinary edit
   (voxel listeners likewise per voxel, in ascending node order). Restoring a dependent afterwards replaces that rebuild with its
@@ -37,7 +37,7 @@ the navmesh (its own snapshot: `docs/navmesh-snapshot.md`). Tier-1 one-shot quer
 * **Versions can repeat after a rollback** (restore to version 7, edit once, and an object cached at "version 8" from the other
   timeline matches by number only). Nothing derived is therefore trusted across a restore; this is why the caches above are dropped.
 * A restore validates before it changes anything where it can: `Grid`, `HexGrid`, `VoxelGrid`, `Graph`, `GridReplanner` and
-  `HexReplanner` are unchanged when `GridStateException` is thrown. Flow fields and sliced searches are read in place and are
+  `HexReplanner` are unchanged when `GridStateException` or `GraphStateException` is thrown. Flow fields and sliced searches are read in place and are
   unusable after a failed restore until restored again, recomputed (`Recompute`) or begun again.
 * Hostile bytes: every count is bounded by the object's size and by the bytes left, every node index and parent is range-checked,
   heaps may not list a node twice, NaN is rejected, and the parent links of a search must lead only to visited nodes that cost no more and contain no cycle. The

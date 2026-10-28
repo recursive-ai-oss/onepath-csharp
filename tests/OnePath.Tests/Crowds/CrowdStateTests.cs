@@ -50,8 +50,7 @@ public class CrowdStateTests
         byte[] snap = meshEdits ? sim.Crowd.SaveStateWithMesh() : sim.Crowd.SaveState();
         Assert.True(straight[SnapAt - 1].AsSpan().SequenceEqual(sim.Crowd.SaveState()), "run before the snapshot differs");
 
-        var atSnap = new List<Agent>();
-        sim.Crowd.CopyAgents(atSnap);
+        var atSnap = new List<Agent>(sim.Crowd);
 
         // Another timeline: the script goes on, then more is done to the crowd and the mesh that the straight run never did.
         CrowdRollback.Run(sim, SnapAt, DivergeTo, meshEdits);
@@ -158,21 +157,21 @@ public class CrowdStateTests
         for (int n = 0; n < snap.Length; n++)
         {
             byte[] cut = snap.AsSpan(0, n).ToArray();
-            Assert.Throws<NavMeshFormatException>(() => sim.Crowd.RestoreState(cut));
+            Assert.Throws<CrowdStateException>(() => sim.Crowd.RestoreState(cut));
         }
         Assert.True(before.AsSpan().SequenceEqual(sim.Crowd.SaveState()), "a rejected restore changed the crowd");
         byte[] trailing = new byte[snap.Length + 1];
         snap.CopyTo(trailing, 0);
-        Assert.Throws<NavMeshFormatException>(() => sim.Crowd.RestoreState(trailing));
+        Assert.Throws<CrowdStateException>(() => sim.Crowd.RestoreState(trailing));
 
         byte[] both = sim.Crowd.SaveStateWithMesh();
         for (int n = 0; n < both.Length; n += Math.Max(1, both.Length / 400))
         {
             byte[] cut = both.AsSpan(0, n).ToArray();
-            Assert.Throws<NavMeshFormatException>(() => sim.Crowd.RestoreStateWithMesh(cut));
+            Assert.Throws<CrowdStateException>(() => sim.Crowd.RestoreStateWithMesh(cut));
         }
-        Assert.Throws<NavMeshFormatException>(() => sim.Crowd.RestoreStateWithMesh(snap));
-        Assert.Throws<NavMeshFormatException>(() => sim.Crowd.RestoreState(both));
+        Assert.Throws<CrowdStateException>(() => sim.Crowd.RestoreStateWithMesh(snap));
+        Assert.Throws<CrowdStateException>(() => sim.Crowd.RestoreState(both));
         Assert.True(before.AsSpan().SequenceEqual(sim.Crowd.SaveState()));
     }
 
@@ -204,7 +203,7 @@ public class CrowdStateTests
                 victim.Crowd.Step(CrowdRollback.Dt);
                 victim.Crowd.Step(CrowdRollback.Dt);
             }
-            catch (NavMeshFormatException)
+            catch (CrowdStateException)
             {
                 rejected++;
                 Assert.True(before.AsSpan().SequenceEqual(victim.Crowd.SaveState()), $"trial {trial}: a rejected restore changed the crowd");
@@ -220,8 +219,8 @@ public class CrowdStateTests
         CrowdSim sim = CrowdRollback.Populated(1);
         byte[] snap = sim.Crowd.SaveState();
         var other = new Crowd(sim.Mesh, new CrowdOptions { MaxWallsPerAgent = 24 });
-        Assert.Throws<NavMeshFormatException>(() => other.RestoreState(snap));
+        Assert.Throws<CrowdStateException>(() => other.RestoreState(snap));
         var small = new Crowd(sim.Mesh, new CrowdOptions { MaxAgents = 4 });
-        Assert.Throws<NavMeshFormatException>(() => small.RestoreState(snap));
+        Assert.Throws<CrowdStateException>(() => small.RestoreState(snap));
     }
 }

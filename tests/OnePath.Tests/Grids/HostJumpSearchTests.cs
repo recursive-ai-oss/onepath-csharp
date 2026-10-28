@@ -180,12 +180,7 @@ public class HostJumpSearchTests
             }
             foreach (GridSearch h in new[] { a, fresh })
             {
-                st = h.Status switch
-                {
-                    SearchStatus.Found => PathStatus.Found,
-                    SearchStatus.NotFound => PathStatus.NoPath,
-                    _ => PathStatus.InProgress,
-                };
+                st = h.Status;
                 while (st == PathStatus.InProgress)
                 {
                     st = h.Step(7);
@@ -212,7 +207,7 @@ public class HostJumpSearchTests
         GridSearch b = g.CreateSearch(o);
         b.TryBegin(s, s);
         b.RestoreState(idle);
-        Assert.Equal(SearchStatus.NotStarted, b.Status);
+        Assert.Equal(PathStatus.None, b.Status);
         Assert.True(b.SaveState().AsSpan().SequenceEqual(idle));
         a.TryBegin(s, t);
         PathStatus st = Finish(a, 50);
@@ -352,13 +347,13 @@ public class HostJumpSearchTests
             try
             {
                 b.RestoreState(bad);
-                if (b.Status != SearchStatus.NotStarted)
+                if (b.Status != PathStatus.None)
                 {
                     int n = 0;
                     while (b.Step(1000) == PathStatus.InProgress && ++n < 100)
                     {
                     }
-                    if (b.Status == SearchStatus.Found)
+                    if (b.Status == PathStatus.Found)
                     {
                         _ = b.CopyPath(new int[b.PathLength]);
                         _ = b.CopyPath(new Cell[b.PathLength]);
@@ -384,7 +379,7 @@ public class HostJumpSearchTests
         GridSearch a = g.CreateSearch(Variant(variant));
         a.TryBegin(s, t);
         a.Step(6);
-        Assert.Equal(SearchStatus.Running, a.Status);
+        Assert.Equal(PathStatus.InProgress, a.Status);
         byte[] running = a.SaveState();
         Assert.Equal((byte)SearchStatus.Running, running[18]);
         GridSearch b = g.CreateSearch(Variant(variant));
@@ -403,7 +398,7 @@ public class HostJumpSearchTests
         // A finished search whose status says Running while the goal is closed.
         a.TryBegin(s, t);
         Finish(a, 1000);
-        if (a.Status == SearchStatus.Found)
+        if (a.Status == PathStatus.Found)
         {
             bad = a.SaveState();
             bad[18] = (byte)SearchStatus.Running;

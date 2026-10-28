@@ -202,10 +202,10 @@ public class StateTests
             for (int cut = 0; cut < state.Length; cut++)
             {
                 byte[] part = state.AsSpan(0, cut).ToArray();
-                Assert.Throws<GridStateException>(() => restore(part));
+                Assert.ThrowsAny<OnePathFormatException>(() => restore(part));
             }
             byte[] extra = [.. state, 0];
-            Assert.Throws<GridStateException>(() => restore(extra));
+            Assert.ThrowsAny<OnePathFormatException>(() => restore(extra));
             _ = name;
         }
     }
@@ -229,7 +229,7 @@ public class StateTests
                 {
                     restore(bad);
                 }
-                catch (GridStateException)
+                catch (OnePathFormatException)
                 {
                 }
                 catch (Exception ex)

@@ -29,15 +29,14 @@ Each tier is built on the one below. **The happy path** (this page's snippets) i
 
 ## Quick start
 
-One `using RecursiveAI.OnePath;` reaches every grid and graph type below (the navmesh examples also use OneMath's
-vectors and the query result types). Options are plain objects with named presets and optional
+One `using RecursiveAI.OnePath;` reaches every type below, grids, graphs, navmeshes and crowds alike (the navmesh examples also
+use OneMath's vectors); `PathResult`, `PathOptions`, `QueryFilter`, `FollowerState` and `PartitionType` live there too. Options are plain objects with named presets and optional
 delegates; you never write a struct to use the happy path (the struct-generic search cores are there for tuning, in
 `RecursiveAI.OnePath.Grids` and `.Graphs`). World positions are doubles within ±2^21.
 
 ```csharp
 using RecursiveAI.OneMath;
 using RecursiveAI.OnePath;
-using RecursiveAI.OnePath.Mesh.Queries;
 ```
 
 **Square grid.** `.` is open, `#` a wall, `1`-`9` are area ids (give an area a cost with `grid.Areas[id] = 3.0`). You can

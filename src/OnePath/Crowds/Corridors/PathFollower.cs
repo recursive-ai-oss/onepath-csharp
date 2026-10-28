@@ -5,28 +5,6 @@ using RecursiveAI.OnePath.Mesh.Queries;
 
 namespace RecursiveAI.OnePath.Crowds.Corridors;
 
-/// <summary>What a <see cref="PathFollower"/> is doing.</summary>
-public enum FollowerState : byte
-{
-    /// <summary>Standing on the mesh with no destination (or stopped).</summary>
-    Idle = 0,
-
-    /// <summary>Walking its corridor toward the destination (this includes waiting at the end of a corridor that a replan is still extending).</summary>
-    Moving = 1,
-
-    /// <summary>Crossing an off-mesh link: automatically over a fixed duration, or until the host calls <see cref="PathFollower.CompleteOffMeshLink"/>.</summary>
-    OffMeshLink = 2,
-
-    /// <summary>Stopped at the end of its corridor; <see cref="PathFollower.ReachedTarget"/> tells whether that is the destination.</summary>
-    Arrived = 3,
-
-    /// <summary>Gave up after making no progress through every allowed recovery.</summary>
-    Stuck = 4,
-
-    /// <summary>No route could be started or kept: no polygon near the destination, the agent was lost off the mesh, or replanning kept running out of budget.</summary>
-    NoPath = 5,
-}
-
 /// <summary>
 /// One agent walking a navigation mesh: a <see cref="PathCorridor"/>, a position and velocity, and the steering that moves
 /// them along the corridor's corners with a fixed time step. There is no internal clock: every <see cref="Step"/> gets its dt
@@ -938,7 +916,7 @@ public sealed class PathFollower
     /// Replaces this follower's state with bytes written by <see cref="Write"/> (from a follower with the same options). Nothing
     /// changes if the bytes are rejected.
     /// </summary>
-    /// <exception cref="NavMeshFormatException">The bytes are truncated, of another version, hold impossible values or a corridor larger than <see cref="FollowerOptions.CorridorCapacity"/> (the message names which).</exception>
+    /// <exception cref="CrowdStateException">The bytes are truncated, of another version, hold impossible values or a corridor larger than <see cref="FollowerOptions.CorridorCapacity"/> (the message names which).</exception>
     public void Read(ReadOnlySpan<byte> source)
     {
         ReadCore(source, false);

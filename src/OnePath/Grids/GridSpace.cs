@@ -46,11 +46,8 @@ public readonly struct GridSpace : IEquatable<GridSpace>
 
     internal double SizeOrOne => CellSize > 0.0 ? CellSize : 1.0;
 
-    /// <summary>Throws unless <paramref name="value"/> is a number within ±2^21.</summary>
-    /// <param name="value">The coordinate.</param>
-    /// <param name="paramName">Name reported in the exception.</param>
-    /// <exception cref="ArgumentOutOfRangeException">The value is NaN or beyond ±2^21.</exception>
-    public static void CheckCoordinate(double value, string paramName)
+    // Throws unless the value is a number within ±2^21 (the coordinate rule).
+    internal static void CheckCoordinate(double value, string paramName)
     {
         if (!(value >= -CoordinateLimit && value <= CoordinateLimit))
         {

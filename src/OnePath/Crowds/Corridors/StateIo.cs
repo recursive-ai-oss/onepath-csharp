@@ -62,14 +62,14 @@ internal ref struct StateReader
 
     public int Position { get; private set; }
 
-    public readonly NavMeshFormatException Error(string field, double value) =>
+    public readonly CrowdStateException Error(string field, double value) =>
         new($"Invalid {_what} state: {field} = {value} at byte {Position}.");
 
     private void Need(int n)
     {
         if (_s.Length - Position < n)
         {
-            throw new NavMeshFormatException($"Invalid {_what} state: truncated at byte {Position}, {n} more bytes needed, {_s.Length - Position} left.");
+            throw new CrowdStateException($"Invalid {_what} state: truncated at byte {Position}, {n} more bytes needed, {_s.Length - Position} left.");
         }
     }
 
@@ -84,7 +84,7 @@ internal ref struct StateReader
         int v = U8();
         if (v != expected)
         {
-            throw new NavMeshFormatException($"Invalid {_what} state: version {v}, expected {expected}.");
+            throw new CrowdStateException($"Invalid {_what} state: version {v}, expected {expected}.");
         }
     }
 

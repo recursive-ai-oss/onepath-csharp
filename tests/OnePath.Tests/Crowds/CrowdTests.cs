@@ -328,8 +328,7 @@ public class CrowdTests
         Agent again = crowd.Add(new Vector3D(15, 0, 15), Agent.Small);
         Assert.Equal(10, again.Id);
         Assert.Equal(10, crowd.Count);
-        var order = new List<Agent>();
-        crowd.CopyAgents(order);
+        var order = new List<Agent>(crowd);
         Assert.Equal(10, order.Count);
         Assert.Same(again, order[3]);
         for (int i = 0; i < 60; i++)

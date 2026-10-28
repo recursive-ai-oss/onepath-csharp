@@ -378,8 +378,7 @@ internal static class FixtureProbes
 
     private static void CrowdDigest(Crowd crowd, Tx tx)
     {
-        var agents = new List<Agent>();
-        crowd.CopyAgents(agents);
+        var agents = new List<Agent>(crowd);
         tx.I(agents.Count);
         foreach (Agent a in agents)
         {
@@ -620,7 +619,7 @@ internal static class FixtureProbes
     private static void FinishGridSearch(GridSearch s, Tx tx)
     {
         int guard = 0;
-        while (s.Status == SearchStatus.Running && guard++ < 100000)
+        while (s.Status == PathStatus.InProgress && guard++ < 100000)
         {
             tx.I((int)s.Step(25));
         }
@@ -628,7 +627,7 @@ internal static class FixtureProbes
         tx.D(s.PathCost);
         tx.I(s.ExpandedCount);
         tx.I(s.Iterations);
-        if (s.Status == SearchStatus.Found)
+        if (s.Status == PathStatus.Found)
         {
             var path = new Cell[s.PathLength];
             s.CopyPath(path);

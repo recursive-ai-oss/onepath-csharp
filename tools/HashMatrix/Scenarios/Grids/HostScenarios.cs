@@ -91,7 +91,7 @@ internal static class HostScenarios
             }
             // The copy that was saved mid-search must finish exactly as the uninterrupted one did.
             restored.RestoreState(state);
-            PathStatus rs = restored.Status == SearchStatus.Found ? PathStatus.Found : restored.Step(slice);
+            PathStatus rs = restored.Status == PathStatus.Found ? PathStatus.Found : restored.Step(slice);
             while (rs == PathStatus.InProgress)
             {
                 rs = restored.Step(31);

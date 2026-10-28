@@ -519,7 +519,7 @@ public class CorridorTests
         Assert.Equal(c.Path.ToArray(), r.Path.ToArray());
         for (int cut = 0; cut < bytes.Length; cut++)
         {
-            Assert.Throws<NavMeshFormatException>(() => PathCorridor.Read(bytes.AsSpan(0, cut), out _));
+            Assert.Throws<CrowdStateException>(() => PathCorridor.Read(bytes.AsSpan(0, cut), out _));
         }
         var dmg = new NavMeshWorlds.Rng(77);
         for (int i = 0; i < 2000; i++)
@@ -531,7 +531,7 @@ public class CorridorTests
                 PathCorridor x = PathCorridor.Read(b, out _);
                 Assert.True(x.Count <= x.Capacity);
             }
-            catch (NavMeshFormatException)
+            catch (CrowdStateException)
             {
             }
         }

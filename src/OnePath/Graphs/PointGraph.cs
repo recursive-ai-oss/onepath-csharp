@@ -11,10 +11,10 @@ namespace RecursiveAI.OnePath;
 /// de-duplicated, and every pair becomes two edges weighted with the straight-line distance. Without any link source the
 /// graph has no edges.
 /// </summary>
-public sealed class PointGraphOptions
+public sealed record PointGraphOptions
 {
     /// <summary>Explicit links as pairs of point indices (always kept, never passed to <see cref="LinkValid"/>). Null or empty means none.</summary>
-    public IReadOnlyList<(int A, int B)>? Links { get; init; }
+    public IReadOnlyList<(int A, int B)>? Links { get; init => field = value is null ? null : FrozenList<(int A, int B)>.Of(value); }
 
     /// <summary>
     /// Link every pair of points at most this far apart (0, the default, means no distance rule). Combined with

@@ -372,7 +372,7 @@ internal static class Scenes
             {
                 GridSearch s = g.CreateSearch(FixtureProbes.SearchOptions[i]);
                 s.Begin(a, b);
-                Step(n => s.Step(n), () => s.Status, 20, names[i]);
+                Step(n => s.Step(n), () => s.Status == PathStatus.InProgress ? SearchStatus.Running : SearchStatus.NotStarted, 20, names[i]);
                 f[names[i]] = FixtureProbes.Pack(g.SaveState(), s.SaveState());
             }
 

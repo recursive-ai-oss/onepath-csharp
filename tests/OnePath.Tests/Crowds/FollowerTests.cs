@@ -554,9 +554,9 @@ public class FollowerTests
         byte[] before = g.ToBytes();
         for (int cut = 0; cut < bytes.Length; cut++)
         {
-            Assert.Throws<NavMeshFormatException>(() => g.Read(bytes.AsSpan(0, cut)));
+            Assert.Throws<CrowdStateException>(() => g.Read(bytes.AsSpan(0, cut)));
         }
-        Assert.Throws<NavMeshFormatException>(() => g.Read([.. bytes, 0]));
+        Assert.Throws<CrowdStateException>(() => g.Read([.. bytes, 0]));
         Assert.Equal(before, g.ToBytes());
         var dmg = new NavMeshWorlds.Rng(5);
         for (int i = 0; i < 3000; i++)
@@ -568,14 +568,14 @@ public class FollowerTests
                 g.Read(b);
                 g.Step(q, Dt); // an accepted state must be safe to run
             }
-            catch (NavMeshFormatException)
+            catch (CrowdStateException)
             {
             }
         }
         Assert.Throws<ArgumentException>(() => f.Write(new byte[8]));
         // A corridor of another capacity does not fit these options.
         var small = new PathFollower(FollowerOptions.Humanoid with { CorridorCapacity = 64 });
-        Assert.Throws<NavMeshFormatException>(() => small.Read(bytes));
+        Assert.Throws<CrowdStateException>(() => small.Read(bytes));
     }
 
     [Fact]

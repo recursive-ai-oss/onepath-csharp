@@ -823,7 +823,7 @@ public sealed class PathCorridor
     /// <summary>Reads a corridor written by <see cref="Write"/>.</summary>
     /// <param name="source">The bytes.</param>
     /// <param name="consumed">Number of bytes used.</param>
-    /// <exception cref="NavMeshFormatException">The bytes are truncated, of another version or hold impossible values (the message names which).</exception>
+    /// <exception cref="CrowdStateException">The bytes are truncated, of another version or hold impossible values (the message names which).</exception>
     public static PathCorridor Read(ReadOnlySpan<byte> source, out int consumed)
     {
         var r = new StateReader(source, "corridor");

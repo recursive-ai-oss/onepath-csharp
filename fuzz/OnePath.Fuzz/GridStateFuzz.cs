@@ -265,7 +265,7 @@ internal static class GridStateFuzz
                     {
                         throw new InvalidOperationException("The span save differs from the array save.");
                     }
-                    if (s.Status != SearchStatus.NotStarted && s.Step(500) == PathStatus.Found)
+                    if (s.Status != PathStatus.None && s.Step(500) == PathStatus.Found)
                     {
                         _ = s.CopyPath(new Cell[s.PathLength]);
                     }
@@ -284,7 +284,7 @@ internal static class GridStateFuzz
                     {
                         throw new InvalidOperationException("The span save differs from the array save.");
                     }
-                    if (s.Status != SearchStatus.NotStarted && s.Step(500) == PathStatus.Found)
+                    if (s.Status != PathStatus.None && s.Step(500) == PathStatus.Found)
                     {
                         _ = s.CopyPath(new Cell[s.PathLength]);
                         _ = s.CopyPath(new int[s.PathLength]);

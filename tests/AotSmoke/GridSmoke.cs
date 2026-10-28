@@ -126,7 +126,7 @@ internal static class GridSmoke
             byte[] saved = handle.SaveState();
             handle.RestoreState(saved);
             ok &= handle.Step(int.MaxValue) == hostGrid.FindPath(new Cell(0, 0), new Cell(7, 4), new GridOptions { SpecializedEngines = specialised }).Status;
-            ok &= handle.Status == SearchStatus.Found && handle.PathLength > 1 && handle.UsesSpecializedEngine == specialised;
+            ok &= handle.Status == PathStatus.Found && handle.PathLength > 1 && handle.UsesSpecializedEngine == specialised;
         }
         // The same handle running JPS and JPS+ on the specialised and the generic jump point engines, with a saved state in the middle.
         foreach (GridAlgorithm jump in new[] { GridAlgorithm.Jps, GridAlgorithm.JpsPlus })

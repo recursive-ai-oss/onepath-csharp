@@ -103,8 +103,13 @@ the same expansion order, path and cost as one unsliced run. The tier-1 `GridOpt
 can be cancelled makes the engine run in slices of 256 iterations and check the token before each one; cancelling throws
 `OperationCanceledException`, leaves the grid untouched and the next query exact. Slicing never changes a result (see above),
 so a token that is never cancelled returns the same path, cost and counts as no token, and `IterationBudget` counts the same
-iterations. `Grid.FindPathAsync` (cells or world points) runs the same synchronous search on the thread pool and returns what
-`FindPath` returns; the grid must not be edited until the task completes, and cancellation, like any error, comes through the task.
+iterations. `Grid.FindPathAsync` (cells or world points) is the cooperative sliced form: it drives the resumable `GridSearch` on the caller's
+synchronization context in slices of `GridOptions.IterationsPerSlice` (default 256) iterations with a `Task.Yield()` between slices,
+checks the token between slices and returns what `FindPath` returns, however the iterations are sliced (a budget that runs out gives
+`BudgetExhausted` after the same `IterationBudget` iterations). It supports `AStar`, `Jps` and `JpsPlus` without `RecordExpansions` and refuses other options
+with an `ArgumentException` through the task. Callbacks (`Blocked`, `StepCost`) run on the calling thread. For a search on another thread run
+`FindPath` inside `Task.Run`; the grid must not be edited until the task completes, and cancellation, like any error, comes through the task.
+Hex and voxel grids have no async form.
 
 ## API tiers
 

@@ -38,7 +38,7 @@ public sealed partial class GridReplanner : IGridBatchListener, IDisposable
         CheckCell(grid, start, nameof(start));
         CheckCell(grid, goal, nameof(goal));
         _grid = grid;
-        _options = options.Clone();
+        _options = options;
         _algorithm = options.Algorithm == GridAlgorithm.LpaStar ? GridAlgorithm.LpaStar : GridAlgorithm.DStarLite;
         _search = Build(start, goal);
         grid.AddListener(this);
@@ -279,11 +279,10 @@ public sealed partial class GridReplanner : IGridBatchListener, IDisposable
         return new GridPath(PathStatus.Found, cost, cells, expanded, expandedCells, null) { Algorithm = _algorithm };
     }
 
-    /// <inheritdoc/>
-    public void OnCellChanged(int x, int y) => MarkRect(x, y, 1, 1);
+    // Observer plumbing: the grid calls these, so they are not part of the replanner's own surface.
+    void IGridChangeListener.OnCellChanged(int x, int y) => MarkRect(x, y, 1, 1);
 
-    /// <inheritdoc/>
-    public void OnRectChanged(int x, int y, int width, int height) => MarkRect(x, y, width, height);
+    void IGridBatchListener.OnRectChanged(int x, int y, int width, int height) => MarkRect(x, y, width, height);
 
     // A move between two cells reads the two cells, the cells beside a diagonal move, and (for agent size s) the s x s blocks the agent
     // occupies at both ends. An edit at (x, y) therefore changes the moves of the nodes within s cells up-left of it and one cell

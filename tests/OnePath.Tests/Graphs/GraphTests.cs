@@ -567,9 +567,9 @@ public class LandmarkTests
 
         // Another graph, truncation, bad magic and version, and out-of-range fields are typed errors.
         CsrGraph other = CsrGraph.Create(w.Nodes, [new GraphEdge(0, 1, 1)]);
-        Assert.Throws<GraphFormatException>(() => Landmarks.Deserialize(bytes, other));
-        Assert.Throws<GraphFormatException>(() => Landmarks.Deserialize(bytes.AsSpan(0, bytes.Length - 1), csr));
-        Assert.Throws<GraphFormatException>(() => Landmarks.Deserialize([], csr));
+        Assert.Throws<GraphStateException>(() => Landmarks.Deserialize(bytes, other));
+        Assert.Throws<GraphStateException>(() => Landmarks.Deserialize(bytes.AsSpan(0, bytes.Length - 1), csr));
+        Assert.Throws<GraphStateException>(() => Landmarks.Deserialize([], csr));
         foreach (int at in new[] { 0, 4, 8, 12, 16, 24, 30, bytes.Length - 1 })
         {
             byte[] bad = (byte[])bytes.Clone();
@@ -578,7 +578,7 @@ public class LandmarkTests
             {
                 Landmarks.Deserialize(bad, csr);
             }
-            catch (GraphFormatException)
+            catch (GraphStateException)
             {
             }
         }
@@ -586,7 +586,7 @@ public class LandmarkTests
         byte[] neg = (byte[])bytes.Clone();
         int tableStart = 24 + (4 * lm.Count);
         neg[tableStart + 15] = 0xBF; // sign and exponent of the second entry
-        Assert.Throws<GraphFormatException>(() => Landmarks.Deserialize(neg, csr));
+        Assert.Throws<GraphStateException>(() => Landmarks.Deserialize(neg, csr));
     }
 }
 

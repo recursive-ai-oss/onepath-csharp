@@ -67,8 +67,7 @@ public class CrowdStateSpanTests
     {
         CrowdSim sim = CrowdRollback.Populated(1);
         CrowdRollback.Run(sim, 0, 60, false);
-        var agents = new List<Agent>();
-        sim.Crowd.CopyAgents(agents);
+        var agents = new List<Agent>(sim.Crowd);
         byte[] snap = sim.Crowd.SaveState();
         ulong baseline = sim.Crowd.StateHash();
         var seen = new HashSet<ulong> { baseline };
@@ -126,7 +125,7 @@ public class CrowdStateSpanTests
                 sim.Crowd.RestoreState(bad);
                 before = sim.Crowd.StateHash(); // a flipped byte that is still a valid state: the new baseline
             }
-            catch (NavMeshFormatException)
+            catch (CrowdStateException)
             {
                 rejected++;
                 Assert.Equal(before, sim.Crowd.StateHash());
@@ -135,7 +134,7 @@ public class CrowdStateSpanTests
         Assert.True(rejected > 0);
         for (int cut = 0; cut < snap.Length; cut += 53)
         {
-            Assert.Throws<NavMeshFormatException>(() => sim.Crowd.RestoreState(snap.AsSpan(0, cut)));
+            Assert.Throws<CrowdStateException>(() => sim.Crowd.RestoreState(snap.AsSpan(0, cut)));
             Assert.Equal(before, sim.Crowd.StateHash());
         }
     }
@@ -185,8 +184,7 @@ public class CrowdStateSpanTests
     {
         // Found by fuzzing restored state: the wall query refused a radius beyond 2^22.
         CrowdSim sim = CrowdRollback.Populated(1);
-        var agents = new List<Agent>();
-        sim.Crowd.CopyAgents(agents);
+        var agents = new List<Agent>(sim.Crowd);
         sim.Crowd.Add(agents[0].Position, Agent.Small with { WallClearance = 1e9 });
         sim.Crowd.Step(CrowdWorlds.Dt);
     }

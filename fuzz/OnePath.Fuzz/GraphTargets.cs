@@ -129,7 +129,7 @@ internal static class GraphTargets
                 throw new InvalidOperationException("accepted landmark data does not round-trip");
             }
         }
-        catch (GraphFormatException)
+        catch (GraphStateException)
         {
         }
     }

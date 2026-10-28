@@ -7,7 +7,7 @@ namespace RecursiveAI.OnePath.Fuzz;
 /// <summary>
 /// Fuzz target for the crowd state reader. The first byte picks how the input becomes state bytes: as they are, as edits to a valid
 /// state (position and xor pairs), cut short, or a valid state with the input's bytes spliced in. A restore must either succeed or
-/// throw <see cref="NavMeshFormatException"/> and leave the crowd as it was; after a success the crowd must step twice, and saving
+/// throw <see cref="OnePathFormatException"/> and leave the crowd as it was; after a success the crowd must step twice, and saving
 /// then restoring then saving must give the same bytes. Any other exception crashes the target.
 /// </summary>
 internal static class CrowdStateFuzz
@@ -67,7 +67,7 @@ internal static class CrowdStateFuzz
         {
             crowd.RestoreState(padded.AsSpan(lead, bytes.Length));
         }
-        catch (NavMeshFormatException)
+        catch (OnePathFormatException)
         {
             if (crowd.StateHash() != validHash || !s_valid.AsSpan().SequenceEqual(crowd.SaveState()))
             {

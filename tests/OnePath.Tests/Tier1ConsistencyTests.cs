@@ -279,10 +279,10 @@ public class Tier1ConsistencyTests
             PathResult sync = mesh.FindPath(s, e);
             foreach (int slice in new[] { 1, 7, 256, 100000 })
             {
-                AssertSame(sync, await mesh.FindPathAsync(s, e, null, slice, TestContext.Current.CancellationToken));
+                AssertSame(sync, await mesh.FindPathAsync(s, e, new PathOptions { IterationsPerSlice = slice }, TestContext.Current.CancellationToken));
             }
         }
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => mesh.FindPathAsync(pairs[0].Item1, pairs[0].Item2, null, 1, new CancellationToken(true)));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => mesh.FindPathAsync(pairs[0].Item1, pairs[0].Item2, new PathOptions { IterationsPerSlice = 1 }, new CancellationToken(true)));
     }
 
     [Fact]
@@ -291,13 +291,19 @@ public class Tier1ConsistencyTests
         for (ulong seed = 20; seed < 24; seed++)
         {
             Grid g = RandomGrid(seed, 80, 80, 25);
-            foreach (GridAlgorithm alg in Algorithms)
+            foreach (GridAlgorithm alg in new[] { GridAlgorithm.AStar, GridAlgorithm.Jps, GridAlgorithm.JpsPlus })
             {
-                var o = new GridOptions { Algorithm = alg, RecordExpansions = true };
-                GridPath sync = g.FindPath(new Cell(0, 0), new Cell(79, 79), o);
-                GridPath asyncPath = await g.FindPathAsync(new Cell(0, 0), new Cell(79, 79), o, TestContext.Current.CancellationToken);
-                AssertSame(sync, asyncPath);
+                foreach (int slice in new[] { 1, 37, 256 })
+                {
+                    var o = new GridOptions { Algorithm = alg, IterationsPerSlice = slice };
+                    GridPath sync = g.FindPath(new Cell(0, 0), new Cell(79, 79), o);
+                    GridPath asyncPath = await g.FindPathAsync(new Cell(0, 0), new Cell(79, 79), o, TestContext.Current.CancellationToken);
+                    AssertSame(sync, asyncPath);
+                }
             }
+            // A budget that runs out reports the same status and expansion count in both forms.
+            var small = new GridOptions { IterationBudget = 50, IterationsPerSlice = 8 };
+            AssertSame(g.FindPath(new Cell(0, 0), new Cell(79, 79), small), await g.FindPathAsync(new Cell(0, 0), new Cell(79, 79), small, TestContext.Current.CancellationToken));
         }
         var world = new Grid(20, 20) { Space = new GridSpace(0, 0, 1) };
         GridPath ws = world.FindPath(new WorldPoint(0.5, 0.5), new WorldPoint(18.5, 12.5));
@@ -311,6 +317,27 @@ public class Tier1ConsistencyTests
         {
             AssertSame(expected, p);
         }
+    }
+
+    [Fact]
+    public async Task Grid_async_runs_on_the_callers_context_and_refuses_what_it_cannot_slice()
+    {
+        // The search is cooperative: the user's callbacks run on the calling thread, never on the thread pool.
+        int caller = Environment.CurrentManagedThreadId;
+        int elsewhere = 0;
+        var g = new Grid(120, 120);
+        var o = new GridOptions { Blocked = _ => { if (Environment.CurrentManagedThreadId != caller) { elsewhere++; } return false; } };
+        GridPath p = await g.FindPathAsync(new Cell(0, 0), new Cell(119, 119), o, TestContext.Current.CancellationToken);
+        Assert.True(p.Found);
+        Assert.Equal(0, elsewhere);
+
+        foreach (GridAlgorithm alg in new[] { GridAlgorithm.ThetaStar, GridAlgorithm.LazyThetaStar, GridAlgorithm.Hpa })
+        {
+            await Assert.ThrowsAsync<ArgumentException>(() => g.FindPathAsync(new Cell(0, 0), new Cell(9, 9), new GridOptions { Algorithm = alg }, TestContext.Current.CancellationToken));
+        }
+        await Assert.ThrowsAsync<ArgumentException>(() => g.FindPathAsync(new Cell(0, 0), new Cell(9, 9), new GridOptions { RecordExpansions = true }, TestContext.Current.CancellationToken));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new GridOptions { IterationsPerSlice = 0 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new PathOptions { IterationsPerSlice = 0 });
     }
 
     [Fact]
@@ -340,7 +367,7 @@ public class Tier1ConsistencyTests
     public void Tier1_option_classes_are_immutable_after_construction()
     {
         var mutable = new List<string>();
-        foreach (Type t in new[] { typeof(GridOptions), typeof(VoxelOptions), typeof(PathOptions), typeof(NavSettings), typeof(CrowdOptions), typeof(AgentOptions), typeof(GraphOptions), typeof(QueryFilter) })
+        foreach (Type t in new[] { typeof(GridOptions), typeof(VoxelOptions), typeof(PathOptions), typeof(NavSettings), typeof(CrowdOptions), typeof(AgentOptions), typeof(GraphOptions), typeof(PointGraphOptions), typeof(LandmarkOptions), typeof(QueryFilter) })
         {
             foreach (PropertyInfo p in t.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
@@ -435,68 +462,5 @@ public class Tier1ConsistencyTests
         Assert.Null(CrowdOptions.Default.Filter);
         var shared = new CrowdOptions { Filter = derived };
         Assert.Same(derived, shared.Filter);
-    }
-
-    [Fact]
-    public async Task Hex_async_equals_sync()
-    {
-        var rng = new Random(7);
-        var open = new bool[40, 40];
-        for (int x = 0; x < 40; x++)
-        {
-            for (int y = 0; y < 40; y++)
-            {
-                open[x, y] = rng.Next(100) >= 25 || (x, y) is (0, 0) or (39, 39);
-            }
-        }
-        HexGrid g = HexGrid.From(open);
-        foreach (GridAlgorithm alg in new[] { GridAlgorithm.AStar, GridAlgorithm.ThetaStar })
-        {
-            var o = new GridOptions { Algorithm = alg, RecordExpansions = true };
-            AssertSame(g.FindPath(new Cell(0, 0), new Cell(39, 39), o), await g.FindPathAsync(new Cell(0, 0), new Cell(39, 39), o, TestContext.Current.CancellationToken));
-        }
-        var world = new HexGrid(20, 20) { Space = new GridSpace(0, 0, 1) };
-        AssertSame(world.FindPath(new WorldPoint(0.5, 0.5), new WorldPoint(10.5, 9.5)), await world.FindPathAsync(new WorldPoint(0.5, 0.5), new WorldPoint(10.5, 9.5), null, TestContext.Current.CancellationToken));
-
-        var wide = new HexGrid(300, 300);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wide.FindPathAsync(new Cell(0, 0), new Cell(299, 299), null, new CancellationToken(true)));
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => wide.FindPathAsync(new WorldPoint(double.NaN, 0), new WorldPoint(1, 1), null, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task Voxel_async_equals_sync()
-    {
-        var rng = new Random(11);
-        var open = new bool[16, 12, 16];
-        for (int x = 0; x < 16; x++)
-        {
-            for (int y = 0; y < 12; y++)
-            {
-                for (int z = 0; z < 16; z++)
-                {
-                    open[x, y, z] = rng.Next(100) >= 20 || (x, y, z) is (0, 0, 0) or (15, 11, 15);
-                }
-            }
-        }
-        VoxelGrid g = VoxelGrid.From(open);
-        foreach (VoxelConnectivity c in new[] { VoxelConnectivity.Six, VoxelConnectivity.TwentySix })
-        {
-            var o = new VoxelOptions { Connectivity = c };
-            VoxelPath sync = g.FindPath(new VoxelCell(0, 0, 0), new VoxelCell(15, 11, 15), o);
-            VoxelPath asyncPath = await g.FindPathAsync(new VoxelCell(0, 0, 0), new VoxelCell(15, 11, 15), o, TestContext.Current.CancellationToken);
-            Assert.Equal(sync.Status, asyncPath.Status);
-            Assert.Equal(BitConverter.DoubleToInt64Bits(sync.Cost), BitConverter.DoubleToInt64Bits(asyncPath.Cost));
-            Assert.True(sync.Cells.SequenceEqual(asyncPath.Cells));
-        }
-        var world = new VoxelGrid(10, 10, 10) { Space = new VoxelSpace(0, 0, 0, 1) };
-        VoxelPath ws = world.FindPath(new VoxelPoint(0.5, 0.5, 0.5), new VoxelPoint(8.5, 7.5, 9.5));
-        VoxelPath wa = await world.FindPathAsync(new VoxelPoint(0.5, 0.5, 0.5), new VoxelPoint(8.5, 7.5, 9.5), null, TestContext.Current.CancellationToken);
-        Assert.Equal(ws.Status, wa.Status);
-        Assert.True(ws.Cells.SequenceEqual(wa.Cells));
-        Assert.True(ws.Points.SequenceEqual(wa.Points));
-
-        var big = new VoxelGrid(64, 64, 64);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => big.FindPathAsync(new VoxelCell(0, 0, 0), new VoxelCell(63, 63, 63), null, new CancellationToken(true)));
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => big.FindPathAsync(new VoxelPoint(double.NaN, 0, 0), new VoxelPoint(1, 1, 1), null, TestContext.Current.CancellationToken));
     }
 }
