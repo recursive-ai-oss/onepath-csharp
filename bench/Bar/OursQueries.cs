@@ -122,13 +122,13 @@ internal static class OursQueries
             foreach (var (a, b) in pairs)
             {
                 NearestPoly A = snapped[a], B = snapped[b];
-                PathStatus s = q.FindPath(A.Poly, B.Poly, A.Point, B.Point, in filter, corridor, out int n);
+                QueryStatus s = q.FindPath(A.Poly, B.Poly, A.Point, B.Point, in filter, corridor, out int n);
                 if (n <= 0)
                 {
                     continue;
                 }
                 Vector3D end = B.Point;
-                if (s == PathStatus.Partial)
+                if (s == QueryStatus.Partial)
                 {
                     partial++;
                     q.ClosestPointOnPoly(corridor[n - 1], B.Point, out end, out _);

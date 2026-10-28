@@ -342,14 +342,14 @@ public sealed partial class VoxelGrid
     /// <param name="start">Start voxel.</param>
     /// <param name="goal">Goal voxel.</param>
     /// <param name="options">Query options; null means <see cref="VoxelOptions.Default"/>.</param>
-    /// <returns>The result; check <see cref="VoxelPath.Status"/>. Voxels outside the grid or solid give <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/>.</returns>
+    /// <returns>The result; check <see cref="VoxelPath.Status"/>. Voxels outside the grid or solid give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
     public VoxelPath FindPath(VoxelCell start, VoxelCell goal, VoxelOptions? options = null) => FindPathCore(start, goal, options ?? DefaultOptions, false);
 
     /// <summary>Finds a least-cost path between two world positions (their containing voxels); the result carries world-space voxel centres.</summary>
     /// <param name="start">Start position; each coordinate within ±2^21.</param>
     /// <param name="goal">Goal position; each coordinate within ±2^21.</param>
     /// <param name="options">Query options; null means <see cref="VoxelOptions.Default"/>.</param>
-    /// <returns>The result. A position outside the grid gives <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/>.</returns>
+    /// <returns>The result. A position outside the grid gives <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN or beyond ±2^21.</exception>
     public VoxelPath FindPath(VoxelPoint start, VoxelPoint goal, VoxelOptions? options = null)
     {
@@ -357,11 +357,11 @@ public sealed partial class VoxelGrid
         bool b = TryGetCell(goal, out VoxelCell g);
         if (!a)
         {
-            return VoxelPath.Invalid(PathOutcome.StartInvalid);
+            return VoxelPath.Invalid(PathStatus.StartInvalid);
         }
         if (!b)
         {
-            return VoxelPath.Invalid(PathOutcome.GoalInvalid);
+            return VoxelPath.Invalid(PathStatus.GoalInvalid);
         }
         return FindPathCore(s, g, options ?? DefaultOptions, true);
     }
@@ -370,15 +370,15 @@ public sealed partial class VoxelGrid
     {
         if (!Contains(start.X, start.Y, start.Z) || Read(_chunks, ChunksX, ChunksY, _fill, start.X, start.Y, start.Z) == AreaCosts.Wall)
         {
-            return VoxelPath.Invalid(PathOutcome.StartInvalid);
+            return VoxelPath.Invalid(PathStatus.StartInvalid);
         }
         if (!Contains(goal.X, goal.Y, goal.Z) || Read(_chunks, ChunksX, ChunksY, _fill, goal.X, goal.Y, goal.Z) == AreaCosts.Wall)
         {
-            return VoxelPath.Invalid(PathOutcome.GoalInvalid);
+            return VoxelPath.Invalid(PathStatus.GoalInvalid);
         }
         if (o.Blocked is not null && (o.Blocked(start) || o.Blocked(goal)))
         {
-            return VoxelPath.Invalid(o.Blocked(start) ? PathOutcome.StartInvalid : PathOutcome.GoalInvalid);
+            return VoxelPath.Invalid(o.Blocked(start) ? PathStatus.StartInvalid : PathStatus.GoalInvalid);
         }
         VoxelTopology topology = CreateTopology(o.Connectivity, o.Corners);
         GridHeuristic h = o.Heuristic == GridHeuristic.Auto ? (o.Connectivity == VoxelConnectivity.Six ? GridHeuristic.Manhattan : GridHeuristic.Octile) : o.Heuristic;

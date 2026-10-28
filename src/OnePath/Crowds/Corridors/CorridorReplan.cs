@@ -7,7 +7,7 @@ namespace RecursiveAI.OnePath.Crowds.Corridors;
 
 /// <summary>
 /// A corridor replan that can be spread over several calls (frames) by an iteration budget: <see cref="Begin"/>, then
-/// <see cref="Update"/> until it stops returning <see cref="PathStatus.InProgress"/>, then <see cref="Apply"/>. The
+/// <see cref="Update"/> until it stops returning <see cref="QueryStatus.InProgress"/>, then <see cref="Apply"/>. The
 /// result after any split of the same total work equals one unlimited call.
 /// <para>
 /// The search runs inside the <see cref="NavMeshQuery"/> given to <see cref="Begin"/>: that query must not be used for anything
@@ -23,7 +23,7 @@ public sealed class CorridorReplan
     private PathCorridor? _corridor;
     private QueryFilter? _filter;
     private Phase _phase;
-    private PathStatus _status;
+    private QueryStatus _status;
     private int _keep;
     private PolyRef _endPoly;
     private Vector3D _endPos;
@@ -46,8 +46,8 @@ public sealed class CorridorReplan
     /// polygon nearest to <see cref="PathCorridor.Target"/> within <see cref="SearchExtents"/>. The target itself is kept as given, so a
     /// later replan asks the same question about the same point (snapping it would let a boundary point resolve to another floor).
     /// </summary>
-    /// <returns><see cref="PathStatus.InProgress"/> when a search runs; otherwise why none can: <see cref="PathStatus.InvalidStartPoly"/> (the corridor is empty or its polygons are stale: validate or relocate first) or <see cref="PathStatus.NoEndNearby"/>.</returns>
-    public PathStatus Begin(NavMeshQuery query, PathCorridor corridor, QueryFilter? filter = null)
+    /// <returns><see cref="QueryStatus.InProgress"/> when a search runs; otherwise why none can: <see cref="QueryStatus.InvalidStartPoly"/> (the corridor is empty or its polygons are stale: validate or relocate first) or <see cref="QueryStatus.NoEndNearby"/>.</returns>
+    public QueryStatus Begin(NavMeshQuery query, PathCorridor corridor, QueryFilter? filter = null)
     {
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(corridor);
@@ -55,7 +55,7 @@ public sealed class CorridorReplan
         Iterations = 0;
         if (corridor.Count == 0)
         {
-            return _status = PathStatus.InvalidStartPoly;
+            return _status = QueryStatus.InvalidStartPoly;
         }
         Vector3D target = corridor.Target;
         _newTarget = target;
@@ -64,7 +64,7 @@ public sealed class CorridorReplan
         NearestPoly np = query.FindNearestPoly(target, SearchExtents, filter);
         if (!np.Poly.IsSet)
         {
-            return _status = PathStatus.NoEndNearby;
+            return _status = QueryStatus.NoEndNearby;
         }
         PolyRef endPoly = np.Poly;
         _endPos = np.Point;
@@ -73,7 +73,7 @@ public sealed class CorridorReplan
         _corridor = corridor;
         _filter = filter;
         int e = corridor.ReplanFromStart ? 0 : corridor.Count - 1;
-        PathStatus s = PathStatus.InvalidStartPoly;
+        QueryStatus s = QueryStatus.InvalidStartPoly;
         if (e > 0)
         {
             PolyRef sp = corridor.Path[e];
@@ -81,7 +81,7 @@ public sealed class CorridorReplan
             {
                 s = query.BeginPath(sp, endPoly, startPos, _endPos, filter);
             }
-            if (s == PathStatus.InProgress)
+            if (s == QueryStatus.InProgress)
             {
                 _keep = e;
                 _phase = Phase.Splice;
@@ -89,7 +89,7 @@ public sealed class CorridorReplan
             }
         }
         s = query.BeginPath(corridor.Path[0], endPoly, corridor.Position, _endPos, filter);
-        if (s == PathStatus.InProgress)
+        if (s == QueryStatus.InProgress)
         {
             _keep = 0;
             _phase = Phase.FromStart;
@@ -102,9 +102,9 @@ public sealed class CorridorReplan
     /// agent's polygon if the first one finds no route.
     /// </summary>
     /// <param name="budget">Iterations, at least 1.</param>
-    /// <returns><see cref="PathStatus.InProgress"/> while unfinished, then <see cref="PathStatus.Success"/> or <see cref="PathStatus.Partial"/>.</returns>
+    /// <returns><see cref="QueryStatus.InProgress"/> while unfinished, then <see cref="QueryStatus.Success"/> or <see cref="QueryStatus.Partial"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The budget is below 1.</exception>
-    public PathStatus Update(int budget)
+    public QueryStatus Update(int budget)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(budget, 1);
         if (_phase is not (Phase.Splice or Phase.FromStart))
@@ -117,19 +117,19 @@ public sealed class CorridorReplan
         while (true)
         {
             int before = q.Iterations;
-            PathStatus s = q.UpdatePath(left);
+            QueryStatus s = q.UpdatePath(left);
             int used = q.Iterations - before;
             left -= used;
             Iterations += used;
-            if (s == PathStatus.InProgress)
+            if (s == QueryStatus.InProgress)
             {
                 return _status = s;
             }
-            if (s == PathStatus.Partial && _phase == Phase.Splice)
+            if (s == QueryStatus.Partial && _phase == Phase.Splice)
             {
                 // No route from the end of the valid part (a one-way link, say): try again from the agent's polygon.
-                PathStatus b = q.BeginPath(c.Path[0], _endPoly, c.Position, _endPos, _filter);
-                if (b != PathStatus.InProgress)
+                QueryStatus b = q.BeginPath(c.Path[0], _endPoly, c.Position, _endPos, _filter);
+                if (b != QueryStatus.InProgress)
                 {
                     _phase = Phase.Done;
                     return _status = b;
@@ -138,7 +138,7 @@ public sealed class CorridorReplan
                 _keep = 0;
                 if (left <= 0)
                 {
-                    return _status = PathStatus.InProgress;
+                    return _status = QueryStatus.InProgress;
                 }
                 continue;
             }
@@ -148,12 +148,12 @@ public sealed class CorridorReplan
     }
 
     /// <summary>
-    /// Ends the search and writes its route into the corridor. After <see cref="PathStatus.Success"/> the corridor is complete;
-    /// after <see cref="PathStatus.Partial"/> it leads to the closest polygon found and no replan stays requested; if the
+    /// Ends the search and writes its route into the corridor. After <see cref="QueryStatus.Success"/> the corridor is complete;
+    /// after <see cref="QueryStatus.Partial"/> it leads to the closest polygon found and no replan stays requested; if the
     /// search is unfinished (budget used up) it leads to the closest polygon so far and a replan stays requested.
     /// </summary>
     /// <returns>The status applied, or the failure from <see cref="Begin"/> (nothing changed).</returns>
-    public PathStatus Apply()
+    public QueryStatus Apply()
     {
         if (_phase is Phase.None or Phase.Applied)
         {
@@ -166,9 +166,9 @@ public sealed class CorridorReplan
         {
             _found = new PolyRef[cap];
         }
-        PathStatus s = q.FinishPath(_found, out int n, out bool truncated, out _);
-        bool complete = s == PathStatus.Success && !truncated;
-        bool needs = s == PathStatus.InProgress || truncated;
+        QueryStatus s = q.FinishPath(_found, out int n, out bool truncated, out _);
+        bool complete = s == QueryStatus.Success && !truncated;
+        bool needs = s == QueryStatus.InProgress || truncated;
         if (n > 0)
         {
             c.ReplaceFrom(_keep, _found.AsSpan(0, n), _newTarget, _endPoly, complete, needs);

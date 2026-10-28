@@ -200,7 +200,7 @@ public class VoxelSearchAgainstBruteForce
             VoxelPath p = g.FindPath(a, b, options);
             if (double.IsPositiveInfinity(expect))
             {
-                Assert.Equal(PathOutcome.NoPath, p.Status);
+                Assert.Equal(PathStatus.NoPath, p.Status);
                 continue;
             }
             Assert.True(p.Found, $"grid {t}: expected a path of cost {expect}");
@@ -247,7 +247,7 @@ public class VoxelSearchAgainstBruteForce
                     double expect = dist[g.NodeIndex(b.X, b.Y, b.Z)];
                     if (double.IsPositiveInfinity(expect))
                     {
-                        Assert.Equal(PathOutcome.NoPath, p.Status);
+                        Assert.Equal(PathStatus.NoPath, p.Status);
                     }
                     else
                     {

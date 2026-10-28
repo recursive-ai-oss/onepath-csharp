@@ -114,7 +114,7 @@ internal static class CrowdScenarios
                     ctx.Write(w.Edge);
                 }
                 var path = new PolyRef[256];
-                if (q.FindPath(na.Poly, nb.Poly, na.Point, nb.Point, new CorridorWorlds.AllPass(), path, out int pc) != PathStatus.Success)
+                if (q.FindPath(na.Poly, nb.Poly, na.Point, nb.Point, new CorridorWorlds.AllPass(), path, out int pc) != QueryStatus.Success)
                 {
                     continue;
                 }

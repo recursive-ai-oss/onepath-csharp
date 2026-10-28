@@ -219,10 +219,10 @@ public class HpaTests
 
         GridPath w = g.FindPath(new WorldPoint(2.5, 20.5), new WorldPoint(37.5, 20.5), new GridOptions { Algorithm = GridAlgorithm.Hpa });
         Assert.True(w.Found);
-        Assert.Equal(w.Cells.Length, w.WorldPoints.Length);
+        Assert.Equal(w.Cells.Length, w.Points.Length);
 
         GridPath s = g.FindPath(a, b, new GridOptions { Algorithm = GridAlgorithm.Hpa, IterationBudget = 1 });
-        Assert.Equal(PathOutcome.BudgetExhausted, s.Status);
+        Assert.Equal(PathStatus.BudgetExhausted, s.Status);
         GridPath none = g.FindPath(a, a, new GridOptions { Algorithm = GridAlgorithm.Hpa });
         Assert.True(none.Found);
         Assert.Equal(0.0, none.Cost);

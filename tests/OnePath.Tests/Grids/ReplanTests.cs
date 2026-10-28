@@ -331,18 +331,18 @@ public class ReplanTests
                 checks++;
                 if (!BruteForce.BlockFree(g, cs.X, cs.Y, size))
                 {
-                    Assert.Equal(PathOutcome.StartInvalid, p.Status);
+                    Assert.Equal(PathStatus.StartInvalid, p.Status);
                 }
                 else if (!BruteForce.BlockFree(g, cg.X, cg.Y, size))
                 {
-                    Assert.Equal(PathOutcome.GoalInvalid, p.Status);
+                    Assert.Equal(PathStatus.GoalInvalid, p.Status);
                 }
                 else
                 {
                     double expect = BruteForce.Dijkstra(g, size, conn, rule, cs, cg);
                     if (double.IsPositiveInfinity(expect))
                     {
-                        Assert.Equal(PathOutcome.NoPath, p.Status);
+                        Assert.Equal(PathStatus.NoPath, p.Status);
                     }
                     else
                     {
@@ -429,7 +429,7 @@ public class ReplanTests
                     calls++;
                     Assert.True(calls < 100_000);
                 }
-                while (got.Status == PathOutcome.BudgetExhausted);
+                while (got.Status == PathStatus.BudgetExhausted);
                 Assert.Equal(expect.Status, got.Status);
                 Assert.Equal(expect.Cost, got.Cost);
                 Assert.True(expect.Cells.SequenceEqual(got.Cells));
@@ -508,12 +508,12 @@ public class ReplanTests
         Assert.True(p.Cost > 11.0);
         blocked.Add(new Cell(5, 11));
         r.Invalidate(new Cell(5, 11));
-        Assert.Equal(PathOutcome.NoPath, r.Replan().Status);
+        Assert.Equal(PathStatus.NoPath, r.Replan().Status);
         blocked.Clear();
         r.InvalidateAll();
         Assert.Equal(11.0, r.Replan().Cost, 9);
         blocked.Add(new Cell(11, 0));
-        Assert.Equal(PathOutcome.GoalInvalid, r.Replan().Status);
+        Assert.Equal(PathStatus.GoalInvalid, r.Replan().Status);
     }
 
     [Fact]
@@ -611,11 +611,11 @@ public class ReplanTests
             Assert.Equal(0.0, p.Cost);
             Assert.Single(p.Cells.ToArray());
             using GridReplanner cut = g.CreateReplanner(new Cell(0, 0), new Cell(5, 5), new GridOptions { Algorithm = alg });
-            Assert.Equal(PathOutcome.NoPath, cut.Replan().Status);
+            Assert.Equal(PathStatus.NoPath, cut.Replan().Status);
             g.SetWalkable(3, 2, true);
             Assert.True(cut.Replan().Found);
             g.SetWalkable(3, 2, false);
-            Assert.Equal(PathOutcome.NoPath, cut.Replan().Status);
+            Assert.Equal(PathStatus.NoPath, cut.Replan().Status);
         }
     }
 
@@ -669,18 +669,18 @@ public class ReplanTests
                 checks++;
                 if (g.GetArea(cs.X, cs.Y) == AreaCosts.Wall)
                 {
-                    Assert.Equal(PathOutcome.StartInvalid, p.Status);
+                    Assert.Equal(PathStatus.StartInvalid, p.Status);
                 }
                 else if (g.GetArea(cg.X, cg.Y) == AreaCosts.Wall)
                 {
-                    Assert.Equal(PathOutcome.GoalInvalid, p.Status);
+                    Assert.Equal(PathStatus.GoalInvalid, p.Status);
                 }
                 else
                 {
                     double expect = BruteForce.HexDijkstra(g, cs, cg);
                     if (double.IsPositiveInfinity(expect))
                     {
-                        Assert.Equal(PathOutcome.NoPath, p.Status);
+                        Assert.Equal(PathStatus.NoPath, p.Status);
                     }
                     else
                     {

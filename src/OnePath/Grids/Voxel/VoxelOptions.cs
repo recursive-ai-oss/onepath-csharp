@@ -88,7 +88,7 @@ public sealed class VoxelOptions
     public bool RecordExpansions { get; set; }
 
     /// <summary>
-    /// Most iterations (node expansions) a query may use before it gives up with <see cref="PathOutcome.BudgetExhausted"/>;
+    /// Most iterations (node expansions) a query may use before it gives up with <see cref="PathStatus.BudgetExhausted"/>;
     /// counts iterations, never time. Default unlimited. For a resumable search use <see cref="AStar{TTopology, TCost, THeuristic}"/>.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is below 1.</exception>
@@ -124,7 +124,7 @@ public sealed class VoxelPath
     private readonly VoxelCell[] _expanded;
     private readonly VoxelPoint[] _world;
 
-    internal VoxelPath(PathOutcome status, double cost, VoxelCell[]? cells, int expandedCount, VoxelCell[]? expanded, VoxelPoint[]? world)
+    internal VoxelPath(PathStatus status, double cost, VoxelCell[]? cells, int expandedCount, VoxelCell[]? expanded, VoxelPoint[]? world)
     {
         Status = status;
         Cost = cost;
@@ -135,10 +135,16 @@ public sealed class VoxelPath
     }
 
     /// <summary>How the query ended.</summary>
-    public PathOutcome Status { get; }
+    public PathStatus Status { get; }
 
-    /// <summary>True when a path was found.</summary>
-    public bool Found => Status == PathOutcome.Found;
+    /// <summary>True when a path to the goal was found.</summary>
+    public bool Found => Status == PathStatus.Found;
+
+    /// <summary>True when the result holds a usable path (found, or best effort toward the goal). Grid and graph searches never return a partial path.</summary>
+    public bool HasPath => Status.HasPath();
+
+    /// <summary>True for a best-effort path that stops short of the goal; always false here.</summary>
+    public bool IsPartial => Status == PathStatus.Partial;
 
     /// <summary>The path cost (+∞ when no path was found).</summary>
     public double Cost { get; }
@@ -147,7 +153,32 @@ public sealed class VoxelPath
     public ReadOnlySpan<VoxelCell> Cells => _cells;
 
     /// <summary>The world-space voxel centres of the path, filled by the world-space query overload and empty otherwise.</summary>
-    public ReadOnlySpan<VoxelPoint> WorldPoints => _world;
+    public ReadOnlySpan<VoxelPoint> Points => _world;
+
+    /// <summary>
+    /// Length of the polyline through <see cref="Points"/>, in world units: 0 when there is no path, NaN when a path exists but the query
+    /// produced no points (the cell or node overloads).
+    /// </summary>
+    public double Length
+    {
+        get
+        {
+            if (_cells.Length == 0)
+            {
+                return 0;
+            }
+            if (_world.Length == 0)
+            {
+                return double.NaN;
+            }
+            double l = 0;
+            for (int i = 1; i < _world.Length; i++)
+            {
+                l += Math.Sqrt(((_world[i].X-_world[i-1].X)*(_world[i].X-_world[i-1].X))+((_world[i].Y-_world[i-1].Y)*(_world[i].Y-_world[i-1].Y))+((_world[i].Z-_world[i-1].Z)*(_world[i].Z-_world[i-1].Z)));
+            }
+            return l;
+        }
+    }
 
     /// <summary>Number of nodes the search expanded.</summary>
     public int ExpandedCount { get; }
@@ -155,7 +186,7 @@ public sealed class VoxelPath
     /// <summary>Debug data: the expanded voxels in order; empty unless <see cref="VoxelOptions.RecordExpansions"/> was set.</summary>
     public ReadOnlySpan<VoxelCell> ExpandedCells => _expanded;
 
-    internal static VoxelPath Invalid(PathOutcome status) => new(status, double.PositiveInfinity, null, 0, null, null);
+    internal static VoxelPath Invalid(PathStatus status) => new(status, double.PositiveInfinity, null, 0, null, null);
 }
 
 // Glue between the one-line queries and the generic search.
@@ -204,11 +235,11 @@ internal static class VoxelSearchRunner
         }
         if (status == SearchStatus.Running)
         {
-            return new VoxelPath(PathOutcome.BudgetExhausted, double.PositiveInfinity, null, expandedCount, expanded, null);
+            return new VoxelPath(PathStatus.BudgetExhausted, double.PositiveInfinity, null, expandedCount, expanded, null);
         }
         if (status == SearchStatus.NotFound)
         {
-            return new VoxelPath(PathOutcome.NoPath, double.PositiveInfinity, null, expandedCount, expanded, null);
+            return new VoxelPath(PathStatus.NoPath, double.PositiveInfinity, null, expandedCount, expanded, null);
         }
         int length = 0;
         for (int s = goalSlot; s >= 0; s = state.ParentOf(s))
@@ -227,6 +258,6 @@ internal static class VoxelSearchRunner
                 world[at] = centre!(cells[at]);
             }
         }
-        return new VoxelPath(PathOutcome.Found, pathCost, cells, expandedCount, expanded, world);
+        return new VoxelPath(PathStatus.Found, pathCost, cells, expandedCount, expanded, world);
     }
 }

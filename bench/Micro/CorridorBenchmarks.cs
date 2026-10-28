@@ -78,7 +78,7 @@ public class CorridorBenchmarks
     {
         foreach (PathCorridor c in _corridors)
         {
-            if (c.FindCorners(_query, _corners, out int n) != PathStatus.Success || n < 2)
+            if (c.FindCorners(_query, _corners, out int n) != QueryStatus.Success || n < 2)
             {
                 c.SetTarget(CorridorWorlds.RandomFieldPoint(Size, _rng));
                 c.Replan(_query);

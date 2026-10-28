@@ -120,13 +120,13 @@ public sealed partial class Grid
                 expanded[i] = SearchRunner.ToCell(e[i], Width);
             }
         }
-        PathOutcome outcome = status switch
+        PathStatus outcome = status switch
         {
-            SearchStatus.Found => PathOutcome.Found,
-            SearchStatus.NotFound => PathOutcome.NoPath,
-            _ => PathOutcome.BudgetExhausted,
+            SearchStatus.Found => PathStatus.Found,
+            SearchStatus.NotFound => PathStatus.NoPath,
+            _ => PathStatus.BudgetExhausted,
         };
-        if (outcome != PathOutcome.Found)
+        if (outcome != PathStatus.Found)
         {
             return reportAlgorithm
                 ? new GridPath(outcome, double.PositiveInfinity, null, engine.ExpandedCount, expanded, null) { Algorithm = used }
@@ -145,7 +145,7 @@ public sealed partial class Grid
             }
         }
         return reportAlgorithm
-            ? new GridPath(PathOutcome.Found, unitCost * engine.PathCost, cells, engine.ExpandedCount, expanded, world) { Algorithm = used }
-            : new GridPath(PathOutcome.Found, unitCost * engine.PathCost, cells, engine.ExpandedCount, expanded, world);
+            ? new GridPath(PathStatus.Found, unitCost * engine.PathCost, cells, engine.ExpandedCount, expanded, world) { Algorithm = used }
+            : new GridPath(PathStatus.Found, unitCost * engine.PathCost, cells, engine.ExpandedCount, expanded, world);
     }
 }

@@ -27,12 +27,12 @@ internal static class GridSmoke
 
         // Options with a delegate cost and a filter (the tier-1 path adapts these onto the struct-generic core).
         GridPath blocked = grid.FindPath(new Cell(0, 0), new Cell(0, 4), new GridOptions { Blocked = c => c.X == 4 && c.Y == 1, StepCost = (_, _, cost) => cost * 2 });
-        ok &= blocked.Status == PathOutcome.NoPath;
+        ok &= blocked.Status == PathStatus.NoPath;
 
         // World-space query.
         grid.Space = new GridSpace(10, 20, 2);
         GridPath world = grid.FindPath(new WorldPoint(11, 21), new WorldPoint(11, 29));
-        ok &= world.Found && world.WorldPoints.Length == world.Cells.Length;
+        ok &= world.Found && world.Points.Length == world.Cells.Length;
 
         // Hex grid and area costs.
         var hex = new HexGrid(6, 6, HexLayout.FlatOddColumn);
@@ -99,7 +99,7 @@ internal static class GridSmoke
             GridPath around = replanner.Replan();
             ok &= around.Found && Math.Abs(around.Cost - replanGrid.FindPath(new Cell(0, 0), new Cell(7, 0)).Cost) < 1e-9;
             replanner.MoveStart(around.Cells[1]);
-            ok &= replanner.Replan(1).Status is PathOutcome.BudgetExhausted or PathOutcome.Found;
+            ok &= replanner.Replan(1).Status is PathStatus.BudgetExhausted or PathStatus.Found;
             ok &= replanner.Replan().Found;
         }
         var hexOpen = new HexGrid(6, 6);
@@ -113,7 +113,7 @@ internal static class GridSmoke
         ok &= vp.Found && vp.Cost > 0.0;
         voxels.Space = new VoxelSpace(10, 20, 30, 2);
         VoxelPath vw = voxels.FindPath(new VoxelPoint(11, 21, 31), new VoxelPoint(17, 27, 37), new VoxelOptions { Connectivity = VoxelConnectivity.Eighteen, Blocked = c => c.X == 3 && c.Y == 0 });
-        ok &= vw.Found && vw.WorldPoints.Length == vw.Cells.Length;
+        ok &= vw.Found && vw.Points.Length == vw.Cells.Length;
         var vsearch = new AStar<VoxelTopology, DefaultStepCost, VoxelHeuristic>(voxels.CreateTopology(), default, new VoxelHeuristic(4, 4, VoxelHeuristicKind.Octile26));
         vsearch.Begin(0, 63);
         while (vsearch.Step(1) == SearchStatus.Running)

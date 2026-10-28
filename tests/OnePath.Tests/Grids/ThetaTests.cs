@@ -244,8 +244,8 @@ public class ThetaTests
             Assert.Equal(0.0, same.Cost);
             GridPath w = g.FindPath(new WorldPoint(101, 201), new WorldPoint(137, 233), o);
             Assert.True(w.Found);
-            Assert.Equal(w.Cells.Length, w.WorldPoints.Length);
-            Assert.Equal(new WorldPoint(102, 202), w.WorldPoints[0]);
+            Assert.Equal(w.Cells.Length, w.Points.Length);
+            Assert.Equal(new WorldPoint(102, 202), w.Points[0]);
         }
     }
 
@@ -324,7 +324,7 @@ public class ThetaTests
         foreach (GridAlgorithm alg in Algorithms)
         {
             GridPath p = g.FindPath(new Cell(0, 0), new Cell(99, 99), new GridOptions { Algorithm = alg, Heuristic = GridHeuristic.Zero, IterationBudget = 5 });
-            Assert.Equal(PathOutcome.BudgetExhausted, p.Status);
+            Assert.Equal(PathStatus.BudgetExhausted, p.Status);
         }
     }
 

@@ -177,7 +177,7 @@ internal static class VoxelHashScenarios
         g.SetWalkable(5, 5, 4, false);
         VoxelPath p = g.FindPath(new VoxelPoint(-1000.0, 2048.6, 7.8), new VoxelPoint(-997.0, 2051.0, 9.9));
         WritePath(ctx, p);
-        foreach (VoxelPoint w in p.WorldPoints)
+        foreach (VoxelPoint w in p.Points)
         {
             ctx.Write(w.X);
             ctx.Write(w.Y);

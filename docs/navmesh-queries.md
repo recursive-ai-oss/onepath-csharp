@@ -232,8 +232,9 @@ the wall's edge closest to `end` (clamped to the edge, height interpolated along
 ## One-call and tier-1 forms
 
 `NavMeshQuery.FindPath(start, end, PathOptions?)` = nearest polygon at each end (extents default (2, 4, 2)), sliced search run to
-completion, funnel; a partial path ends at the closest point of the last corridor polygon to the snapped end. Status values:
-`Success`, `Partial`, `NoStartNearby`, `NoEndNearby`, `InvalidCorridor` (cannot occur for results of the search itself). The
+completion, funnel; a partial path ends at the closest point of the last corridor polygon to the snapped end. `PathResult.Status` is the shared
+`PathStatus` (`docs/path-results.md`); `PathResult.Detail` keeps the query-level `QueryStatus` (`Success`, `Partial`, `NoStartNearby`,
+`NoEndNearby`, `InvalidCorridor`, which cannot occur for results of the search itself). The
 extension `TiledNavMesh.FindPath(a, b, options)` creates a query object per call; hold a `NavMeshQuery` when asking repeatedly.
 
 ## Debug geometry

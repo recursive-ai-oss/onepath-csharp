@@ -173,7 +173,7 @@ internal static class CrowdWorlds
                     break;
                 }
             }
-            if (!apart || q.FindPath(a, b).Status != PathStatus.Success)
+            if (!apart || q.FindPath(a, b).Status != PathStatus.Found)
             {
                 continue;
             }
@@ -225,7 +225,7 @@ internal static class CrowdWorlds
                     break;
                 }
             }
-            if (!apart || q.FindPath(a, b).Status != PathStatus.Success)
+            if (!apart || q.FindPath(a, b).Status != PathStatus.Found)
             {
                 continue;
             }

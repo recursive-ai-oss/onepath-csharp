@@ -96,10 +96,10 @@ public sealed class Agent
     /// Sends the agent to a world position: the route is searched at once and walked by the following steps. A destination off the
     /// mesh means its nearest point within the search extents; one with no walkable polygon near is refused.
     /// </summary>
-    /// <returns><see cref="PathStatus.Success"/>, <see cref="PathStatus.Partial"/> (unreachable: it walks to the nearest point it can) or <see cref="PathStatus.InProgress"/> (long route, finished by the steps); <see cref="PathStatus.NoEndNearby"/> when nothing walkable is near the destination.</returns>
+    /// <returns><see cref="PathStatus.Found"/>, <see cref="PathStatus.Partial"/> (unreachable: it walks to the nearest point it can) or <see cref="PathStatus.InProgress"/> (long route, finished by the steps); <see cref="PathStatus.GoalInvalid"/> when nothing walkable is near the destination, <see cref="PathStatus.StartInvalid"/> when the agent is not on the mesh.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is not finite or is beyond ±2^21.</exception>
     /// <exception cref="InvalidOperationException">The agent was removed.</exception>
-    public PathStatus SetDestination(Vector3D destination) => _crowd.SetDestinationAt(_slot >= 0 ? _slot : throw new InvalidOperationException("The agent was removed from its crowd."), destination);
+    public PathStatus SetDestination(Vector3D destination) => _crowd.SetDestinationAt(_slot >= 0 ? _slot : throw new InvalidOperationException("The agent was removed from its crowd."), destination).ToPathStatus();
 
     /// <summary>Stops the agent where it stands (it can still be pushed by others).</summary>
     public void Stop() => Follower.Stop();

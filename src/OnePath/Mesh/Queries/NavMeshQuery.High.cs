@@ -21,8 +21,8 @@ public sealed partial class NavMeshQuery
     public PathResult FindPath(Vector3D start, Vector3D end, PathOptions? options = null)
     {
         PathOptions o = options ?? s_defaultOptions;
-        PathStatus s = BeginHigh(start, end, o, out NearestPoly sn, out NearestPoly en);
-        if (s == PathStatus.InProgress)
+        QueryStatus s = BeginHigh(start, end, o, out NearestPoly sn, out NearestPoly en);
+        if (s == QueryStatus.InProgress)
         {
             UpdatePath(int.MaxValue);
         }
@@ -42,12 +42,12 @@ public sealed partial class NavMeshQuery
             throw new ArgumentOutOfRangeException(nameof(iterationsPerSlice), iterationsPerSlice, "A slice must be at least one iteration.");
         }
         PathOptions o = options ?? s_defaultOptions;
-        PathStatus s = BeginHigh(start, end, o, out NearestPoly sn, out NearestPoly en);
-        while (s == PathStatus.InProgress)
+        QueryStatus s = BeginHigh(start, end, o, out NearestPoly sn, out NearestPoly en);
+        while (s == QueryStatus.InProgress)
         {
             cancellationToken.ThrowIfCancellationRequested();
             s = UpdatePath(iterationsPerSlice);
-            if (s == PathStatus.InProgress)
+            if (s == QueryStatus.InProgress)
             {
                 await Task.Yield();
             }
@@ -55,7 +55,7 @@ public sealed partial class NavMeshQuery
         return FinishHigh(s, start, end, o, sn, en);
     }
 
-    private PathStatus BeginHigh(Vector3D start, Vector3D end, PathOptions o, out NearestPoly sn, out NearestPoly en)
+    private QueryStatus BeginHigh(Vector3D start, Vector3D end, PathOptions o, out NearestPoly sn, out NearestPoly en)
     {
         CheckPos(start, nameof(start));
         CheckPos(end, nameof(end));
@@ -64,20 +64,20 @@ public sealed partial class NavMeshQuery
         en = FindNearestPoly(end, o.SearchExtents, f);
         if (!sn.Poly.IsSet)
         {
-            return PathStatus.NoStartNearby;
+            return QueryStatus.NoStartNearby;
         }
         if (!en.Poly.IsSet)
         {
-            return PathStatus.NoEndNearby;
+            return QueryStatus.NoEndNearby;
         }
         return BeginPath(sn.Poly, en.Poly, sn.Point, en.Point, f);
     }
 
-    private PathResult FinishHigh(PathStatus s, Vector3D start, Vector3D end, PathOptions o, NearestPoly sn, NearestPoly en)
+    private PathResult FinishHigh(QueryStatus s, Vector3D start, Vector3D end, PathOptions o, NearestPoly sn, NearestPoly en)
     {
         _ = start;
         _ = end;
-        if (s != PathStatus.InProgress && s != PathStatus.Success && s != PathStatus.Partial)
+        if (s != QueryStatus.InProgress && s != QueryStatus.Success && s != QueryStatus.Partial)
         {
             return new PathResult(s, [], [], 0, false);
         }
@@ -86,10 +86,10 @@ public sealed partial class NavMeshQuery
         {
             _corridorBuf = new PolyRef[maxCorr];
         }
-        PathStatus status = FinishPath(_corridorBuf.AsSpan(0, maxCorr), out int cc, out bool trunc, out double cost);
-        Vector3D goal = status == PathStatus.Success ? en.Point : default;
+        QueryStatus status = FinishPath(_corridorBuf.AsSpan(0, maxCorr), out int cc, out bool trunc, out double cost);
+        Vector3D goal = status == QueryStatus.Success ? en.Point : default;
         var corridor = _corridorBuf.AsSpan(0, cc);
-        if (status == PathStatus.Partial)
+        if (status == QueryStatus.Partial)
         {
             // End at the closest point of the last corridor polygon to the requested end.
             ClosestPointOnPoly(corridor[^1], en.Point, out goal, out _);
@@ -99,8 +99,8 @@ public sealed partial class NavMeshQuery
         {
             _pointBuf = new StraightPathPoint[maxPts];
         }
-        PathStatus ss = FindStraightPath(sn.Point, goal, corridor, _pointBuf.AsSpan(0, maxPts), out int pc, out bool ptrunc);
-        if (ss != PathStatus.Success)
+        QueryStatus ss = FindStraightPath(sn.Point, goal, corridor, _pointBuf.AsSpan(0, maxPts), out int pc, out bool ptrunc);
+        if (ss != QueryStatus.Success)
         {
             return new PathResult(ss, [], [], 0, false);
         }

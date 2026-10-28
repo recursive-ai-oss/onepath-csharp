@@ -219,7 +219,7 @@ public class GraphSearchTests
                         string label = $"graph {index} ({w.Family}) {s}->{t} {algorithm} lm={options.Landmarks is not null} h={options.Heuristic is not null}";
                         if (double.IsPositiveInfinity(truth[t]))
                         {
-                            Assert.True(p.Status == PathOutcome.NoPath, label + " should have no path");
+                            Assert.True(p.Status == PathStatus.NoPath, label + " should have no path");
                             continue;
                         }
                         Assert.True(p.Found, label + " should find a path");
@@ -281,8 +281,8 @@ public class GraphSearchTests
             Assert.Equal(6.0, p.Cost);
             GraphPath blocked = GraphWorlds.Find(g, 0, 2, new GraphOptions { Algorithm = a, Blocked = n => n == 1 });
             Assert.Equal([0, 2], blocked.Nodes.ToArray());
-            Assert.Equal(PathOutcome.StartInvalid, GraphWorlds.Find(g, 0, 2, new GraphOptions { Algorithm = a, Blocked = n => n == 0 }).Status);
-            Assert.Equal(PathOutcome.GoalInvalid, GraphWorlds.Find(g, 0, 7, new GraphOptions { Algorithm = a }).Status);
+            Assert.Equal(PathStatus.StartInvalid, GraphWorlds.Find(g, 0, 2, new GraphOptions { Algorithm = a, Blocked = n => n == 0 }).Status);
+            Assert.Equal(PathStatus.GoalInvalid, GraphWorlds.Find(g, 0, 7, new GraphOptions { Algorithm = a }).Status);
         }
     }
 
@@ -309,8 +309,8 @@ public class GraphSearchTests
             Assert.True(same.Found);
             Assert.Equal(0.0, same.Cost);
             Assert.Equal([2], same.Nodes.ToArray());
-            Assert.Equal(PathOutcome.NoPath, GraphWorlds.Find(g, 1, 0, new GraphOptions { Algorithm = a }).Status);
-            Assert.Equal(PathOutcome.NoPath, GraphWorlds.Find(g, 0, 2, new GraphOptions { Algorithm = a, Landmarks = g.BuildLandmarks(new LandmarkOptions { Count = 2 }) }).Status);
+            Assert.Equal(PathStatus.NoPath, GraphWorlds.Find(g, 1, 0, new GraphOptions { Algorithm = a }).Status);
+            Assert.Equal(PathStatus.NoPath, GraphWorlds.Find(g, 0, 2, new GraphOptions { Algorithm = a, Landmarks = g.BuildLandmarks(new LandmarkOptions { Count = 2 }) }).Status);
         }
     }
 
@@ -376,7 +376,7 @@ public class GraphSearchTests
             return;
         }
         GraphPath cut = GraphWorlds.Find(g, 0, w.Nodes - 1, new GraphOptions { IterationBudget = 1 });
-        Assert.Equal(PathOutcome.BudgetExhausted, cut.Status);
+        Assert.Equal(PathStatus.BudgetExhausted, cut.Status);
         GraphPath enough = GraphWorlds.Find(g, 0, w.Nodes - 1, new GraphOptions { IterationBudget = full.ExpandedCount + 1 });
         Assert.Equal(full.Cost, enough.Cost);
         Assert.Equal(full.ExpandedNodes.ToArray(), GraphWorlds.Find(g, 0, w.Nodes - 1, new GraphOptions { RecordExpansions = true }).ExpandedNodes.ToArray());
@@ -730,10 +730,10 @@ public class PointGraphTests
         GraphPath p = GraphWorlds.Find(g, new Point3(1, 1), new Point3(1, 9));
         Assert.True(p.Found);
         Assert.Equal(30.0, p.Cost);
-        Assert.Equal(pts.ToArray(), p.Positions.ToArray());
+        Assert.Equal(pts.ToArray(), p.Points.ToArray());
         Assert.Equal(GraphAlgorithm.AStar, p.Algorithm);
         Assert.Equal(-1, PointGraph.From(new List<Point3>()).NearestNode(new Point3(0, 0)));
-        Assert.Equal(PathOutcome.StartInvalid, GraphWorlds.Find(PointGraph.From(new List<Point3>()), new Point3(0, 0), new Point3(1, 1)).Status);
+        Assert.Equal(PathStatus.StartInvalid, GraphWorlds.Find(PointGraph.From(new List<Point3>()), new Point3(0, 0), new Point3(1, 1)).Status);
     }
 
     [Fact]

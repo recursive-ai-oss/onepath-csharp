@@ -189,20 +189,20 @@ public class NavMeshQueryTests
                     continue;
                 }
                 Vector3D pa = RandomPointIn(m, a, r), pb = RandomPointIn(m, b, r);
-                PathStatus st = q.BeginPath(a, b, pa, pb, f);
-                Assert.Equal(PathStatus.InProgress, st);
+                QueryStatus st = q.BeginPath(a, b, pa, pb, f);
+                Assert.Equal(QueryStatus.InProgress, st);
                 st = q.UpdatePath(int.MaxValue);
-                PathStatus fin = q.FinishPath(corridor, out int cnt, out _, out double cost);
+                QueryStatus fin = q.FinishPath(corridor, out int cnt, out _, out double cost);
                 Assert.Equal(st, fin);
                 double oracle = OracleCost(m, a, b, pa, pb, f);
                 if (double.IsPositiveInfinity(oracle))
                 {
-                    Assert.Equal(PathStatus.Partial, st);
+                    Assert.Equal(QueryStatus.Partial, st);
                     partial++;
                 }
                 else
                 {
-                    Assert.Equal(PathStatus.Success, st);
+                    Assert.Equal(QueryStatus.Success, st);
                     Assert.True(Math.Abs(cost - oracle) <= 1e-9 * Math.Max(1, oracle), $"seed {seed} pair {k}: {cost} vs {oracle}");
                     Assert.Equal(a, corridor[0]);
                     Assert.Equal(b, corridor[cnt - 1]);
@@ -225,14 +225,14 @@ public class NavMeshQueryTests
         {
             PolyRef a = polys[r.Int(polys.Count)], b = polys[r.Int(polys.Count)];
             var corridor = new PolyRef[4096];
-            PathStatus st = q.FindPath(a, b, RandomPointIn(m, a, r), RandomPointIn(m, b, r), new AllPass(), corridor, out int cnt);
-            Assert.True(st is PathStatus.Success or PathStatus.Partial);
+            QueryStatus st = q.FindPath(a, b, RandomPointIn(m, a, r), RandomPointIn(m, b, r), new AllPass(), corridor, out int cnt);
+            Assert.True(st is QueryStatus.Success or QueryStatus.Partial);
             var seen = new HashSet<ulong>();
             for (int i = 0; i < cnt; i++)
             {
                 Assert.True(seen.Add(corridor[i].Value), "polygon repeated in corridor");
             }
-            Assert.Equal(PathStatus.Success, q.FindStraightPath(RandomPointIn(m, corridor[0], r), RandomPointIn(m, corridor[cnt - 1], r), corridor.AsSpan(0, cnt), new StraightPathPoint[4096], out _, out _));
+            Assert.Equal(QueryStatus.Success, q.FindStraightPath(RandomPointIn(m, corridor[0], r), RandomPointIn(m, corridor[cnt - 1], r), corridor.AsSpan(0, cnt), new StraightPathPoint[4096], out _, out _));
         }
     }
 
@@ -306,13 +306,13 @@ public class NavMeshQueryTests
                 PolyRef a = polys[r.Int(polys.Count)], b = polys[r.Int(polys.Count)];
                 Vector3D pa = RandomPointIn(m, a, r), pb = RandomPointIn(m, b, r);
                 var corridor = new PolyRef[4096];
-                PathStatus st = q.FindPath(a, b, pa, pb, new AllPass(), corridor, out int cnt);
-                if (st != PathStatus.Success)
+                QueryStatus st = q.FindPath(a, b, pa, pb, new AllPass(), corridor, out int cnt);
+                if (st != QueryStatus.Success)
                 {
                     continue;
                 }
                 var pts = new StraightPathPoint[4096];
-                Assert.Equal(PathStatus.Success, q.FindStraightPath(pa, pb, corridor.AsSpan(0, cnt), pts, out int pc, out _));
+                Assert.Equal(QueryStatus.Success, q.FindStraightPath(pa, pb, corridor.AsSpan(0, cnt), pts, out int pc, out _));
                 // The result starts and ends at the (snapped) endpoints, and every point lies on its portal.
                 Assert.True(pts[0].Flags.HasFlag(StraightPathMarks.Start));
                 Assert.True(pts[pc - 1].Flags.HasFlag(StraightPathMarks.End));
@@ -648,27 +648,27 @@ public class NavMeshQueryTests
             PolyRef a = polys[r.Int(polys.Count)], b = polys[r.Int(polys.Count)];
             Vector3D pa = RandomPointIn(m, a, r), pb = RandomPointIn(m, b, r);
             var want = new PolyRef[4096];
-            PathStatus ws = q.BeginPath(a, b, pa, pb, f);
-            if (ws != PathStatus.InProgress)
+            QueryStatus ws = q.BeginPath(a, b, pa, pb, f);
+            if (ws != QueryStatus.InProgress)
             {
                 continue;
             }
             q.UpdatePath(int.MaxValue);
-            PathStatus wf = q.FinishPath(want, out int wc, out _, out double wcost);
+            QueryStatus wf = q.FinishPath(want, out int wc, out _, out double wcost);
             int wIter = q.Iterations;
             foreach (int budget in new[] { 1, 2, 3, 7, 50, 1000 })
             {
                 q.BeginPath(a, b, pa, pb, f);
                 int calls = 0;
-                PathStatus s;
+                QueryStatus s;
                 do
                 {
                     s = q.UpdatePath(budget);
                     calls++;
                 }
-                while (s == PathStatus.InProgress);
+                while (s == QueryStatus.InProgress);
                 var got = new PolyRef[4096];
-                PathStatus gf = q.FinishPath(got, out int gc, out _, out double gcost);
+                QueryStatus gf = q.FinishPath(got, out int gc, out _, out double gcost);
                 Assert.Equal(wf, gf);
                 Assert.Equal(wc, gc);
                 Assert.Equal(wcost, gcost);
@@ -724,7 +724,7 @@ public class NavMeshQueryTests
         var a = new Vector3D(ox + 1, 0, oz + 1);
         var b = new Vector3D(ox + 5, 0, oz + 1);
         PathResult ok = q.FindPath(a, b);
-        Assert.Equal(PathStatus.Success, ok.Status);
+        Assert.Equal(PathStatus.Found, ok.Status);
         Assert.Equal(3, ok.Corridor.Count);
         Assert.Equal(4.0, ok.Length, 9);
         var blocked = new PathOptions { Filter = new QueryFilter { ExcludeFlags = 2 } };
@@ -760,13 +760,13 @@ public class NavMeshQueryTests
         var q = new NavMeshQuery(m);
         Vector3D a = new(p.TileOriginX(0) + 1.5, 0, p.TileOriginZ(0) + 1.5), b = new(p.TileOriginX(2) + 2.5, 0, p.TileOriginZ(0) + 2.5);
         PathResult fwd = q.FindPath(a, b);
-        Assert.Equal(PathStatus.Success, fwd.Status);
+        Assert.Equal(PathStatus.Found, fwd.Status);
         Assert.Equal(4, fwd.Points.Count);
         Assert.True(fwd.Points[1].Flags.HasFlag(StraightPathMarks.OffMeshConnection));
         Assert.Equal(p.TileOriginX(0) + 2, fwd.Points[1].Position.X);
         Assert.Equal(p.TileOriginX(0) + 18, fwd.Points[2].Position.X);
         PathResult back = q.FindPath(b, a);
-        Assert.Equal(PathStatus.Success, back.Status);
+        Assert.Equal(PathStatus.Found, back.Status);
         Assert.True(back.Points[1].Flags.HasFlag(StraightPathMarks.OffMeshConnection));
         // The forbidden area closes the link.
         PathResult closed = q.FindPath(a, b, new PathOptions { Filter = new QueryFilter().SetAreaCost(9, double.PositiveInfinity) });
@@ -792,19 +792,19 @@ public class NavMeshQueryTests
         Assert.Throws<ArgumentOutOfRangeException>(() => q.Raycast(polys[0], good, new Vector3D(0, 0, double.NaN), null, buf, out _));
         Assert.Throws<ArgumentOutOfRangeException>(() => q.FindStraightPath(good, new Vector3D(1e9, 0, 0), polys.GetRange(0, 1).ToArray(), pts, out _, out _));
         Assert.Throws<ArgumentOutOfRangeException>(() => new NavMeshQuery(m, 1));
-        Assert.Equal(PathStatus.InvalidStartPoly, q.BeginPath(PolyRef.Invalid, polys[0], good, good));
-        Assert.Equal(PathStatus.InvalidEndPoly, q.BeginPath(polys[0], new PolyRef(ulong.MaxValue), good, good));
+        Assert.Equal(QueryStatus.InvalidStartPoly, q.BeginPath(PolyRef.Invalid, polys[0], good, good));
+        Assert.Equal(QueryStatus.InvalidEndPoly, q.BeginPath(polys[0], new PolyRef(ulong.MaxValue), good, good));
         Assert.Equal(RaycastStatus.InvalidStartPoly, q.Raycast(new PolyRef(123), good, good, null, buf, out _).Status);
         Assert.Equal(RaycastStatus.StartOutsidePolygon, q.Raycast(polys[0], new Vector3D(good.X + 100, 0, good.Z), good, null, buf, out _).Status);
         Assert.False(q.ClosestPointOnPoly(PolyRef.Invalid, good, out _, out _));
-        Assert.Equal(PathStatus.InvalidCorridor, q.FindStraightPath(good, good, ReadOnlySpan<PolyRef>.Empty, pts, out _, out _));
+        Assert.Equal(QueryStatus.InvalidCorridor, q.FindStraightPath(good, good, ReadOnlySpan<PolyRef>.Empty, pts, out _, out _));
         // Two polygons that do not touch are not a corridor.
         PolyRef far = polys[^1];
-        Assert.Equal(PathStatus.InvalidCorridor, q.FindStraightPath(good, good, new[] { polys[0], far }, pts, out _, out _));
+        Assert.Equal(QueryStatus.InvalidCorridor, q.FindStraightPath(good, good, new[] { polys[0], far }, pts, out _, out _));
         // Stale after the tile is removed.
         TileRef t0 = polys[0].Tile;
         m.RemoveTile(t0);
-        Assert.Equal(PathStatus.InvalidStartPoly, q.BeginPath(polys[0], polys[^1], good, good));
+        Assert.Equal(QueryStatus.InvalidStartPoly, q.BeginPath(polys[0], polys[^1], good, good));
         Assert.False(q.FindNearestPoly(good, new Vector3D(0.01, 0.01, 0.01)).Poly == polys[0]);
         Assert.Equal(RaycastStatus.InvalidStartPoly, q.Raycast(polys[0], good, good, null, buf, out _).Status);
         Assert.Throws<InvalidOperationException>(() =>
@@ -815,7 +815,7 @@ public class NavMeshQueryTests
         // Tiny buffers truncate rather than fail.
         var tinyPath = new PolyRef[1];
         PolyRef x = polys[^1];
-        Assert.True(q.FindPath(x, x, RandomPointIn(m, x, r), RandomPointIn(m, x, r), new AllPass(), tinyPath, out int tc) == PathStatus.Success && tc == 1);
+        Assert.True(q.FindPath(x, x, RandomPointIn(m, x, r), RandomPointIn(m, x, r), new AllPass(), tinyPath, out int tc) == QueryStatus.Success && tc == 1);
         Assert.False(q.FindPath(new Vector3D(1e5, 0, 1e5), good).HasPath);
     }
 
@@ -842,7 +842,7 @@ public class NavMeshQueryTests
             for (int i = 0; i + 1 < 16; i++)
             {
                 _ = q.FindNearestPoly(ps[i], new Vector3D(2, 4, 2), in filter);
-                if (q.FindPath(pp[i], pp[i + 1], ps[i], ps[i + 1], in filter, corridor, out int n) != PathStatus.Success)
+                if (q.FindPath(pp[i], pp[i + 1], ps[i], ps[i + 1], in filter, corridor, out int n) != QueryStatus.Success)
                 {
                     continue;
                 }
