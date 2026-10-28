@@ -47,6 +47,7 @@ internal enum StateKind : ushort
     JumpSearch = 9,
     ThetaSearch = 10,
     GraphAStar = 11,
+    GridSearch = 12,
 }
 
 /// <summary>Writes the little-endian state format into a growing byte array.</summary>

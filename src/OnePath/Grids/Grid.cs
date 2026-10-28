@@ -66,6 +66,9 @@ public sealed partial class Grid
     /// <summary>Incremented by every cell edit.</summary>
     public int Version { get; private set; }
 
+    // Counts state restores: versions can repeat after a rollback, so caches compare this as well.
+    internal int RestoreCount { get; private set; }
+
     /// <summary>The cell array (row-major area ids), read-only.</summary>
     public ReadOnlySpan<byte> Cells => _cells;
 

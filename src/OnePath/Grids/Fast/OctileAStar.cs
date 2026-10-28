@@ -13,7 +13,7 @@ namespace RecursiveAI.OnePath.Grids;
 /// Costs are computed for unit steps; callers multiply by the cell cost.
 /// <para>Not thread-safe. The grid must not change while a search runs; edits between searches are picked up.</para>
 /// </summary>
-internal sealed class OctileAStar : IOctileEngine
+internal sealed partial class OctileAStar : IOctileEngine
 {
     private const double Sqrt2 = GridMath.Sqrt2;
 
@@ -28,6 +28,7 @@ internal sealed class OctileAStar : IOctileEngine
     private readonly IndexedHeap _open;
     private readonly List<int> _expanded = [];
     private int _version = -1;
+    private int _restores = -1;
     private uint _generation;
 
     private int _goal;
@@ -71,7 +72,7 @@ internal sealed class OctileAStar : IOctileEngine
 
     private void Refresh()
     {
-        if (_version == _grid.Version)
+        if (_version == _grid.Version && _restores == _grid.RestoreCount)
         {
             return;
         }
@@ -94,6 +95,7 @@ internal sealed class OctileAStar : IOctileEngine
             }
         }
         _version = _grid.Version;
+        _restores = _grid.RestoreCount;
     }
 
     private int ToInner(int cell)
@@ -115,6 +117,13 @@ internal sealed class OctileAStar : IOctileEngine
     /// <param name="budget">Most iterations (pops of live nodes); the status is Running when it runs out.</param>
     /// <param name="record">Record expanded cells in <see cref="Expanded"/>.</param>
     public SearchStatus Run(int start, int goal, bool zeroEstimate, int budget, bool record)
+    {
+        Begin(start, goal, zeroEstimate);
+        return Loop(budget, record);
+    }
+
+    /// <summary>Starts a search that <see cref="Step"/> then advances; <see cref="Run"/> is both in one call.</summary>
+    public void Begin(int start, int goal, bool zeroEstimate)
     {
         if (_generation >= (uint.MaxValue >> 4) - 2)
         {
@@ -138,8 +147,10 @@ internal sealed class OctileAStar : IOctileEngine
         _nodes[s] = new AStarNode { A = 0, B = 0, Tag = _generation << 4 };
         _open.Insert(Estimate(0, 0, s), 0f, s);
         _status = SearchStatus.Running;
-        return Loop(budget, record);
     }
+
+    /// <summary>Continues a begun search by at most <paramref name="budget"/> pops (a pop is one iteration, the goal's included).</summary>
+    public SearchStatus Step(int budget, bool record) => Loop(budget, record);
 
     private double Estimate(int a, int b, int node)
     {
@@ -179,6 +190,10 @@ internal sealed class OctileAStar : IOctileEngine
     {
         AStarNode[] nodes = _nodes;
         IndexedHeap open = _open;
+        if (_status != SearchStatus.Running)
+        {
+            return _status;
+        }
         uint openBase = _generation << 4;
         int stride = _stride;
         ulong recip = (ulong.MaxValue / (ulong)stride) + 1; // the padded stride is at least 3
@@ -327,6 +342,20 @@ internal sealed class OctileAStar : IOctileEngine
         for (int n = _goal; ; n = Parent(n))
         {
             destination[--i] = ToCell(n);
+            if (n == _startInner)
+            {
+                break;
+            }
+        }
+    }
+
+    /// <summary>Writes the found path as cells, start first; <paramref name="destination"/> holds at least <see cref="PathLength"/> entries.</summary>
+    public void CopyCells(Span<Cell> destination, int width)
+    {
+        int i = PathLength();
+        for (int n = _goal; ; n = Parent(n))
+        {
+            destination[--i] = SearchRunner.ToCell(ToCell(n), width);
             if (n == _startInner)
             {
                 break;

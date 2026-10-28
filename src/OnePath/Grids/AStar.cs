@@ -86,6 +86,37 @@ public sealed partial class AStar<TTopology, TCost, THeuristic>
         }
     }
 
+    /// <summary>The goal node of the current search, or -1 before <see cref="Begin"/>.</summary>
+    public int Goal => _goal;
+
+    /// <summary>The start node of the current search, or -1 before <see cref="Begin"/>.</summary>
+    public int Start => _start;
+
+    /// <summary>The topology this search runs over (read-only; the struct is a view of the grid, not a copy of it).</summary>
+    public TTopology Topology => _topology;
+
+    /// <summary>
+    /// Starts a new search like <see cref="Begin"/>, but reports a node that is outside the graph or not walkable as a status
+    /// instead of throwing. Nothing changes when it does not start.
+    /// </summary>
+    /// <param name="start">Start node.</param>
+    /// <param name="goal">Goal node.</param>
+    /// <returns><see cref="PathStatus.InProgress"/> when the search began, otherwise <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/> (start is checked first).</returns>
+    public PathStatus TryBegin(int start, int goal)
+    {
+        int n = _topology.NodeCount;
+        if ((uint)start >= (uint)n || !_topology.IsWalkable(start))
+        {
+            return PathStatus.StartInvalid;
+        }
+        if ((uint)goal >= (uint)n || !_topology.IsWalkable(goal))
+        {
+            return PathStatus.GoalInvalid;
+        }
+        Begin(start, goal);
+        return PathStatus.InProgress;
+    }
+
     /// <summary>Starts a new search, discarding any previous one.</summary>
     /// <param name="start">Start node.</param>
     /// <param name="goal">Goal node.</param>

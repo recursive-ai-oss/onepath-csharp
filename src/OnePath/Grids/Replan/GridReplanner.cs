@@ -26,6 +26,8 @@ public sealed partial class GridReplanner : IGridBatchListener, IDisposable
     private ReplanSearch _search;
     private int _areaVersion;
     private bool _disposed;
+    private readonly System.Collections.Generic.List<int> _pathNodes = [];
+    private double _pathCost = double.PositiveInfinity;
 
     internal GridReplanner(Grid grid, Cell start, Cell goal, GridOptions options)
     {
@@ -149,14 +151,71 @@ public sealed partial class GridReplanner : IGridBatchListener, IDisposable
     public GridPath Replan() => Replan(int.MaxValue);
 
     /// <summary>
-    /// Like <see cref="Replan()"/> but spends at most <paramref name="iterationBudget"/> queue pops; on <see cref="PathStatus.BudgetExhausted"/>
-    /// call again to continue. Any sequence of budgets ends with the result of one unsliced call.
+    /// Repairs the search like <see cref="Replan(int)"/> but allocates nothing in steady state: the result is a status, and on
+    /// <see cref="PathStatus.Found"/> the path is read with <see cref="PathLength"/>, <see cref="PathCost"/> and
+    /// <see cref="CopyPath(Span{int})"/>. A call that returns <see cref="PathStatus.BudgetExhausted"/> is continued by calling
+    /// again; the final answer equals one unsliced call. Expansion recording (<see cref="GridOptions.RecordExpansions"/>) is not
+    /// kept by this form.
     /// </summary>
-    /// <param name="iterationBudget">At least 1.</param>
-    /// <returns>The result.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">The budget is below 1.</exception>
+    /// <param name="iterationBudget">Most queue pops this call may make; at least 1. Default: unlimited.</param>
+    /// <returns>Found, NoPath, StartInvalid, GoalInvalid or BudgetExhausted.</returns>
     /// <exception cref="ObjectDisposedException">The replanner was disposed.</exception>
-    public GridPath Replan(int iterationBudget)
+    /// <exception cref="ArgumentOutOfRangeException">The budget is below 1.</exception>
+    public PathStatus TryReplan(int iterationBudget = int.MaxValue)
+    {
+        PathStatus status = RunSearch(iterationBudget);
+        _pathNodes.Clear();
+        _pathCost = double.PositiveInfinity;
+        if (status == PathStatus.Found && !_search.ExtractPathInto(_pathNodes, out _pathCost))
+        {
+            throw new InvalidOperationException("The replanned search has a cost but no path to it; this is a bug.");
+        }
+        return status;
+    }
+
+    /// <summary>Number of cells on the path found by the last <see cref="TryReplan"/> (start and goal included); 0 if it did not find one.</summary>
+    public int PathLength => _pathNodes.Count;
+
+    /// <summary>The cost of the path found by the last <see cref="TryReplan"/>, summed from the start in path order (+∞ if none).</summary>
+    public double PathCost => _pathCost;
+
+    /// <summary>Writes the path found by the last <see cref="TryReplan"/> as cell indexes (<c>y * Width + x</c>), start first.</summary>
+    /// <param name="destination">At least <see cref="PathLength"/> entries.</param>
+    /// <returns>The number of entries written (0 when there is no path).</returns>
+    /// <exception cref="ArgumentException"><paramref name="destination"/> is too small.</exception>
+    public int CopyPath(Span<int> destination)
+    {
+        int n = _pathNodes.Count;
+        if (destination.Length < n)
+        {
+            throw new ArgumentException($"The path has {n} cells but the destination holds {destination.Length}.", nameof(destination));
+        }
+        for (int i = 0; i < n; i++)
+        {
+            destination[i] = _pathNodes[i];
+        }
+        return n;
+    }
+
+    /// <summary>Writes the path found by the last <see cref="TryReplan"/> as cells, start first.</summary>
+    /// <param name="destination">At least <see cref="PathLength"/> entries.</param>
+    /// <returns>The number of entries written (0 when there is no path).</returns>
+    /// <exception cref="ArgumentException"><paramref name="destination"/> is too small.</exception>
+    public int CopyPath(Span<Cell> destination)
+    {
+        int n = _pathNodes.Count;
+        if (destination.Length < n)
+        {
+            throw new ArgumentException($"The path has {n} cells but the destination holds {destination.Length}.", nameof(destination));
+        }
+        for (int i = 0; i < n; i++)
+        {
+            destination[i] = ToCell(_pathNodes[i]);
+        }
+        return n;
+    }
+
+    private PathStatus RunSearch(int iterationBudget)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentOutOfRangeException.ThrowIfLessThan(iterationBudget, 1);
@@ -178,6 +237,20 @@ public sealed partial class GridReplanner : IGridBatchListener, IDisposable
         {
             status = _search.Replan(iterationBudget);
         }
+        return status;
+    }
+
+    /// <summary>
+    /// Like <see cref="Replan()"/> but spends at most <paramref name="iterationBudget"/> queue pops; on <see cref="PathStatus.BudgetExhausted"/>
+    /// call again to continue. Any sequence of budgets ends with the result of one unsliced call.
+    /// </summary>
+    /// <param name="iterationBudget">At least 1.</param>
+    /// <returns>The result.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The budget is below 1.</exception>
+    /// <exception cref="ObjectDisposedException">The replanner was disposed.</exception>
+    public GridPath Replan(int iterationBudget)
+    {
+        PathStatus status = RunSearch(iterationBudget);
         int expanded = _search.LastExpanded;
         Cell[]? expandedCells = null;
         if (_options.RecordExpansions)
