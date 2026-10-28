@@ -98,6 +98,12 @@ public abstract class ReplanSearch
     /// <param name="cost">The path's cost, summed from the start in path order.</param>
     /// <returns>The nodes, start first.</returns>
     public abstract int[]? ExtractPath(out double cost);
+
+    /// <summary>
+    /// Like <see cref="ExtractPath(out double)"/> but fills a caller-owned list (cleared first) and a reusable scratch list, so a
+    /// steady-state call allocates nothing.
+    /// </summary>
+    internal abstract bool ExtractPathInto(System.Collections.Generic.List<int> nodes, out double cost);
 }
 
 /// <summary>
@@ -550,21 +556,31 @@ public sealed partial class ReplanSearch<TTopology, TCost, THeuristic> : ReplanS
     /// <inheritdoc/>
     public override int[]? ExtractPath(out double cost)
     {
+        var nodes = new List<int>();
+        return ExtractPathInto(nodes, out cost) ? nodes.ToArray() : null;
+    }
+
+    private readonly List<double> _stepCosts = [];
+
+    internal override bool ExtractPathInto(List<int> nodes, out double cost)
+    {
         cost = double.PositiveInfinity;
         int focus = Focus;
         int root = Root;
+        nodes.Clear();
         if (!_found || double.IsPositiveInfinity(_g[focus]))
         {
-            return null;
+            return false;
         }
-        var nodes = new List<int> { focus };
-        var costs = new List<double>();
+        nodes.Add(focus);
+        List<double> costs = _stepCosts;
+        costs.Clear();
         int cur = focus;
         while (cur != root)
         {
             if (nodes.Count > _nodeCount)
             {
-                return null;
+                return false;
             }
             var s = new StepChooser
             {
@@ -583,7 +599,7 @@ public sealed partial class ReplanSearch<TTopology, TCost, THeuristic> : ReplanS
             int next = s.BestSettled >= 0 ? s.BestSettled : s.BestAny;
             if (next < 0)
             {
-                return null;
+                return false;
             }
             costs.Add(s.BestSettled >= 0 ? s.BestSettledCost : s.BestAnyCost);
             nodes.Add(next);
@@ -601,6 +617,6 @@ public sealed partial class ReplanSearch<TTopology, TCost, THeuristic> : ReplanS
             sum += costs[i];
         }
         cost = sum;
-        return nodes.ToArray();
+        return true;
     }
 }

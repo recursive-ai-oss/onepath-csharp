@@ -6,7 +6,12 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- **Grids for deterministic hosts:** `Grid.CreateSearch` returns a non-generic resumable `GridSearch` (`TryBegin`, `Step`, `CopyPath`, byte-exact `SaveState`/`RestoreState`, allocation-free on the specialised engine) that returns the path `FindPath` returns; `GridReplanner.TryReplan`/`CopyPath` (no allocation); `AStar.TryBegin`, `Topology`, `Start`, `Goal`; `Grid.ContentHash`; `Grid.TryFindNearestWalkable`, `CanFit`, `MaxAgentSizeAt`; `Grid.TryGetFixedCost` (Q31.32) and `GridPath.TryGetStepCounts`; options `SpecializedEngines` (force the generic engine so tier-1 and tier-2 A\* break ties alike) and `NearestRadius`. Documented in `docs/grids.md` and `docs/grids-state.md` (state kind 12).
 - **Crowd state without allocation:** `Crowd.StateHash()` (FNV-1a 64 of the snapshot bytes), `Crowd.GetStateSize()` and `Crowd.TrySaveState(Span<byte>, out int)` write the same OPCS v1 bytes as `SaveState()` into caller memory; `RestoreState` restores the same agents without allocating (followers and corridors are read in place, so a held `Agent.Path` stays valid). Documented in `docs/crowds.md`.
+
+### Fixed
+
+- Restoring a sliced search (`AStar`, jump point, Theta\*, graph A\*) from a state that claimed *found* with a goal the search never closed could be accepted and then hang in `PathLength`/`CopyPath` by following leftover parent links in a loop; it is now a `GridStateException`.
 
 ## [0.4.0-preview.1]
 

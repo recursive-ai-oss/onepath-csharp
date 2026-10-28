@@ -61,6 +61,12 @@ internal static class SearchStateIO
             {
                 throw r.Fail("a visited node's parent is not a visited node that costs no more, or the parent links form a cycle.");
             }
+            // Path extraction starts at the goal and follows parent links; a found search whose goal was never closed would follow
+            // links left over from an earlier search.
+            if (status == SearchStatus.Found && buffers.Mark[goal] != buffers.Base + 1)
+            {
+                throw r.Fail("a found search must have its goal closed.");
+            }
         }
         r.End();
     }

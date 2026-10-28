@@ -13,6 +13,7 @@ public sealed class GridOptions
     private int _agentSize = 1;
     private double _heuristicWeight = 1.0;
     private int _iterationBudget = int.MaxValue;
+    private int _nearestRadius = int.MaxValue;
     private int _hpaChunkSize = 16;
 
     /// <summary>The moves allowed on a square grid. Default <see cref="OnePath.Connectivity.Eight"/>. Ignored on hex grids (always six).</summary>
@@ -98,6 +99,34 @@ public sealed class GridOptions
     public bool RecordExpansions { get; set; }
 
     /// <summary>
+    /// Whether plain A*, JPS and JPS+ may run on the specialised octile engines when the options allow it (eight moves, no corner
+    /// cutting, agent size 1, one cost for every area, no hooks, weight 1, octile or zero estimate). Default true.
+    /// <para>
+    /// The specialised engine keeps costs as exact counts of straight and diagonal steps and breaks ties on the cost so far rounded to
+    /// float32 and then the cell index. The generic engine (<see cref="AStar{TTopology, TCost, THeuristic}"/>, what you get with
+    /// <see langword="false"/> and what you build yourself in tier 2) sums double costs and breaks ties on the double cost so far. Both
+    /// return optimal paths of the same cost, but among equal-cost paths they may pick different ones. A host that needs the same
+    /// path from <c>FindPath</c>, <see cref="Grid.CreateSearch"/> and its own generic <c>AStar</c> sets this to false for all of them.
+    /// </para>
+    /// </summary>
+    public bool SpecializedEngines { get; set; } = true;
+
+    /// <summary>
+    /// The farthest ring, in cells (Chebyshev distance from the query cell), <see cref="Grid.TryFindNearestWalkable(Cell, out Cell, GridOptions?)"/>
+    /// examines. Default <see cref="int.MaxValue"/>: the whole grid.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value is negative.</exception>
+    public int NearestRadius
+    {
+        get => _nearestRadius;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            _nearestRadius = value;
+        }
+    }
+
+    /// <summary>
     /// Most iterations (node expansions) a query may use before it gives up with <see cref="PathStatus.BudgetExhausted"/>;
     /// counts iterations, never time. Default unlimited.
     /// </summary>
@@ -133,7 +162,7 @@ public sealed class GridOptions
 }
 
 /// <summary>The result of a one-line grid query. Immutable.</summary>
-public sealed class GridPath
+public sealed partial class GridPath
 {
     private static readonly Cell[] NoCells = [];
     private readonly Cell[] _cells;

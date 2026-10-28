@@ -17,7 +17,8 @@ public sealed partial class Grid
     private bool FastApplies(GridOptions o, out double unitCost)
     {
         unitCost = 1.0;
-        return o.Connectivity == Connectivity.Eight
+        return o.SpecializedEngines
+            && o.Connectivity == Connectivity.Eight
             && o.Diagonals == DiagonalRule.NoCornerCutting
             && o.AgentSize == 1
             && o.StepCost is null
@@ -25,6 +26,17 @@ public sealed partial class Grid
             && o.HeuristicWeight == 1.0
             && o.Heuristic is GridHeuristic.Auto or GridHeuristic.Octile or GridHeuristic.Zero
             && Areas.TryGetUniform(out unitCost);
+    }
+
+    // True when FindPath and GridSearch serve plain A* with the specialised octile engine under these options.
+    internal bool UsesSpecializedAStar(GridOptions o, out double unitCost)
+    {
+        if (o.Algorithm == GridAlgorithm.AStar)
+        {
+            return FastApplies(o, out unitCost);
+        }
+        unitCost = 1.0;
+        return false;
     }
 
     // After a state restore grid versions can repeat, so nothing derived from the grid may be trusted.

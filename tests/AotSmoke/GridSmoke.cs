@@ -102,6 +102,31 @@ internal static class GridSmoke
             ok &= replanner.Replan(1).Status is PathStatus.BudgetExhausted or PathStatus.Found;
             ok &= replanner.Replan().Found;
         }
+        // The resumable handle on both engines (all eight generic instantiations are reachable from its options), a state round trip,
+        // TryReplan, the content hash, snapping and the fixed-point cost.
+        var hostGrid = Grid.FromText("....#...\n.##.#.#.\n.#..#.#.\n.#.##.#.\n.#....#.");
+        foreach (bool specialised in new[] { true, false })
+        {
+            GridSearch handle = hostGrid.CreateSearch(new GridOptions { SpecializedEngines = specialised });
+            ok &= handle.TryBegin(new Cell(0, 0), new Cell(7, 4)) == PathStatus.InProgress;
+            handle.Step(3);
+            byte[] saved = handle.SaveState();
+            handle.RestoreState(saved);
+            ok &= handle.Step(int.MaxValue) == hostGrid.FindPath(new Cell(0, 0), new Cell(7, 4), new GridOptions { SpecializedEngines = specialised }).Status;
+            ok &= handle.Status == SearchStatus.Found && handle.PathLength > 1 && handle.UsesSpecializedEngine == specialised;
+        }
+        foreach (GridHeuristic h in new[] { GridHeuristic.Zero, GridHeuristic.Manhattan, GridHeuristic.Euclidean, GridHeuristic.Octile })
+        {
+            GridSearch viaDelegate = hostGrid.CreateSearch(new GridOptions { Heuristic = h, StepCost = (_, _, c) => c });
+            ok &= viaDelegate.TryBegin(new Cell(0, 0), new Cell(7, 4)) == PathStatus.InProgress && viaDelegate.Step(int.MaxValue) == PathStatus.Found;
+            GridSearch plain = hostGrid.CreateSearch(new GridOptions { Heuristic = h, SpecializedEngines = false });
+            ok &= plain.TryBegin(new Cell(0, 0), new Cell(7, 4)) == PathStatus.InProgress && plain.Step(int.MaxValue) == PathStatus.Found;
+        }
+        using GridReplanner tick = hostGrid.CreateReplanner(new Cell(0, 0), new Cell(7, 4));
+        ok &= tick.TryReplan() == PathStatus.Found && tick.CopyPath(new Cell[hostGrid.CellCount]) == tick.PathLength;
+        ok &= hostGrid.ContentHash() == Grid.From(hostGrid.Cells, hostGrid.Width, hostGrid.Height).ContentHash();
+        ok &= hostGrid.TryFindNearestWalkable(new Cell(1, 1), out Cell snapped) && snapped == new Cell(1, 0) && hostGrid.CanFit(new Cell(2, 2), 1) && !hostGrid.CanFit(new Cell(2, 2), 2);
+        ok &= hostGrid.TryGetFixedCost(hostGrid.FindPath(new Cell(0, 0), new Cell(0, 4)).Cells, out long fixedCost) && fixedCost == 4L << 32;
         var hexOpen = new HexGrid(6, 6);
         using HexReplanner hexReplanner = hexOpen.CreateReplanner(new Cell(0, 0), new Cell(5, 5));
         double before = hexReplanner.Replan().Cost;
