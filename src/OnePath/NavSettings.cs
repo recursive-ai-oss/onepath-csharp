@@ -46,6 +46,12 @@ public sealed record NavSettings
     /// <summary>World Z of tile row 0's origin. Default 0.</summary>
     public double OriginZ { get; init; }
 
+    /// <summary>
+    /// Authored off-mesh links (jumps, ladders, doors) baked into every tile the build produces, 2D and 3D alike, and into rebuilt tiles. Default none.
+    /// See <see cref="OffMeshLinkDefinition"/>.
+    /// </summary>
+    public System.Collections.Generic.IReadOnlyList<OffMeshLinkDefinition> OffMeshLinks { get; init; } = System.Array.Empty<OffMeshLinkDefinition>();
+
     /// <summary>Largest vertex count of a polygon, 3 to 16. Default 6.</summary>
     public int MaxVertsPerPoly { get; init; } = 6;
 

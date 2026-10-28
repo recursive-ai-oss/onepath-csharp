@@ -24,6 +24,7 @@ public sealed class Mesh3DPipeline
         Settings = settings;
         Params = settings.ToParams();
         CheckSettings(settings);
+        OffMeshLinkBaker.Validate(Params, settings.OffMeshLinks);
         double ratio = (Params.TileSize / Params.CellSize) - 1e-4;
         TileCells = Math.Max(1, (int)Math.Ceiling(ratio));
         CellSize = Params.TileSize / TileCells;
@@ -460,6 +461,14 @@ public sealed class Mesh3DPipeline
 
     /// <summary>Regions to tile data of a compact heightfield whose areas are final.</summary>
     internal void FinishMarked(CompactHeightfield chf, int tx, int tz, List<NavTileData> output)
+    {
+        int first = output.Count;
+        FinishMarkedCore(chf, tx, tz, output);
+        // Authored off-mesh links belong to the tile that holds their start, so every build and every rebuild of that tile bakes them in.
+        OffMeshLinkBaker.Attach(Params, Settings.OffMeshLinks, output, first);
+    }
+
+    private void FinishMarkedCore(CompactHeightfield chf, int tx, int tz, List<NavTileData> output)
     {
         Regions.Partition(chf, Regions.RegionOptions);
         // Cut the border away: its spans become one extra region whose contours are ignored. The edges between it and the tile's
