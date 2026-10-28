@@ -195,6 +195,8 @@ build_harness() {
   local cm rc rv; cm="$(cmake_bin)"
   rc="$(unpack recast)/install"; rv="$(unpack rvo2)/install"
   mkdir -p "$H/bin"
+  # The repo may sit at a different path on each run; CMake ties its cache to the source path, so configure fresh.
+  rm -rf "$H/harness-build"
   "$cm" -S "$REPO/bench/Harness/Native" -B "$H/harness-build" -DCMAKE_BUILD_TYPE=Release \
     -DRECAST_PREFIX="$rc" -DRVO2_PREFIX="$rv" -DCMAKE_INSTALL_PREFIX="$H"
   "$cm" --build "$H/harness-build" -j "$JOBS"
