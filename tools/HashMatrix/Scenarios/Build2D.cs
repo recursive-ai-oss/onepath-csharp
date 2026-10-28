@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using RecursiveAI.OneMath;
+using RecursiveAI.OnePath.Grids;
 using RecursiveAI.OnePath.Mesh.Build2D;
 
 namespace RecursiveAI.OnePath.HashMatrix;
@@ -22,6 +23,7 @@ internal static class Build2DScenarios
         Scenarios.Register("build2d/mesh", ctx => Run(ctx, 2, 200));
         Scenarios.Register("build2d/tiles", ctx => Run(ctx, 3, 120));
         Scenarios.Register("build2d/pipeline", ctx => Run(ctx, 4, 80));
+        Scenarios.Register("build2d/grid-mesh", GridMesh);
     }
 
     private static void Run(ScenarioContext ctx, int kind, int cases)
@@ -37,6 +39,26 @@ internal static class Build2DScenarios
                 ctx.Write(v);
             }
         }
+    }
+
+    // A mesh built from a grid with walls and a non-trivial world mapping, hashed as serialized bytes, plus the grid's content hash.
+    private static void GridMesh(ScenarioContext ctx)
+    {
+        var rng = new Rng { S = 0x6772696D657368UL };
+        var g = new Grid(48, 40) { Space = new GridSpace(-12.5, 7.25, 0.5) };
+        for (int y = 0; y < g.Height; y++)
+        {
+            for (int x = 0; x < g.Width; x++)
+            {
+                if (rng.Next(5) == 0)
+                {
+                    g.SetArea(x, y, AreaCosts.Wall);
+                }
+            }
+        }
+        NavMesh m = NavMesh.Build2D(g, new NavSettings { AgentRadius = 0.25f, CellSize = 0.125, TileSize = 8 });
+        ctx.Write(RecursiveAI.OnePath.Mesh.NavMeshSerializer.WriteMesh(m.Tiles));
+        ctx.Write((long)g.ContentHash());
     }
 
     private struct Rng

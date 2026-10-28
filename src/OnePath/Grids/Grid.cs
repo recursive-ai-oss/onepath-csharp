@@ -27,6 +27,9 @@ public sealed partial class Grid
     private readonly object _sync = new();
     private readonly List<IGridChangeListener> _listeners = [];
     private int _clearanceVersion = -1;
+    private ulong _hashCache;
+    private int _hashAreasVersion;
+    private bool _hashValid;
     private readonly List<ClearanceRect> _dirty = [];
     private readonly List<int> _changedScratch = [];
     private GridSearchBuffers? _spare;
@@ -251,6 +254,7 @@ public sealed partial class Grid
             return;
         }
         _cells[i] = area;
+        _hashValid = false;
         Version++;
         MarkDirty(x, y, x, y);
         for (int l = 0; l < _listeners.Count; l++)
@@ -293,6 +297,7 @@ public sealed partial class Grid
         {
             return;
         }
+        _hashValid = false;
         Version++;
         MarkDirty(x0, y0, x1, y1);
         RectEdit.Notify(_listeners, _changedScratch, Width, x0, y0, x1, y1);

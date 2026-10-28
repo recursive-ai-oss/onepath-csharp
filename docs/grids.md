@@ -594,7 +594,9 @@ path order, bit-equal to `Replan().Cost`) and `CopyPath`. Path buffers are reuse
 `P1 = 0x9E3779B185EBCA87`, `P2 = 0xC2B2AE3D27D4EB4F`, `P3 = 0x165667B19E3779F9` (all arithmetic mod 2^64). Words, in order:
 `width | height << 32`; the cells row-major, eight per little-endian word, the last zero-padded; the 255 area multipliers 0..254 as binary64 bit patterns.
 Finish: `h ^= h >> 33; h *= P2; h ^= h >> 29; h *= P3; h ^= h >> 32`. Version, world mapping and edit history are not part of it. Known answers are in the tests.
-The definition changes only with a note in the changelog.
+The definition changes only with a note in the changelog. The value is cached: a cell edit (`SetArea`, `SetRect`), a state restore or any area-cost change (`Areas[...]`, `CopyFrom`) invalidates it, and the next call recomputes; a repeated call with no edit in between is O(1) and returns the same bits a recompute would. `HexGrid` and `VoxelGrid` have no content hash.
+
+**`NavMesh.Build2D(Grid, NavSettings?)`** builds the 2D mesh from a square grid: a cell is walkable when its area is not 255, cell size and origin come from `Grid.Space` (grid column x is world X, row y is world Z), and the result is byte-equal to `Build2D(bool cells, width, height, cellSize, origin)` on the same walkability. Area ids and multipliers are not carried into the mesh (the 2D builder gives every polygon `NavSettings.Area`); agent size comes from `NavSettings.AgentRadius`, not from grid clearance. A grid without walkable cells gives a mesh with no tiles.
 
 **Large agents.** An agent of side *s* occupies the *s* × *s* block whose top-left cell is the position. `CanFit(cell, s)` is `clearance >= s`, the test
 `FindPath` applies to its end cells; `MaxAgentSizeAt(cell)` is the clearance without exceptions (0 outside the grid).
