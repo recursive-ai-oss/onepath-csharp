@@ -186,6 +186,16 @@ public sealed partial class GridSearchBuffers
             Parent[i] = parent;
         }
         Open.ReadState(ref r);
+        // Every open entry must be a node this search reached and has not closed: popping any other node would use costs and
+        // parent links left over from an earlier search.
+        for (int k = 0; k < Open.Count; k++)
+        {
+            int node = Open.NodeAt(k);
+            if (Mark[node] != b)
+            {
+                throw r.Fail($"open entry {node} is not a visited, unclosed node.");
+            }
+        }
         int e = r.Count(int.MaxValue, 4, "the expansion count");
         _expandedCount = 0;
         for (int k = 0; k < e; k++)

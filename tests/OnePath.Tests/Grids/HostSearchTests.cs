@@ -412,4 +412,33 @@ public class HostSearchTests
         state[12] = (byte)SearchStatus.Found;
         Assert.Throws<GridStateException>(() => search.RestoreState(state));
     }
+
+    [Fact]
+    public void NotStartedAStarStateRestoresAsNotStarted()
+    {
+        // Fuzz regression: a valid state saved before Begin restores, reports NotStarted, and only then does Step refuse to run.
+        var g = new Grid(10, 6);
+        var idle = new AStar<SquareTopology, DefaultStepCost, OctileHeuristic>(g.CreateTopology(), default, new OctileHeuristic(g.Width));
+        byte[] state = idle.SaveState();
+        var other = new AStar<SquareTopology, DefaultStepCost, OctileHeuristic>(g.CreateTopology(), default, new OctileHeuristic(g.Width));
+        other.Begin(0, 5);
+        other.Step(2);
+        other.RestoreState(state);
+        Assert.Equal(SearchStatus.NotStarted, other.Status);
+        Assert.True(other.SaveState().AsSpan().SequenceEqual(state));
+        Assert.Throws<InvalidOperationException>(() => other.Step(1));
+        other.Begin(0, 5);
+        Assert.Equal(SearchStatus.Found, other.Run(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void OpenEntryThatWasNeverVisitedIsRejected()
+    {
+        // Fuzz regression: a running state whose open list names a node the search never reached would pop it with stale parent
+        // links from the shared buffers, and PathLength would then loop. The reader must refuse it.
+        byte[] data = Convert.FromBase64String("CE9QR1MBAAgAPAAAAAEAAAAAAADwPwAAAAA7AAAACwAAAAAAAAAAADwAAAABCQAAAAABAAAAOwAAAAwAAAAIAAAA886fmUAJAAAAAAAA");
+        var g = Grid.FromText("..........\n.##..###..\n.#2..#.#..\n.#.33#.#..\n...#...#..\n##.#.###..");
+        var s = new AStar<SquareTopology, DefaultStepCost, OctileHeuristic>(g.CreateTopology(), default, new OctileHeuristic(g.Width));
+        Assert.Throws<GridStateException>(() => s.RestoreState(data.AsSpan(1)));
+    }
 }

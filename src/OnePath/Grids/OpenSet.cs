@@ -143,6 +143,9 @@ public sealed partial class OpenSet
         return true;
     }
 
+    // The node in heap slot i (0 <= i < Count); state validation only.
+    internal int NodeAt(int slot) => _heap[slot].Node;
+
     private static bool Less(in Entry a, in Entry b)
     {
         if (a.F != b.F)

@@ -252,7 +252,8 @@ internal static class GridStateFuzz
                     var s = MakeSearch(g);
                     s.RestoreState(state);
                     Again(s.SaveState, s.RestoreState);
-                    SearchStatus st = s.Step(500);
+                    // A saved search that was never begun restores as NotStarted; Step is for a search that has begun.
+                    SearchStatus st = s.Status == SearchStatus.NotStarted ? SearchStatus.NotStarted : s.Step(500);
                     if (st == SearchStatus.Found)
                     {
                         _ = s.PathLength();
