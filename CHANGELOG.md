@@ -4,6 +4,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.5.0-preview.1]
+
 ### Breaking
 
 - **Options are immutable after construction.** `GridOptions`, `VoxelOptions` and `PathOptions` properties are `init`-only like `NavSettings`, `CrowdOptions` and `GraphOptions` already were, so a shared preset (`GridOptions.Default`, the defaults used when you pass `null`) cannot be changed by one caller under another. Code that assigned a property after construction (`o.Algorithm = GridAlgorithm.Jps;`) must set it in an object initializer (`new GridOptions { Algorithm = GridAlgorithm.Jps }`). Binary-incompatible with 0.4.0-preview.3 (setters are replaced by init accessors); recompiling is enough. `Clone()` is kept.
@@ -70,7 +72,8 @@ These types carry `[Experimental]` and may change or move in any preview:
 - Peak memory is higher than the native references'.
 - Path queries on one large single-tile city mesh ran 1.6-1.8x slower than Detour in the last locked run (a later change to the mesh contours is not yet re-measured), and the tile cache is 4-6x slower than DetourTileCache; the README table lists the rows.
 
-[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.3...HEAD
+[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.5.0-preview.1...HEAD
+[0.5.0-preview.1]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.3...v0.5.0-preview.1
 [0.4.0-preview.3]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.2...v0.4.0-preview.3
 [0.4.0-preview.2]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.1...v0.4.0-preview.2
 [0.4.0-preview.1]: https://github.com/recursive-ai-oss/onepath-csharp/releases/tag/v0.4.0-preview.1
