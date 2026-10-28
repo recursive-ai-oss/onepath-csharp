@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using System;
 using RecursiveAI.OneMath;
 using RecursiveAI.OnePath.Mesh;
@@ -208,7 +207,6 @@ public sealed class PathFollower
     /// <param name="dt">The time step, positive and finite. Fixed by the host; nothing here reads a clock.</param>
     /// <param name="filter">Polygon filter and area costs (null accepts everything).</param>
     /// <exception cref="ArgumentOutOfRangeException">dt is not positive and finite.</exception>
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void Step(NavMeshQuery query, double dt, QueryFilter? filter = null)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -249,7 +247,6 @@ public sealed class PathFollower
 
     // Steps 1 to 4 of a step: repairs the corridor, replans, shortcuts, and decides whether the agent arrives, starts an off-mesh
     // crossing, or walks. Returns true when it walks; `ci` is then the steering corner and `rem` the distance to a stop.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private bool PlanMoving(NavMeshQuery query, QueryFilter? filter, bool deferExtension, out int ci, out double rem, out bool known, out Vector3D start)
     {
         _steps++;
@@ -332,7 +329,6 @@ public sealed class PathFollower
         return true;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void StepMoving(NavMeshQuery query, double dt, QueryFilter? filter)
     {
         if (!PlanMoving(query, filter, deferExtension: false, out int ci, out double rem, out bool known, out Vector3D start))
@@ -395,7 +391,6 @@ public sealed class PathFollower
     /// acceleration limit). Off-mesh crossings run whole here. Returns false when the agent does not walk this step (it
     /// arrived, is crossing, waits, or has no path); the crowd then steers it to rest.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     internal bool PlanCrowd(NavMeshQuery query, double dt, QueryFilter? filter, out double wantedX, out double wantedZ)
     {
         wantedX = wantedZ = 0;
@@ -440,7 +435,6 @@ public sealed class PathFollower
     /// <paramref name="vz"/> times dt (never past the end of the path or an off-mesh entry), reports velocity and remaining
     /// distance, and arrives or counts stuck time as <see cref="Step"/> does.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     internal void ApplyCrowd(NavMeshQuery query, double dt, QueryFilter? filter, double vx, double vz)
     {
         int ci = _crowdCorner;
@@ -489,7 +483,6 @@ public sealed class PathFollower
     /// Pushes an agent that is not walking (idle, arrived, stuck) along the surface by <paramref name="vx"/>, <paramref name="vz"/> times dt,
     /// sliding along walls, and reports the velocity that resulted.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     internal void Nudge(NavMeshQuery query, double dt, QueryFilter? filter, double vx, double vz)
     {
         if (_corr.Count == 0 || (vx == 0 && vz == 0))
@@ -511,7 +504,6 @@ public sealed class PathFollower
 
     // Moves along the corners for `length` of horizontal distance, landing exactly on a corner that is reached; returns true if
     // the agent landed on the end corner. A corner that is the end or an off-mesh entry is never passed.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private bool WalkCorners(NavMeshQuery query, QueryFilter? filter, double length, int ci)
     {
         double left = length;
@@ -559,7 +551,6 @@ public sealed class PathFollower
     }
 
     // How many corridor polygons the leg to a corner can lie in: up to and including the corner's own polygon.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private int LegLimit(PolyRef cornerPoly)
     {
         ReadOnlySpan<PolyRef> path = _corr.Path;
@@ -574,7 +565,6 @@ public sealed class PathFollower
     }
 
     // The first corner after the position that is not on top of it (or the last corner).
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private int SteeringCorner()
     {
         int last = _cornerCount - 1;
@@ -590,7 +580,6 @@ public sealed class PathFollower
 
     // Path distance from the position along the corners to the end or the first off-mesh entry; `known` is false when
     // neither is within the corner buffer (the buffer ended in a corner of a long path).
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private double RemainingToStop(out bool known)
     {
         double sum = 0;
@@ -608,7 +597,6 @@ public sealed class PathFollower
     }
 
     // The entry corner of an off-mesh link the agent stands at: the first corner (the start itself, or the next one).
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private bool OffMeshEntry(out int entry)
     {
         entry = -1;
@@ -627,7 +615,6 @@ public sealed class PathFollower
         return false;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private bool TryShortcut(NavMeshQuery query, QueryFilter? filter)
     {
         // Aim at the farthest corner within range that comes before any off-mesh entry; a ray cannot cross a link anyway.
@@ -648,7 +635,6 @@ public sealed class PathFollower
     }
 
     // Validates the corridor against the mesh; a lost first polygon relocates the agent. False: the state is final for this step.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private bool KeepCorridorValid(NavMeshQuery query, QueryFilter? filter)
     {
         CorridorStatus v = _corr.Validate(query, filter, _opt.ValidateLookAhead);
@@ -659,7 +645,6 @@ public sealed class PathFollower
         return true;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private bool Recover(NavMeshQuery query, QueryFilter? filter)
     {
         if (_corr.Relocate(query, filter, _opt.SearchExtents))
@@ -674,7 +659,6 @@ public sealed class PathFollower
         return false;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private PathStatus ReplanRound(NavMeshQuery query, QueryFilter? filter)
     {
         // The budget doubles with every unfinished round, so a search that restarts from the closest polygon cannot stay trapped
@@ -706,7 +690,6 @@ public sealed class PathFollower
 
     // Fills the corner buffer. If the corridor no longer holds together (a break beyond the look-ahead) it is cut or the agent
     // relocated, and the step ends without moving.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private bool FindCorners(NavMeshQuery query, QueryFilter? filter)
     {
         if (_corr.FindCorners(query, _corners, out _cornerCount) == PathStatus.Success)
@@ -727,7 +710,6 @@ public sealed class PathFollower
         return true;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void Arrive()
     {
         _state = FollowerState.Arrived;
@@ -737,14 +719,12 @@ public sealed class PathFollower
         ResetProgress();
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void ResetProgress()
     {
         _clock = 0;
         _anchor = _position;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void UpdateStuck(double dt, bool arriving)
     {
         if (_opt.StuckWindow <= 0 || arriving)
@@ -829,7 +809,6 @@ public sealed class PathFollower
         ResetProgress();
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static double XzDistance(Vector3D a, Vector3D b)
     {
         double dx = a.X - b.X, dz = a.Z - b.Z;

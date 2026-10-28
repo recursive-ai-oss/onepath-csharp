@@ -1,9 +1,7 @@
-using System.Runtime.CompilerServices;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using RecursiveAI.OneMath;
-using RecursiveAI.OnePath.Crowds;
 using RecursiveAI.OnePath.Crowds.Corridors;
 using RecursiveAI.OnePath.Crowds.Orca;
 using RecursiveAI.OnePath.Mesh;
@@ -196,7 +194,6 @@ public sealed partial class Crowd
     /// </summary>
     /// <param name="dt">The time step: positive and finite. The host fixes it (for example 1/30); nothing here reads a clock.</param>
     /// <exception cref="ArgumentOutOfRangeException">dt is not positive and finite.</exception>
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void Step(double dt)
     {
         if (!(dt > 0) || !double.IsFinite(dt))
@@ -311,7 +308,6 @@ public sealed partial class Crowd
 
     // ---- the step ----
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void RunWorker(int w)
     {
         Worker worker = GetWorker(w);
@@ -343,7 +339,6 @@ public sealed partial class Crowd
     }
 
     // Snapshot of positions and velocities (what every agent sees of the others) and the neighbour grid, sorted by (cell, slot).
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void BuildGrid()
     {
         double minX = double.PositiveInfinity, minZ = double.PositiveInfinity, maxX = double.NegativeInfinity, maxZ = double.NegativeInfinity;
@@ -385,10 +380,9 @@ public sealed partial class Crowd
             int slot = (int)_keys[n];
             _keys[n] = (CellKey(_px[slot], _pz[slot]) << 22) | (long)slot;
         }
-        KeySort.Sort(_keys, k);
+        Array.Sort(_keys, 0, k);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private long CellKey(double x, double z)
     {
         long cx = (long)Math.Floor((x - _gridMinX) / _cellSize) + 1;
@@ -396,15 +390,12 @@ public sealed partial class Crowd
         return (cz * _gridWidth) + cx;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static double NeighborDistance(AgentOptions o) =>
         o.Quality == AvoidanceQuality.Off ? 0 : Math.Max(o.SeparationDistance, (2 * o.Radius) + (o.MaxSpeed * o.TimeHorizon));
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static double ObstacleHorizon(AgentOptions o) => 0.5 * o.TimeHorizon;
 
     // Phase 1: corridor upkeep, wanted velocity, wall lookup.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void Plan(int i, Worker w)
     {
         PathFollower f = _follow[i]!;
@@ -444,7 +435,6 @@ public sealed partial class Crowd
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void RefreshWalls(int i, PathFollower f, AgentOptions o, Worker w)
     {
         Vector3D p = f.Position;
@@ -470,7 +460,6 @@ public sealed partial class Crowd
     }
 
     // Phase 2: ORCA against the walls and neighbours seen at the start of the step.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void Avoid(int i, Worker w)
     {
         AgentOptions o = _agentOpt[i]!;
@@ -640,7 +629,6 @@ public sealed partial class Crowd
 
     // Standing agents near the goal are the queue the agent joins, not an obstacle to go around: only agents more than eight radii
     // from their destination (straight-line) look for a way around.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private bool FarFromGoal(int i, AgentOptions o)
     {
         Vector3D d = _follow[i]!.Destination;
@@ -651,7 +639,6 @@ public sealed partial class Crowd
 
     // Walls of another floor (polygons stacked above or below, joined by a link) are not this agent's walls: compare the height of the
     // wall at its nearest point with the agent's, allowing for slopes.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static bool SameFloor(WallSegment s, double y, double x, double z, double d2)
     {
         double ex = s.BX - s.AX, ez = s.BZ - s.AZ;
@@ -662,7 +649,6 @@ public sealed partial class Crowd
     }
 
     // True if one of the neighbours of the current avoidance problem is neither walking nor crossing a link.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private bool HasStandingNeighbor(Worker w)
     {
         for (int m = 0; m < w.NeighborCount; m++)
@@ -676,7 +662,6 @@ public sealed partial class Crowd
     }
 
     // Phase 3: limit the change of velocity and move along the surface.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void Move(int i, Worker w)
     {
         byte flags = _flags[i];
@@ -713,7 +698,6 @@ public sealed partial class Crowd
     }
 
     // The MaxNeighbors nearest agents within range (ties by slot), from the 3 x 3 cells around the agent.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void ScanNeighbors(int self, double x, double z, double range2, int max, Worker w)
     {
         if (max <= 0 || _keyCount < 2)
@@ -745,7 +729,6 @@ public sealed partial class Crowd
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static int LowerBound(long[] keys, int count, long value)
     {
         int lo = 0, hi = count;
@@ -792,7 +775,6 @@ public sealed partial class Crowd
 
         public Span<HalfPlane> Scratch => ScratchLines;
 
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public void EnsureLines(int total)
         {
             if (Lines.Length < total)
@@ -804,7 +786,6 @@ public sealed partial class Crowd
         }
 
         // Bounded insertion keeping (distance, slot) ascending.
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public void InsertNeighbor(double d2, int index, int max)
         {
             int pos = NeighborCount;
@@ -832,7 +813,6 @@ public sealed partial class Crowd
         }
 
         // Keeps the nearest pieces ordered by (distance, polygon, edge, ends): the order does not depend on how the cache was filled.
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public void InsertWall(double d2, WallSegment s, HalfPlane line)
         {
             int pos = WallCount;
@@ -860,7 +840,6 @@ public sealed partial class Crowd
             WallLine[pos] = line;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         private static bool Before(double d2, WallSegment a, double e2, WallSegment b)
         {
             if (d2 != e2)

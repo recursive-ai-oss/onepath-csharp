@@ -14,7 +14,6 @@ internal static class KeySort
     private const int InsertionLimit = 16;
 
     /// <summary>Sorts <c>keys[0..count)</c> ascending.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static void Sort(long[] keys, int count)
     {
         if (count < 2)
@@ -29,7 +28,6 @@ internal static class KeySort
         Quick(keys, 0, count - 1, depth);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static void Quick(long[] a, int lo, int hi, int depth)
     {
         // Recurse into the smaller part and loop on the larger: stack depth is at most log2(n).
@@ -81,7 +79,6 @@ internal static class KeySort
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static void Heap(long[] a, int start, int n)
     {
         for (int i = (n >> 1) - 1; i >= 0; i--)

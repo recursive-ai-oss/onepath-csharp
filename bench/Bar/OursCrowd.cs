@@ -31,7 +31,18 @@ internal static class OursCrowd
     public static List<Row> Run(SuiteRow row, Paths paths)
     {
         string[] t = paths.Expand(row.Args).Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return t.Length > 0 && t[0] == "circle" ? Circle(row, t) : City(row, t);
+        bool circle = t.Length > 0 && t[0] == "circle";
+        // A native reference is fully optimized from its first instruction; our code starts in the JIT's unoptimized tier and is
+        // promoted after a number of calls and a 100 ms quiet period, which a few dozen steps of a small crowd never reach. The
+        // method is "warm, in-process": run the whole row once untimed, let the promotions finish, then run it for the numbers.
+        if (Arg(t, "prewarm", "1") != "0")
+        {
+            _ = circle ? Circle(row, t) : City(row, t);
+            System.Threading.Thread.Sleep(500);
+            _ = circle ? Circle(row, t) : City(row, t);
+            System.Threading.Thread.Sleep(500);
+        }
+        return circle ? Circle(row, t) : City(row, t);
     }
 
     private static string Arg(string[] t, string name, string fallback)

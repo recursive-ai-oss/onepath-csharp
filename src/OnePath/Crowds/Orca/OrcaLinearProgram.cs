@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using System;
 using RecursiveAI.OneMath;
 
@@ -34,7 +33,6 @@ public static class OrcaLinearProgram
     /// </returns>
     /// <exception cref="ArgumentException"><paramref name="scratch"/> is shorter than <paramref name="constraints"/>.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="hardCount"/> or <paramref name="maxSpeed"/> is out of range.</exception>
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static Vector2D Solve(ReadOnlySpan<HalfPlane> constraints, int hardCount, double maxSpeed, Vector2D preferred, Span<HalfPlane> scratch, out bool feasible)
     {
         if (hardCount < 0 || hardCount > constraints.Length)
@@ -71,7 +69,6 @@ public static class OrcaLinearProgram
     /// (or maximizes <paramref name="preferred"/> . v when <paramref name="maximize"/> is true).
     /// Returns the index of the first constraint that cannot be satisfied together with the earlier ones, or -1 on success.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static int Lp2(ReadOnlySpan<HalfPlane> constraints, double maxSpeed, Vector2D preferred, bool maximize, out Vector2D result)
     {
         Vector2D v;
@@ -104,7 +101,6 @@ public static class OrcaLinearProgram
     }
 
     // The best point on the delimiting line of constraint i that satisfies the speed disc and constraints 0..i-1.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static bool Lp1(ReadOnlySpan<HalfPlane> c, int i, double maxSpeed, Vector2D objective, bool maximize, ref Vector2D v)
     {
         Vector2D p = c[i].Point;
@@ -185,7 +181,6 @@ public static class OrcaLinearProgram
     // half-planes. The method is incremental: when constraint j is below the current level t, the new optimum has g_j(v) = t, and for
     // each earlier soft constraint k, g_k(v) >= g_j(v) is a half-plane in v alone; the problem projects down to a 2D program
     // that maximizes g_j.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static Vector2D LeastPenetration(ReadOnlySpan<HalfPlane> c, int hardCount, double maxSpeed, Span<HalfPlane> scratch)
     {
         int n = c.Length;

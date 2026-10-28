@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using System;
 using System.Threading.Tasks;
 using RecursiveAI.OneMath;
@@ -31,6 +30,10 @@ public sealed class OrcaSimulator
     private double _gridMinY;
     private double _cellSize = 1;
     private long _gridWidth = 1;
+    private bool _dense;
+    private int[] _cellStart = new int[16];
+    private int[] _order = new int[16];
+    private int[] _cellOf = new int[16];
 
     /// <summary>Number of agents.</summary>
     public int Count => _agentCount;
@@ -107,7 +110,6 @@ public sealed class OrcaSimulator
     /// <c>position += velocity * dt</c>.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="dt"/> is not finite and greater than 0.</exception>
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void Step(double dt)
     {
         if (!(dt > 0 && double.IsFinite(dt)))
@@ -187,7 +189,6 @@ public sealed class OrcaSimulator
     }
 
     // Sorts the agents by (cell, index): cell = row * width + column. The 3 cells of one row are consecutive keys.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void BuildGrid()
     {
         int n = _agentCount;
@@ -213,6 +214,47 @@ public sealed class OrcaSimulator
         _gridMinY = minY;
         _cellSize = cell;
         _gridWidth = (long)Math.Floor((maxX - minX) / cell) + 3;
+        long rows = (long)Math.Floor((maxY - minY) / cell) + 3;
+        long cells = _gridWidth * rows;
+        _dense = cells <= Math.Max(4L * n, 4096);
+        if (_dense)
+        {
+            // A counting sort by cell, agents in index order within a cell: the same order as sorting (cell, index) keys, without
+            // the sort or the binary searches. Used when the grid has few enough cells to hold a start offset for each.
+            int c = (int)cells;
+            if (_cellStart.Length < c + 1)
+            {
+                _cellStart = new int[Math.Max(c + 1, _cellStart.Length * 2)];
+            }
+            if (_order.Length < n)
+            {
+                _order = new int[_agents.Length];
+                _cellOf = new int[_agents.Length];
+            }
+            Array.Clear(_cellStart, 0, c + 1);
+            for (int i = 0; i < n; i++)
+            {
+                int cellIndex = (int)CellKey(_agents[i].Position);
+                _cellOf[i] = cellIndex;
+                _cellStart[cellIndex + 1]++;
+            }
+            for (int k = 0; k < c; k++)
+            {
+                _cellStart[k + 1] += _cellStart[k];
+            }
+            // _cellStart[k] is now where cell k begins; fill using a moving cursor kept in the next slot.
+            for (int i = 0; i < n; i++)
+            {
+                _order[_cellStart[_cellOf[i]]++] = i;
+            }
+            // The cursors advanced each start to the next cell's start: shift back one cell.
+            for (int k = c; k > 0; k--)
+            {
+                _cellStart[k] = _cellStart[k - 1];
+            }
+            _cellStart[0] = 0;
+            return;
+        }
         for (int i = 0; i < n; i++)
         {
             _cellKeys[i] = (CellKey(_agents[i].Position) << 22) | (long)i;
@@ -221,7 +263,6 @@ public sealed class OrcaSimulator
     }
 
     // One cell of padding on each side keeps the 3x3 neighbourhood keys non-negative.
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private long CellKey(Vector2D p)
     {
         long cx = (long)Math.Floor((p.X - _gridMinX) / _cellSize) + 1;
@@ -229,7 +270,6 @@ public sealed class OrcaSimulator
         return (cy * _gridWidth) + cx;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void ComputeRange(int from, int to, double dt, Worker w)
     {
         for (int i = from; i < to; i++)
@@ -238,7 +278,6 @@ public sealed class OrcaSimulator
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private Vector2D ComputeVelocity(int i, double dt, Worker w)
     {
         ref readonly OrcaAgent a = ref _agents[i];
@@ -283,9 +322,34 @@ public sealed class OrcaSimulator
         return OrcaLinearProgram.Solve(w.Lines.AsSpan(0, total), w.ObstacleCount, a.MaxSpeed, a.PreferredVelocity, w.Scratch, out _);
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void ScanNeighbors(int self, Vector2D p, double range2, int max, Worker w)
     {
+        if (_dense)
+        {
+            int cellIndex = _cellOf[self];
+            int width = (int)_gridWidth;
+            for (int row = -1; row <= 1; row++)
+            {
+                int first = cellIndex + (row * width) - 1;
+                // The three cells of a row are consecutive, so their agents are one run of the order.
+                int end = _cellStart[first + 3];
+                for (int pos = _cellStart[first]; pos < end; pos++)
+                {
+                    int j = _order[pos];
+                    if (j == self)
+                    {
+                        continue;
+                    }
+                    Vector2D d = _agents[j].Position - p;
+                    double d2 = Vector2D.Dot(d, d);
+                    if (d2 < range2)
+                    {
+                        w.InsertNeighbor(d2, j, max);
+                    }
+                }
+            }
+            return;
+        }
         long baseKey = CellKey(p);
         long[] keys = _cellKeys;
         int n = _agentCount;
@@ -311,7 +375,6 @@ public sealed class OrcaSimulator
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static int LowerBound(long[] keys, int count, long value)
     {
         int lo = 0, hi = count;
@@ -344,7 +407,6 @@ public sealed class OrcaSimulator
 
         public Span<HalfPlane> Scratch => ScratchLines;
 
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public void EnsureLines(int total)
         {
             if (Lines.Length < total)
@@ -365,7 +427,6 @@ public sealed class OrcaSimulator
         }
 
         // Bounded insertion keeping (distance, index) ascending.
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public void InsertNeighbor(double d2, int index, int max)
         {
             int pos = NeighborCount;
@@ -393,7 +454,6 @@ public sealed class OrcaSimulator
             NeighborIndex[pos] = index;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public void InsertObstacle(double d2, int index)
         {
             if (ObstacleCount == ObstacleDist.Length)
