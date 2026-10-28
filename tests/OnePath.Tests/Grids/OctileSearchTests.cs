@@ -126,6 +126,41 @@ public class OctileSearchTests
         Assert.NotNull(o);
     }
 
+    // The precomputed scan-stop words follow single-cell edits, including cells at word boundaries and the grid's edges: the edited map equals a
+    // map built from scratch on the same cells.
+    [Theory]
+    [InlineData(200, 150)]
+    [InlineData(64, 130)]
+    [InlineData(65, 63)]
+    public void EditedMapEqualsFreshMap(int width, int height)
+    {
+        var rng = new SeededRandom(5UL + (ulong)width);
+        var g = new Grid(width, height);
+        for (int i = 0; i < (width * height) / 4; i++)
+        {
+            g.SetArea(rng.NextInt(width), rng.NextInt(height), AreaCosts.Wall);
+        }
+        var edited = new OctileMap(g);
+        for (int i = 0; i < 3000; i++)
+        {
+            int x = rng.NextInt(5) == 0 ? (rng.NextInt(2) == 0 ? 0 : width - 1) : rng.NextInt(width);
+            if (rng.NextInt(4) == 0)
+            {
+                x = (rng.NextInt(Math.Max(1, width / 64)) * 64) + (rng.NextInt(2) == 0 ? 63 : 0);
+                x = Math.Min(x, width - 1);
+            }
+            g.SetArea(x, rng.NextInt(height), rng.NextInt(2) == 0 ? AreaCosts.Wall : (byte)0);
+        }
+        var fresh = new OctileMap(g);
+        Assert.Equal(fresh.Rows, edited.Rows);
+        Assert.Equal(fresh.Cols, edited.Cols);
+        Assert.Equal(fresh.RowStopForward, edited.RowStopForward);
+        Assert.Equal(fresh.RowStopBackward, edited.RowStopBackward);
+        Assert.Equal(fresh.ColStopForward, edited.ColStopForward);
+        Assert.Equal(fresh.ColStopBackward, edited.ColStopBackward);
+        Assert.Equal(fresh.Neighbors, edited.Neighbors);
+    }
+
     [Fact]
     public void SlicedBudgetStopsAndFullBudgetFinishes()
     {
