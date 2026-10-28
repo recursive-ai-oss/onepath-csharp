@@ -36,8 +36,12 @@ public static class OrcaConstraints
         double responsibility = 0.5)
     {
         Validate(combinedRadius, timeHorizon, timeStep);
-        return Build(relativePosition, relativePosition, combinedRadius, timeHorizon, timeStep, ownVelocity - otherVelocity, responsibility, ownVelocity);
+        return BuildPoint(relativePosition, combinedRadius, timeHorizon, timeStep, ownVelocity - otherVelocity, responsibility, ownVelocity);
     }
+
+    /// <summary><see cref="ForAgent"/> without the argument checks, for callers that validated the radius, horizon and step already.</summary>
+    internal static HalfPlane ForAgentUnchecked(Vector2D relativePosition, Vector2D ownVelocity, Vector2D otherVelocity, double combinedRadius, double timeHorizon, double timeStep, double responsibility) =>
+        BuildPoint(relativePosition, combinedRadius, timeHorizon, timeStep, ownVelocity - otherVelocity, responsibility, ownVelocity);
 
     /// <summary>
     /// The half-plane of velocities permitted to an agent with respect to a static line-segment obstacle (section 5.4 of the
@@ -176,6 +180,68 @@ public static class OrcaConstraints
         // The closest boundary point is x - d*n, so u = -d*n.
         Vector2D u = new(-d * n.X, -d * n.Y);
         return new HalfPlane(origin + u * share, n);
+    }
+
+    // Build for a point obstacle (a == b), which is what another agent is. It performs exactly the operations Build and Boundary perform
+    // when both ends are equal (so the result is bit for bit the same) and skips the ones that repeat a value: the second end's
+    // offset, tolerance and domain test equal the first's, and the minimum of two equal dot products is that product.
+    private static HalfPlane BuildPoint(Vector2D a, double r, double tau, double dt, Vector2D x, double share, Vector2D origin)
+    {
+        double aa = Vector2D.Dot(a, a);
+        bool overlapping = aa <= r * r;
+        bool domain = !overlapping;
+        double t = overlapping ? dt : tau;
+        Vector2D wa = x - a / t;
+        double tol = 0;
+        if (domain)
+        {
+            tol = ArcTolerance * (a.Length() + r);
+        }
+        double best = double.NegativeInfinity;
+        Vector2D bestN = default;
+        double lenA = wa.Length();
+        if (lenA > 0)
+        {
+            ConsiderPoint(wa / lenA, wa, domain, a, r, tol, ref best, ref bestN);
+        }
+        if (domain)
+        {
+            double l2 = aa - r * r;
+            if (l2 > 0)
+            {
+                double l = Math.Sqrt(l2);
+                double cx = -r * a.X;
+                double cy = -r * a.Y;
+                double px = -a.Y * l;
+                double py = a.X * l;
+                ConsiderPoint(new Vector2D((cx + px) / aa, (cy + py) / aa), wa, true, a, r, tol, ref best, ref bestN);
+                ConsiderPoint(new Vector2D((cx - px) / aa, (cy - py) / aa), wa, true, a, r, tol, ref best, ref bestN);
+            }
+        }
+        if (double.IsNegativeInfinity(best))
+        {
+            Vector2D c = a + a;
+            double lc = c.Length();
+            bestN = lc > 0 ? new Vector2D(-c.X / lc, -c.Y / lc) : new Vector2D(1, 0);
+            best = Vector2D.Dot(bestN, wa);
+        }
+        double d = best - r / t;
+        Vector2D u = new(-d * bestN.X, -d * bestN.Y);
+        return new HalfPlane(origin + u * share, bestN);
+    }
+
+    private static void ConsiderPoint(Vector2D n, Vector2D wa, bool domain, Vector2D a, double r, double tol, ref double best, ref Vector2D bestN)
+    {
+        if (domain && Vector2D.Dot(n, a) + r > tol)
+        {
+            return;
+        }
+        double g = Vector2D.Dot(n, wa);
+        if (g > best)
+        {
+            best = g;
+            bestN = n;
+        }
     }
 
     // The signed distance from x to the boundary of S, positive outside, and the outward normal n at the closest boundary point.

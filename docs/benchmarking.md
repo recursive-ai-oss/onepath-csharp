@@ -61,6 +61,8 @@ snapped to the nearest polygon within a (2, 4, 2) box and pairs with an unsnappe
 `findPath` followed by `findStraightPath`; an incomplete path (goal unreachable) is counted in `path_partial` and
 measured to the closest reachable point. Raycasts go from the first to the second point of each pair.
 
+Our side of a crowd row is run untimed in the same process, repeatedly (with a pause after each so the JIT finishes promoting hot methods) until two runs in a row agree within 3%, before the timed run: a native reference is optimized from its first instruction, and a few dozen steps of a small crowd never reach the JIT's promotion thresholds. The row argument `--prewarm 0` turns it off.
+
 The crowd scenarios: **navmesh crowd** — N agents start at the query points and walk to other query points
 (humanoid parameters: radius 0.6, height 2.0, max speed 3.5, max acceleration 8, separation weight 2, all steering flags on),
 fixed step 0.05 s, 50 warm-up steps then the timed steps. **Circle** — N agents evenly on a circle (radius
@@ -105,7 +107,7 @@ command line.
 | DetourTileCache | 1.6.0 (same release) | the `tilecache` command of `recast_harness.cpp`, from the class reference at recastnav.com (`dtTileCache`, `dtTileCacheParams`, `dtTileCacheLayerHeader`, `dtTileCacheCompressor`, `dtTileCacheMeshProcess`, `DetourTileCacheBuilder.h` and `Recast.h` function pages) | layers are stored uncompressed (a pass-through compressor), so the rows measure the rebuild and not LZ compression |
 | DotRecast | 2026.3.1 (NuGet) | `bench/Harness/RefHarness` (C#), compiled against the package | same settings as Recast; per-polygon areas set after the build as in the native driver; tiled builds hand the library the bounds of the whole input and the tile's grid position (it offsets the box itself) |
 | DotRecast tile cache | 2026.3.1 (NuGet `DotRecast.Detour.TileCache`) | `bench/Harness/RefHarness/DotRecastTileCache.cs` | its own layer builder over the whole tile grid on one thread, the same pass-through storage and the same scenario as the native driver |
-| RVO2-CS | 2.0.1 | `bench/Harness/RefHarness`, library sources compiled as shipped by `bench/Harness/Rvo2CsLib` | not on NuGet; its own projects target an old .NET Framework |
+| RVO2-CS | 2.0.1 | `bench/Harness/RefHarness`, library sources compiled as shipped by `bench/Harness/Rvo2CsLib` | not on NuGet; its own projects target an old .NET Framework. It spreads each step over all cores by default (about 5 cores busy at 5000 agents on an 8-core machine: 2.9 s of CPU in 0.57 s of wall time), so its rows run our side with `--threads auto` (every core); the single-thread comparison is the RVO2 C++ row |
 | Warthog (core, JPS) | 0.6.2 | the documented `warthog` and `warthog-jps` command lines on Moving AI scenario files; on macOS built with a private LLVM 22.1.5 toolchain (below) | `search_time` sums the per-instance times the program prints; JPS+ preprocessing is not in it, so `wall_time` is reported too |
 
 **Warthog on macOS.** Warthog's logger calls `std::chrono::current_zone`, which Apple's C++ library does not have.

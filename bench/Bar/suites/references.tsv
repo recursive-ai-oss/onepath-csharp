@@ -50,11 +50,11 @@ crowd/city-2000/dotrecast	crowd	dotrecast	agents_per_ms	higher	1.15	crowd --obj 
 crowd/city-5000/recast	crowd	recast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 5000 --steps 200 --warmup 50
 crowd/city-5000/dotrecast	crowd	dotrecast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 5000 --steps 200 --warmup 50
 crowd/circle-250-1thread/rvo2	crowd	rvo2	agents_per_ms	higher	1.15	circle --agents 250 --steps 200 env:OMP_NUM_THREADS=1
-crowd/circle-250/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 250 --steps 200
+crowd/circle-250/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 250 --steps 200 --threads auto
 crowd/circle-1000-1thread/rvo2	crowd	rvo2	agents_per_ms	higher	1.15	circle --agents 1000 --steps 200 env:OMP_NUM_THREADS=1
-crowd/circle-1000/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 1000 --steps 200
+crowd/circle-1000/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 1000 --steps 200 --threads auto
 crowd/circle-5000-1thread/rvo2	crowd	rvo2	agents_per_ms	higher	1.15	circle --agents 5000 --steps 200 env:OMP_NUM_THREADS=1
-crowd/circle-5000/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 5000 --steps 200
+crowd/circle-5000/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 5000 --steps 200 --threads auto
 grid/dao-brc000d/astar	grid	warthog	search_time	lower	1.0	--alg astar --scen {maps}/dao/brc000d.map.scen --checkopt
 grid/dao-brc000d/jps	grid	jps	search_time	lower	1.0	--alg jps --scen {maps}/dao/brc000d.map.scen --checkopt
 grid/dao-brc000d/jpsP	grid	jps	search_time	lower	1.0	--alg jpsP --scen {maps}/dao/brc000d.map.scen --checkopt
