@@ -194,7 +194,7 @@ internal static class CrowdFuzz
                     edited = true;
                     break;
                 default:
-                    switch (inp.Byte() % 5)
+                    switch (inp.Byte() % 7)
                     {
                         case 0:
                             _ = CrowdDebug.Collect(crowd);
@@ -240,10 +240,44 @@ internal static class CrowdFuzz
                                 }
                             }
                             break;
+                        case 5:
+                        {
+                            // The span forms agree with the array form: size, bytes, hash (FNV-1a of the bytes), and a too-small buffer is refused.
+                            byte[] viaArray = crowd.SaveState();
+                            int pad = inp.Byte() % 9;
+                            byte[] buf = new byte[viaArray.Length + pad];
+                            if (crowd.GetStateSize() != viaArray.Length
+                                || !crowd.TrySaveState(buf, out int written)
+                                || written != viaArray.Length
+                                || !buf.AsSpan(0, written).SequenceEqual(viaArray)
+                                || crowd.StateHash() != Fnv(viaArray)
+                                || (viaArray.Length > 0 && crowd.TrySaveState(new byte[viaArray.Length - 1], out _)))
+                            {
+                                throw new InvalidOperationException("The span save, size or hash disagrees with SaveState.");
+                            }
+                            break;
+                        }
+                        case 6:
+                        {
+                            // Restore from a span inside a larger buffer: the same state comes back, the hash included.
+                            byte[] own = crowd.SaveState();
+                            ulong hash = crowd.StateHash();
+                            int lead = inp.Byte() % 5;
+                            byte[] big = new byte[lead + own.Length + 3];
+                            own.CopyTo(big, lead);
+                            crowd.RestoreState(big.AsSpan(lead, own.Length));
+                            Resync(crowd, agents);
+                            if (!tainted && (crowd.StateHash() != hash || !crowd.SaveState().AsSpan().SequenceEqual(own)))
+                            {
+                                throw new InvalidOperationException("Restoring the crowd's own state from a span changed it.");
+                            }
+                            break;
+                        }
                         default:
                         {
                             // Damaged bytes are rejected with the documented exception and leave the crowd unchanged.
                             byte[] before = crowd.SaveStateWithMesh();
+                            ulong beforeHash = crowd.StateHash();
                             byte[] bad = (byte[])(saved ?? before).Clone();
                             if (bad.Length > 0)
                             {
@@ -267,7 +301,7 @@ internal static class CrowdFuzz
                             }
                             catch (NavMeshFormatException)
                             {
-                                if (!crowd.SaveStateWithMesh().AsSpan().SequenceEqual(before))
+                                if (crowd.StateHash() != beforeHash || !crowd.SaveStateWithMesh().AsSpan().SequenceEqual(before))
                                 {
                                     throw new InvalidOperationException("A rejected restore changed the crowd.");
                                 }
@@ -282,6 +316,16 @@ internal static class CrowdFuzz
         {
             throw new InvalidOperationException("The crowd's count does not match the agents added and removed.");
         }
+    }
+
+    private static ulong Fnv(ReadOnlySpan<byte> bytes)
+    {
+        ulong h = 0xCBF29CE484222325UL;
+        foreach (byte b in bytes)
+        {
+            h = (h ^ b) * 0x100000001B3UL;
+        }
+        return h;
     }
 
     // A restore removes agents added since the snapshot and makes new objects for agents removed since: take the crowd's own list.

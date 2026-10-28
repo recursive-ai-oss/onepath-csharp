@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- **Crowd state without allocation:** `Crowd.StateHash()` (FNV-1a 64 of the snapshot bytes), `Crowd.GetStateSize()` and `Crowd.TrySaveState(Span<byte>, out int)` write the same OPCS v1 bytes as `SaveState()` into caller memory; `RestoreState` restores the same agents without allocating (followers and corridors are read in place, so a held `Agent.Path` stays valid). Documented in `docs/crowds.md`.
+
 ## [0.4.0-preview.1]
 
 First public preview. The API can still change between previews. The only runtime dependency is `RecursiveAI.OneMath`.

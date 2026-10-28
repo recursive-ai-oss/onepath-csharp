@@ -832,7 +832,11 @@ public sealed class PathCorridor
         return c;
     }
 
-    internal static PathCorridor ReadFrom(ref StateReader r)
+    internal static PathCorridor ReadFrom(ref StateReader r) => ReadFrom(ref r, null, true)!;
+
+    // Reads and validates a corridor. With store = false nothing is kept (a validation pass that allocates nothing); with
+    // store = true the values go into `reuse` when its capacity matches (so references to it stay valid), else a new corridor.
+    internal static PathCorridor? ReadFrom(ref StateReader r, PathCorridor? reuse, bool store)
     {
         r.Version(FormatVersion);
         int flags = r.U8();
@@ -850,23 +854,36 @@ public sealed class PathCorridor
         {
             throw r.Error("polygon count", count);
         }
-        var c = new PathCorridor(capacity)
+        PathCorridor? c = null;
+        if (store)
         {
-            _count = count,
-            _complete = (flags & FlagComplete) != 0,
-            _needsReplan = (flags & FlagNeedsReplan) != 0,
-            _fromStart = (flags & FlagFromStart) != 0,
-        };
-        c._position = r.V3("position");
-        c._target = r.V3("target");
-        c._targetPoly = new PolyRef(r.U64());
+            c = reuse is not null && reuse.Capacity == capacity ? reuse : new PathCorridor(capacity);
+        }
+        Vector3D position = r.V3("position");
+        Vector3D target = r.V3("target");
+        ulong targetPoly = r.U64();
         for (int i = 0; i < count; i++)
         {
-            c._path[i] = new PolyRef(r.U64());
+            ulong poly = r.U64();
+            if (c is not null)
+            {
+                c._path[i] = new PolyRef(poly);
+            }
         }
-        if (count == 0 && c._complete)
+        bool complete = (flags & FlagComplete) != 0;
+        if (count == 0 && complete)
         {
             throw r.Error("complete flag of an empty corridor", 1);
+        }
+        if (c is not null)
+        {
+            c._count = count;
+            c._complete = complete;
+            c._needsReplan = (flags & FlagNeedsReplan) != 0;
+            c._fromStart = (flags & FlagFromStart) != 0;
+            c._position = position;
+            c._target = target;
+            c._targetPoly = new PolyRef(targetPoly);
         }
         return c;
     }

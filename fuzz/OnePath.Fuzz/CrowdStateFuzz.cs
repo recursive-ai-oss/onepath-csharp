@@ -58,20 +58,35 @@ internal static class CrowdStateFuzz
                 break;
             }
         }
+        // Restore from a span inside a larger buffer, so a reader that trusts the span's start or end shows up.
+        int lead = (data[0] >> 2) & 7;
+        byte[] padded = new byte[lead + bytes.Length + 5];
+        bytes.CopyTo(padded, lead);
+        ulong validHash = crowd.StateHash();
         try
         {
-            crowd.RestoreState(bytes);
+            crowd.RestoreState(padded.AsSpan(lead, bytes.Length));
         }
         catch (NavMeshFormatException)
         {
-            if (!s_valid.AsSpan().SequenceEqual(crowd.SaveState()))
+            if (crowd.StateHash() != validHash || !s_valid.AsSpan().SequenceEqual(crowd.SaveState()))
             {
                 throw new InvalidOperationException("a rejected restore changed the crowd");
             }
             return;
         }
         byte[] again = crowd.SaveState();
+        var span = new byte[again.Length];
+        if (!crowd.TrySaveState(span, out int written) || written != again.Length || !span.AsSpan().SequenceEqual(again) || crowd.GetStateSize() != again.Length)
+        {
+            throw new InvalidOperationException("the span save differs from the array save");
+        }
+        ulong h = crowd.StateHash();
         crowd.RestoreState(again);
+        if (crowd.StateHash() != h)
+        {
+            throw new InvalidOperationException("save, restore did not keep the state hash");
+        }
         if (!again.AsSpan().SequenceEqual(crowd.SaveState()))
         {
             throw new InvalidOperationException("save, restore, save did not give the same bytes");

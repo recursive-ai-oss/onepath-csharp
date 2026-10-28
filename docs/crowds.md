@@ -395,6 +395,23 @@ but nothing indexes out of range. Failures throw `NavMeshFormatException` naming
 nothing**: everything is parsed into new objects first and nothing changes if any part is rejected (`RestoreStateWithMesh` also
 checks the crowd part before touching the mesh, and the mesh restore is itself all or nothing).
 
+**Span forms, size and hash.** `Crowd.GetStateSize()` is the length of the bytes above; `TrySaveState(Span<byte>, out int)` writes
+exactly the bytes `SaveState()` returns (both run one code path, so they cannot drift) and reports `false`, writing nothing it
+promises, when the buffer is short; `RestoreState` takes a `ReadOnlySpan<byte>` (a slice of any buffer). `Crowd.StateHash()` is
+**FNV-1a, 64-bit** (offset basis `CBF29CE484222325`, prime `100000001B3`, per byte `h = (h xor byte) · prime` mod 2^64) over the kind-1
+bytes, computed as they are produced without storing them. Equal hashes mean equal snapshots up to 64-bit collisions; the hash covers
+what the snapshot covers (not the mesh, not `CrowdOptions`), is the same on every platform and for any thread count, and a host can
+check it against `Fnv1a64(SaveState())`.
+
+**Allocation.** `GetStateSize`, `TrySaveState` and `StateHash` allocate nothing, except that the first `StateHash` grows an internal
+scratch buffer to the largest follower (it is reused afterwards). `RestoreState` validates the whole input first and then applies it,
+so a rejected restore changes nothing. It allocates nothing when every active slot of the bytes holds, in the crowd, the agent with the
+same id and byte-identical settings (the rollback case: same agents, different per-step state) and the slot arrays already suffice; its
+followers are read in place, corridor included. It allocates for each agent that is new to its slot (the `Agent`, its settings and its
+follower), when the slot arrays must grow, and for the exception when bytes are rejected. `StateHash`, `GetStateSize` and
+`TrySaveState` use crowd-owned scratch and must not run at the same time as each other or a step. `WorldCrowd` has no snapshot of its
+own: a host calls these on each crowd of `WorldCrowd.Crowds`, in class order.
+
 **Agent objects.** Agents that are in the snapshot and still in the crowd keep their `Agent` object and their follower object (read in
 place). Agents added since are deactivated. Agents in the snapshot but removed since come back as new `Agent` objects with the same id
 (`Crowd.GetAgent(id)`, `CopyAgents`): a removed `Agent` is never revived. The next added agent gets the rewound id and the lowest
