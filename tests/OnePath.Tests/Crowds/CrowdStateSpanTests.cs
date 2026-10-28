@@ -8,9 +8,7 @@ using Xunit;
 namespace RecursiveAI.OnePath.Tests;
 
 // The span forms of the crowd state: size, save into caller memory, restore from a span, the state hash, and that none of
-// them allocates in steady state. Allocation is counted per thread, so other tests running at the same time cannot disturb it;
-// the collection keeps this class off the thread pool's other test classes anyway.
-[Collection("CrowdStateSpan")]
+// them allocates in steady state (measured per thread with AllocationProbe, so other tests running at the same time cannot disturb it).
 public class CrowdStateSpanTests
 {
     private const ulong FnvBasis = 0xCBF29CE484222325UL, FnvPrime = 0x100000001B3UL;
@@ -162,22 +160,34 @@ public class CrowdStateSpanTests
         CrowdRollback.Run(sim, 80, 84, false); // a few steps on: same agents, different dynamic state
         byte[] later = sim.Crowd.SaveState();
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
         ulong h = 0;
         int size = 0;
         bool ok = false;
-        for (int i = 0; i < 20; i++)
+        long allocated = AllocationProbe.SteadyState(() =>
         {
-            h = sim.Crowd.StateHash();
-            size += sim.Crowd.GetStateSize();
-            ok = sim.Crowd.TrySaveState(buf, out _);
-            sim.Crowd.RestoreState(snap);
-            sim.Crowd.RestoreState(later);
-        }
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            for (int i = 0; i < 20; i++)
+            {
+                h = sim.Crowd.StateHash();
+                size += sim.Crowd.GetStateSize();
+                ok = sim.Crowd.TrySaveState(buf, out _);
+                sim.Crowd.RestoreState(snap);
+                sim.Crowd.RestoreState(later);
+            }
+        });
         Assert.True(ok);
         Assert.True(size > 0 && h != 0);
         Assert.Equal(0, allocated);
         Assert.True(later.AsSpan().SequenceEqual(sim.Crowd.SaveState()));
+    }
+
+    [Fact]
+    public void HugeButValidWallClearanceStepsWithoutThrowing()
+    {
+        // Found by fuzzing restored state: the wall query refused a radius beyond 2^22.
+        CrowdSim sim = CrowdRollback.Populated(1);
+        var agents = new List<Agent>();
+        sim.Crowd.CopyAgents(agents);
+        sim.Crowd.Add(agents[0].Position, Agent.Small with { WallClearance = 1e9 });
+        sim.Crowd.Step(CrowdWorlds.Dt);
     }
 }
