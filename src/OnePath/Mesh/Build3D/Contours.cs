@@ -95,7 +95,7 @@ public static class Contours
         ArgumentNullException.ThrowIfNull(chf);
         ArgumentNullException.ThrowIfNull(settings);
         settings.Validate();
-        var g = new SpanGraph(chf);
+        var g = SpanGraph.For(chf);
         try
         {
             return BuildCore(chf, settings, g);
@@ -110,16 +110,20 @@ public static class Contours
     {
         Span<CompactSpan> spans = chf.Spans;
         int n = g.Count;
-        var region = new int[n];
+        int[] region = Scratch.Rent<int>(n);
         int maxRegion = 0;
         for (int i = 0; i < n; i++)
         {
-            if (spans[i].Region < 0)
+            int ri = spans[i].Region;
+            if (ri < 0)
             {
-                throw new ArgumentException($"Span {i} has a negative region id {spans[i].Region}.", nameof(chf));
+                throw new ArgumentException($"Span {i} has a negative region id {ri}.", nameof(chf));
             }
-            region[i] = spans[i].Region;
-            maxRegion = Math.Max(maxRegion, region[i]);
+            region[i] = ri;
+            if (ri > maxRegion)
+            {
+                maxRegion = ri;
+            }
         }
         var regionArea = new byte[maxRegion + 1];
         for (int i = 0; i < n; i++)
@@ -130,15 +134,23 @@ public static class Contours
             }
         }
 
-        var visited = new byte[n];
+        byte[] visited = Scratch.RentZeroed<byte>(n);
         var traceBuffer = new List<ContourVertex>(256);
         var outers = new List<(ContourVertex[] Raw, long Area)>[maxRegion + 1];
         var holes = new List<ContourVertex[]>[maxRegion + 1];
         int guard = (4 * n) + 8;
+        int[] nbrs = g.Nbr;
         for (int i = 0; i < n; i++)
         {
             int r = region[i];
             if (r == 0)
+            {
+                continue;
+            }
+            int b = 4 * i;
+            // Most spans are inside a region: all four links lead to spans of the same region. Check that before the general test.
+            int t0 = nbrs[b], t1 = nbrs[b + 1], t2 = nbrs[b + 2], t3 = nbrs[b + 3];
+            if (t0 >= 0 && t1 >= 0 && t2 >= 0 && t3 >= 0 && region[t0] == r && region[t1] == r && region[t2] == r && region[t3] == r)
             {
                 continue;
             }
@@ -160,7 +172,8 @@ public static class Contours
                 }
             }
         }
-
+        Scratch.Return(region);
+        Scratch.Return(visited);
         var result = new List<Contour>();
         int dropped = 0;
         int droppedHoles = 0;
@@ -400,6 +413,13 @@ public static class Contours
         }
         double maxErr2 = (double)maxError * maxError;
         long maxLen2 = (long)maxEdgeLength * maxEdgeLength;
+        var xs = new int[n];
+        var zs = new int[n];
+        for (int i = 0; i < n; i++)
+        {
+            xs[i] = raw[i].X;
+            zs[i] = raw[i].Z;
+        }
         var stack = new Stack<(int A, int B)>();
         var kept = new List<int>();
         for (int i = 0; i < n; i++)
@@ -425,14 +445,43 @@ public static class Contours
             ContourVertex pa = raw[ia % n], pb = raw[ib % n];
             int best = -1;
             double bestD = -1;
+            // The segment's constants are the same for every point between its ends, so they are worked out once; the distance is SegmentDistance2.
+            long sx = pb.X - pa.X, sz = pb.Z - pa.Z;
+            long len2 = (sx * sx) + (sz * sz);
+            int bestIdx = 0;
             for (int k = ia + 1; k < ib; k++)
             {
-                ContourVertex p = raw[k % n];
-                double d = SegmentDistance2(pa, pb, p);
-                if (d > bestD || (d == bestD && Less(p, raw[best % n])))
+                int kk = k >= n ? k - n : k;
+                long px = xs[kk] - pa.X, pz = zs[kk] - pa.Z;
+                double d;
+                if (len2 == 0)
+                {
+                    d = (px * px) + (pz * pz);
+                }
+                else
+                {
+                    long dot = (px * sx) + (pz * sz);
+                    if (dot <= 0)
+                    {
+                        d = (px * px) + (pz * pz);
+                    }
+                    else if (dot >= len2)
+                    {
+                        long qx = xs[kk] - pb.X, qz = zs[kk] - pb.Z;
+                        d = (qx * qx) + (qz * qz);
+                    }
+                    else
+                    {
+                        long cross = (sx * pz) - (sz * px);
+                        d = (double)cross * cross / len2;
+                    }
+                }
+                // Ties go to the lexicographically smaller point (x, then z).
+                if (d > bestD || (d == bestD && (xs[kk] != xs[bestIdx] ? xs[kk] < xs[bestIdx] : zs[kk] < zs[bestIdx])))
                 {
                     bestD = d;
                     best = k;
+                    bestIdx = kk;
                 }
             }
             // Split where the outline deviates too much, or (wall edges only) where the edge is too long: at the raw vertex halfway along it.

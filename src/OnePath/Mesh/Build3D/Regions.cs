@@ -11,7 +11,24 @@ namespace RecursiveAI.OnePath.Mesh.Build3D;
 internal sealed class SpanGraph
 {
     private readonly CompactHeightfield _chf;
-    private int[]? _col;
+    private int[]? _cx;
+    private int[]? _cz;
+    private bool _shared;
+
+    /// <summary>
+    /// The graph of <paramref name="chf"/>: the one kept with it by <see cref="CompactHeightfield.ShareGraph"/> (the links do not depend on areas or regions, so
+    /// every copy of a cached heightfield uses it and nothing is rebuilt), else a new one that the caller releases.
+    /// </summary>
+    public static SpanGraph For(CompactHeightfield chf) => chf.SharedGraph ?? new SpanGraph(chf);
+
+    /// <summary>Builds the graph once for a heightfield whose links stay as they are, with the span-to-column table, and never returns its arrays to the pool.</summary>
+    public static SpanGraph CreateShared(CompactHeightfield chf)
+    {
+        var g = new SpanGraph(chf) { _shared = true };
+        g.EnsureCells();
+        _ = g.MultiSpanColumns;
+        return g;
+    }
 
     public SpanGraph(CompactHeightfield chf)
     {
@@ -57,10 +74,15 @@ internal sealed class SpanGraph
     /// <summary>Returns the pooled arrays; the graph must not be used afterwards.</summary>
     public void Release()
     {
-        Scratch.Return(Nbr);
-        if (_col != null)
+        if (_shared)
         {
-            Scratch.Return(_col);
+            return;
+        }
+        Scratch.Return(Nbr);
+        if (_cx != null)
+        {
+            Scratch.Return(_cx);
+            Scratch.Return(_cz!);
         }
     }
 
@@ -72,38 +94,71 @@ internal sealed class SpanGraph
 
     public int[] Nbr { get; }
 
+    private int[]? _multi;
+
+    /// <summary>The columns holding more than one span (walkable or not), in column order.</summary>
+    public int[] MultiSpanColumns
+    {
+        get
+        {
+            if (_multi == null)
+            {
+                var list = new List<int>();
+                ReadOnlySpan<int> count = _chf.CellCount;
+                for (int c = 0; c < count.Length; c++)
+                {
+                    if (count[c] > 1)
+                    {
+                        list.Add(c);
+                    }
+                }
+                _multi = list.ToArray();
+            }
+            return _multi;
+        }
+    }
+
     /// <summary>Column x of a span.</summary>
     public int CellX(int span)
     {
         EnsureCells();
-        return _col![span] % Width;
+        return _cx![span];
     }
 
     /// <summary>Column z of a span.</summary>
     public int CellZ(int span)
     {
         EnsureCells();
-        return _col![span] / Width;
+        return _cz![span];
     }
 
     private void EnsureCells()
     {
-        if (_col != null)
+        if (_cx != null)
         {
             return;
         }
-        int[] col = Scratch.Rent<int>(Count);
+        int[] cx = Scratch.Rent<int>(Count);
+        int[] cz = Scratch.Rent<int>(Count);
         ReadOnlySpan<int> first = _chf.CellFirst;
         ReadOnlySpan<int> count = _chf.CellCount;
-        for (int c = 0; c < count.Length; c++)
+        int w = Width;
+        for (int c = 0, x = 0, z = 0; c < count.Length; c++)
         {
             int end = first[c] + count[c];
             for (int i = first[c]; i < end; i++)
             {
-                col[i] = c;
+                cx[i] = x;
+                cz[i] = z;
+            }
+            if (++x == w)
+            {
+                x = 0;
+                z++;
             }
         }
-        _col = col;
+        _cz = cz;
+        _cx = cx;
     }
 
     public bool OutsideGrid(int span, int dir)
@@ -416,7 +471,7 @@ public static class Regions
         ArgumentNullException.ThrowIfNull(chf);
         ArgumentNullException.ThrowIfNull(settings);
         settings.Validate();
-        var g = new SpanGraph(chf);
+        var g = SpanGraph.For(chf);
         int count = Sweep(chf, g, out int[] region);
         Finish(chf, g, region, count, settings.MinRegionArea, settings.MergeRegionArea);
         g.Release();
@@ -432,7 +487,20 @@ public static class Regions
         ArgumentNullException.ThrowIfNull(chf);
         ArgumentNullException.ThrowIfNull(settings);
         settings.Validate();
-        var g = new SpanGraph(chf);
+        var g = SpanGraph.For(chf);
+        if (LayersWithoutOverlap(chf, g, settings))
+        {
+            g.Release();
+            return;
+        }
+        g.Release();
+        BuildLayersGeneral(chf, settings);
+    }
+
+    // The sweep and merge of BuildLayers with no shortcut (BuildLayers itself uses it whenever the shortcut does not apply; tests compare the two).
+    internal static void BuildLayersGeneral(CompactHeightfield chf, RegionSettings settings)
+    {
+        var g = SpanGraph.For(chf);
         Span<CompactSpan> spans = chf.Spans;
         int count = Sweep(chf, g, out int[] region);
         int n = g.Count;
@@ -544,6 +612,121 @@ public static class Regions
         Finish(chf, g, region, count, settings.MinRegionArea, 0);
         g.Release();
         Scratch.Return(region);
+    }
+
+
+    // The layer partition of a heightfield in which no column holds two walkable spans. Then no two regions share a column, so the merge of BuildLayers
+    // joins every pair of linked same-area regions and ends with the connected components of "linked and same area": the partition is computed directly by
+    // union-find (each component is rooted at its first span, and ids are numbered in order of first span, as Finish numbers them), which gives the
+    // same regions as the sweep and the merge, only without building them. Returns false when the heightfield has such a column, or a region would be
+    // removed as too small (the general code then decides, with the same result).
+    private static bool LayersWithoutOverlap(CompactHeightfield chf, SpanGraph g, RegionSettings settings)
+    {
+        Span<CompactSpan> spans = chf.Spans;
+        ReadOnlySpan<int> first = chf.CellFirst;
+        ReadOnlySpan<int> cellCount = chf.CellCount;
+        foreach (int c in g.MultiSpanColumns)
+        {
+            int walkable = 0;
+            for (int i = first[c]; i < first[c] + cellCount[c]; i++)
+            {
+                if (spans[i].Area != 0)
+                {
+                    walkable++;
+                }
+            }
+            if (walkable > 1)
+            {
+                return false;
+            }
+        }
+        int n = g.Count;
+        int[] nbr = g.Nbr;
+        int[] parent = Scratch.Rent<int>(n);
+        for (int i = 0; i < n; i++)
+        {
+            parent[i] = i;
+        }
+        // Links to the -x and -z neighbours point to earlier spans; the other two directions are the same links seen from the other end.
+        for (int i = 0; i < n; i++)
+        {
+            byte area = spans[i].Area;
+            if (area == 0)
+            {
+                continue;
+            }
+            int t = nbr[4 * i];
+            if (t >= 0 && spans[t].Area == area)
+            {
+                Union(parent, i, t);
+            }
+            t = nbr[(4 * i) + 3];
+            if (t >= 0 && spans[t].Area == area)
+            {
+                Union(parent, i, t);
+            }
+        }
+        int[] region = Scratch.Rent<int>(n);
+        int count = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (spans[i].Area == 0)
+            {
+                region[i] = 0;
+                continue;
+            }
+            int root = Find(parent, i);
+            region[i] = root == i ? ++count : region[root];
+        }
+        Scratch.Return(parent);
+        int[] size = Scratch.RentZeroed<int>(count + 1);
+        for (int i = 0; i < n; i++)
+        {
+            size[region[i]]++;
+        }
+        bool small = false;
+        for (int r = 1; r <= count && !small; r++)
+        {
+            small = size[r] < settings.MinRegionArea;
+        }
+        Scratch.Return(size);
+        if (small)
+        {
+            Scratch.Return(region);
+            return false;
+        }
+        for (int i = 0; i < n; i++)
+        {
+            spans[i].Region = region[i];
+        }
+        chf.RegionCount = count;
+        Scratch.Return(region);
+        return true;
+    }
+
+    // The root is always the smallest index of its set, so the first span of a component is its root.
+    private static int Find(int[] parent, int i)
+    {
+        while (parent[i] != i)
+        {
+            parent[i] = parent[parent[i]];
+            i = parent[i];
+        }
+        return i;
+    }
+
+    private static void Union(int[] parent, int a, int b)
+    {
+        a = Find(parent, a);
+        b = Find(parent, b);
+        if (a < b)
+        {
+            parent[b] = a;
+        }
+        else if (b < a)
+        {
+            parent[a] = b;
+        }
     }
 
     // Up to this many regions the layer merge keeps its two relations as bit matrices (count² bits each); beyond, as sorted sets.
@@ -702,7 +885,7 @@ public static class Regions
         {
             throw new ArgumentOutOfRangeException(nameof(minArea), "Areas must not be negative.");
         }
-        var g = new SpanGraph(chf);
+        var g = SpanGraph.For(chf);
         Span<CompactSpan> spans = chf.Spans;
         var region = new int[g.Count];
         int max = 0;

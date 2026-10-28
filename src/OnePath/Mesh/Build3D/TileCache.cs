@@ -84,7 +84,12 @@ public sealed class TileCache
 
     internal void SetMesh(TiledNavMesh mesh) => _mesh = mesh;
 
-    internal void Store(int tx, int tz, CompactHeightfield chf) => _entries[Key(tx, tz)] = new Entry(tx, tz, chf) { LastAreas = Areas(chf), BaseAreas = Areas(chf) };
+    internal void Store(int tx, int tz, CompactHeightfield chf)
+    {
+        // Every rebuild of the tile starts from copies of this heightfield; its links never change, so the span graph is built once here.
+        chf.ShareGraph();
+        _entries[Key(tx, tz)] = new Entry(tx, tz, chf) { LastAreas = Areas(chf), BaseAreas = Areas(chf) };
+    }
 
     internal void StoreBase(int tx, int tz, List<NavTileData> output, int from) => _entries[Key(tx, tz)].BaseTiles = output.GetRange(from, output.Count - from);
 

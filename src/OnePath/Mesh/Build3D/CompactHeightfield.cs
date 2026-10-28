@@ -57,6 +57,15 @@ public sealed class CompactHeightfield
     private int _spanCount;
     private bool _pooled;
 
+    /// <summary>The span graph kept for copies of this heightfield (see <see cref="ShareGraph"/>), or null.</summary>
+    internal SpanGraph? SharedGraph { get; private set; }
+
+    /// <summary>
+    /// Builds the span graph once and hands it to every <see cref="Clone"/> and <see cref="CloneScratch"/> of this heightfield: area marking and region
+    /// writes do not change links, so the stages of a rebuild can reuse it. Call only when the links will not change.
+    /// </summary>
+    internal void ShareGraph() => SharedGraph ??= SpanGraph.CreateShared(this);
+
     /// <summary>The grid.</summary>
     public HeightfieldFrame Frame { get; }
 
@@ -88,7 +97,7 @@ public sealed class CompactHeightfield
     internal CompactSpan[] SpansArray { get; }
 
     /// <summary>An independent copy: the same grid and spans, so the later stages can write areas and regions without touching this one.</summary>
-    public CompactHeightfield Clone() => new(Frame, WalkableHeight, WalkableClimb, CellFirstArray, CellCountArray, SpansArray.AsSpan(0, _spanCount).ToArray()) { RegionCount = RegionCount };
+    public CompactHeightfield Clone() => new(Frame, WalkableHeight, WalkableClimb, CellFirstArray, CellCountArray, SpansArray.AsSpan(0, _spanCount).ToArray()) { RegionCount = RegionCount, SharedGraph = SharedGraph };
 
     /// <summary>
     /// A copy for short-lived work (a rebuild that modifies areas and regions and then drops the copy): its span storage comes from a pool, so a
@@ -99,7 +108,7 @@ public sealed class CompactHeightfield
     {
         CompactSpan[] copy = Scratch.Rent<CompactSpan>(_spanCount);
         Array.Copy(SpansArray, copy, _spanCount);
-        return new CompactHeightfield(Frame, WalkableHeight, WalkableClimb, CellFirstArray, CellCountArray, copy, _spanCount) { RegionCount = RegionCount, _pooled = true };
+        return new CompactHeightfield(Frame, WalkableHeight, WalkableClimb, CellFirstArray, CellCountArray, copy, _spanCount) { RegionCount = RegionCount, _pooled = true, SharedGraph = SharedGraph };
     }
 
     /// <summary>Returns the span storage of a <see cref="CloneScratch"/> copy to the pool; the copy must not be used afterwards.</summary>
