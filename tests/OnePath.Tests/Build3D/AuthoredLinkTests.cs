@@ -128,6 +128,18 @@ public class AuthoredLinkTests
     }
 
     [Fact]
+    public void A_link_far_above_the_tile_is_dropped_not_fatal()
+    {
+        NavMesh m = Islands().Build(Settings(Jump() with { Start = new Vector3D(9, 100000, 5) }, Jump(8)));
+        int links = 0;
+        for (int s = 0; s < m.Tiles.SlotCount; s++)
+        {
+            links += m.Tiles.GetTileBySlot(s)?.OffMeshLinks.Length ?? 0;
+        }
+        Assert.Equal(1, links);
+    }
+
+    [Fact]
     public void Rebuilt_tiles_keep_their_links()
     {
         var pipeline = new Mesh3DPipeline(Settings(Jump()));

@@ -222,7 +222,7 @@ slots of the tile that holds the link's start:
 3. Slot values are `(float)(world − tileOrigin)`, X and Z against the tile's origin, Y against the tile's `OriginY`. The end may
    lie in any column but within `MaxLocalExtent` of the start's tile origin in X and Z; otherwise the build throws
    `ArgumentOutOfRangeException` naming `OffMeshLinks[i]`. Non-finite or out-of-bound numbers, a radius not above 0, an area above 63 are
-   rejected the same way. A vertical offset beyond `MaxLocalExtent` from the tile origin throws `InvalidOperationException`.
+   rejected the same way. A link whose start or end lies more than `MaxLocalExtent` above or below the tile's `OriginY` is dropped (it could not connect from there anyway, and one odd link must not fail a build or rebuild).
 4. Links of one tile are appended after any slots the builder already filled, in definition order. A tile's link order therefore
    equals the order of the definitions whose start it holds.
 

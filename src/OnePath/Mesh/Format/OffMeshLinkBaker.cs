@@ -81,7 +81,9 @@ internal static class OffMeshLinkBaker
             double sy = l.Start.Y - best.OriginY, ey = l.End.Y - best.OriginY;
             if (Math.Abs(sy) > p.MaxLocalExtent || Math.Abs(ey) > p.MaxLocalExtent)
             {
-                throw new InvalidOperationException($"OffMeshLinks[{i}]: its height is more than {p.MaxLocalExtent:R} (16384 cells) from the lowest point of tile ({tx}, {tz}).");
+                // Too far above or below the tile's own heights to be stored in its frame; no polygon of the tile can be in reach of the start
+                // either, so the link could not connect from here. Dropping it keeps one odd link from failing a whole build or rebuild.
+                continue;
             }
             if (!added.TryGetValue(best, out List<OffMeshLink>? list))
             {
