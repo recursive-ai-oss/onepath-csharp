@@ -85,11 +85,12 @@ public class VoxelPagedSearchTests
     {
         // 1300 x 1300 x 300 = 507 million voxels: a dense search state would need about 10 GB.
         var g = new VoxelGrid(1300, 1300, 300);
-        long before = GC.GetTotalMemory(true);
+        // Count only this thread's allocations: the process heap also holds whatever tests running in parallel allocate.
+        long before = GC.GetAllocatedBytesForCurrentThread();
         VoxelPath p = g.FindPath(new VoxelCell(10, 10, 10), new VoxelCell(60, 40, 30));
-        long after = GC.GetTotalMemory(false);
+        long after = GC.GetAllocatedBytesForCurrentThread();
         Assert.True(p.Found);
-        Assert.True(after - before < 64L * 1024 * 1024, $"the query grew the heap by {after - before} bytes");
+        Assert.True(after - before < 64L * 1024 * 1024, $"the query allocated {after - before} bytes");
     }
 
     [Fact]
