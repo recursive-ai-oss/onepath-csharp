@@ -112,7 +112,7 @@ internal static class GltfFuzz
         }
         Check(m.Tiles);
         TileStreamer st = m.CreateStreamer();
-        var held = new Dictionary<int, byte[]>();
+        var held = new Dictionary<int, List<byte[]>>();
         var originals = new Dictionary<int, byte[]>();
         for (int c = 0; c < 4; c++)
         {
@@ -135,14 +135,17 @@ internal static class GltfFuzz
                         List<byte[]> o = st.StreamOut(col, 0);
                         if (o.Count > 0)
                         {
-                            held[col] = o[0];
+                            held[col] = o;
                         }
                     }
                     break;
                 case 1:
-                    if (held.Remove(col, out byte[]? b))
+                    if (held.Remove(col, out List<byte[]>? b))
                     {
-                        st.QueueAdd(b);
+                        foreach (byte[] t in b)
+                        {
+                            st.QueueAdd(t);
+                        }
                     }
                     break;
                 case 2:
@@ -197,18 +200,26 @@ internal static class GltfFuzz
             {
             }
         }
-        foreach (KeyValuePair<int, byte[]> h in held)
+        foreach (KeyValuePair<int, List<byte[]>> h in held)
         {
-            st.QueueAdd(h.Value);
+            foreach (byte[] t in h.Value)
+            {
+                st.QueueAdd(t);
+            }
         }
         st.UpdateAll();
-        // Each held column came back exactly as it left (a held tile may itself be a damaged-but-valid variant the script streamed in earlier).
-        foreach (KeyValuePair<int, byte[]> h in held)
+        // Each held tile came back exactly as it left (a held tile may itself be a damaged-but-valid variant the script streamed in earlier,
+        // for example with another layer number, so the position is read from the tile's own header).
+        foreach (KeyValuePair<int, List<byte[]>> h in held)
         {
-            TileRef r = m.Tiles.GetTileRef(h.Key, 0, 0);
-            if (!r.IsSet || !NavMeshSerializer.WriteTile(m.Tiles.GetTile(r)!).AsSpan().SequenceEqual(h.Value))
+            foreach (byte[] t in h.Value)
             {
-                throw new InvalidOperationException($"streamed tile {h.Key} came back different");
+                int tx = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(t.AsSpan(8)), tz = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(t.AsSpan(12)), layer = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(t.AsSpan(16));
+                TileRef r = m.Tiles.GetTileRef(tx, tz, layer);
+                if (!r.IsSet || !NavMeshSerializer.WriteTile(m.Tiles.GetTile(r)!).AsSpan().SequenceEqual(t))
+                {
+                    throw new InvalidOperationException($"streamed tile ({tx}, {tz}, {layer}) came back different");
+                }
             }
         }
         Check(m.Tiles);
