@@ -13,7 +13,7 @@ public sealed class GeometryException : InvalidOperationException
     }
 }
 
-/// <summary>A directed input edge belonging to operand 0 or 1.</summary>
+/// <summary>A directed input edge belonging to operand 0, operand 1, or (Op 2) both at once.</summary>
 internal readonly struct InEdge
 {
     public readonly P A;
@@ -83,9 +83,11 @@ internal sealed class Arrangement
             hot.Add(c);
         }
         P[] hotSorted = SortUnique(hot);
-        frags = RerouteAll(frags, HotGrid.Build(hotSorted, MeanSpan(frags)));
+        var hg0 = HotGrid.Build(hotSorted, MeanSpan(frags));
+        frags = RerouteAll(frags, hg0);
 
         // Repair loop (normally a single verification pass that finds nothing).
+        HotGrid lastGrid = hg0;
         for (int round = 0; ; round++)
         {
             var marked = new bool[frags.Count];
@@ -98,6 +100,7 @@ internal sealed class Arrangement
             }
             var next = new List<Frag>(frags.Count + 8);
             HotGrid grid = HotGrid.Build(hotSorted, MeanSpan(frags));
+            lastGrid = grid;
             for (int i = 0; i < frags.Count; i++)
             {
                 Frag f = frags[i];
@@ -121,13 +124,48 @@ internal sealed class Arrangement
             }
         }
 
-        BuildSegments(frags, hotSorted, result);
+        BuildSegments(frags, hotSorted, lastGrid, result);
         return result;
     }
 
     private static P[] SortUnique(List<P> pts)
     {
-        P[] a = pts.ToArray();
+        int cnt = pts.Count;
+        long minX = long.MaxValue, minY = long.MaxValue, maxX = long.MinValue, maxY = long.MinValue;
+        foreach (P p in pts)
+        {
+            minX = Math.Min(minX, p.X);
+            maxX = Math.Max(maxX, p.X);
+            minY = Math.Min(minY, p.Y);
+            maxY = Math.Max(maxY, p.Y);
+        }
+        int yBits = 64 - System.Numerics.BitOperations.LeadingZeroCount((ulong)Math.Max(1, maxY - minY));
+        int xBits = 64 - System.Numerics.BitOperations.LeadingZeroCount((ulong)Math.Max(1, maxX - minX));
+        P[] a;
+        if (cnt > 0 && xBits + yBits <= 63)
+        {
+            // Both coordinates packed into one unsigned key whose order is the (x, y) order; sorting primitives is faster.
+            var keys = new ulong[cnt];
+            for (int i = 0; i < cnt; i++)
+            {
+                P p = pts[i];
+                keys[i] = ((ulong)(p.X - minX) << yBits) | (ulong)(p.Y - minY);
+            }
+            Array.Sort(keys);
+            ulong mask = (1UL << yBits) - 1;
+            a = new P[cnt];
+            int u = 0;
+            for (int i = 0; i < cnt; i++)
+            {
+                if (i == 0 || keys[i] != keys[i - 1])
+                {
+                    a[u++] = new P(minX + (long)(keys[i] >> yBits), minY + (long)(keys[i] & mask));
+                }
+            }
+            Array.Resize(ref a, u);
+            return a;
+        }
+        a = pts.ToArray();
         Array.Sort(a);
         int n = 0;
         for (int i = 0; i < a.Length; i++)
@@ -219,6 +257,26 @@ internal sealed class Arrangement
             int[]? ids = pass == 1 ? new int[start[^1]] : null;
             for (int i = 0; i < n; i++)
             {
+                if (g.BoxCells(bx0[i], by0[i], bx1[i], by1[i], 4, out int k0, out int k1, out int q0, out int q1))
+                {
+                    // A short fragment: the cells of its bounding box include every cell it passes through, and there are few.
+                    for (int r = q0; r <= q1; r++)
+                    {
+                        for (int c = k0; c <= k1; c++)
+                        {
+                            int cell = (r * g.Cols) + c;
+                            if (pass == 0)
+                            {
+                                start[cell]++;
+                            }
+                            else
+                            {
+                                ids![fill![cell]++] = i;
+                            }
+                        }
+                    }
+                    continue;
+                }
                 g.Traverse(f[i].A, f[i].B, lo, hi, out int c0, out int c1);
                 for (int c = c0; c <= c1; c++)
                 {
@@ -351,6 +409,7 @@ internal sealed class Arrangement
         public CellGrid Grid = null!;
         public int[] Start = Array.Empty<int>();
         public P[] Pts = Array.Empty<P>();
+        public int[] Ids = Array.Empty<int>();
         public int[] Lo = Array.Empty<int>();
         public int[] Hi = Array.Empty<int>();
 
@@ -399,11 +458,31 @@ internal sealed class Arrangement
             h.Start[^1] = sum;
             var fill = (int[])h.Start.Clone();
             h.Pts = new P[hot.Length];
-            foreach (P p in hot)
+            h.Ids = new int[hot.Length];
+            for (int i = 0; i < hot.Length; i++)
             {
-                h.Pts[fill[Cell(h.Grid, p)]++] = p;
+                int pos = fill[Cell(h.Grid, hot[i])]++;
+                h.Pts[pos] = hot[i];
+                h.Ids[pos] = i;
             }
             return h;
+        }
+
+        /// <summary>The index of a hot pixel in the sorted list (it must be one of them).</summary>
+        public int IndexOf(P p)
+        {
+            if (Usable)
+            {
+                int cell = Cell(Grid, p);
+                for (int k = Start[cell]; k < Start[cell + 1]; k++)
+                {
+                    if (Pts[k] == p)
+                    {
+                        return Ids[k];
+                    }
+                }
+            }
+            return Array.BinarySearch(Sorted, p);
         }
 
         private static int Cell(CellGrid g, P p) => (g.RowOf(p.Y) * g.Cols) + g.ColOf(p.X);
@@ -465,22 +544,41 @@ internal sealed class Arrangement
                 Consider(hg.Sorted[k]);
             }
         }
+        else if (hg.Grid.BoxCells(minX - pad, minY - pad, maxX + pad, maxY + pad, 6, out int bc0, out int bc1, out int br0, out int br1))
+        {
+            // A short segment: every pixel Consider can accept lies inside its bounding box grown by pad, so the cells of
+            // that box are enough, and there are only a few of them.
+            CellGrid g = hg.Grid;
+            for (int r = br0; r <= br1; r++)
+            {
+                for (int c = bc0; c <= bc1; c++)
+                {
+                    int cell = (r * g.Cols) + c;
+                    for (int k = hg.Start[cell]; k < hg.Start[cell + 1]; k++)
+                    {
+                        Consider(hg.Pts[k]);
+                    }
+                }
+            }
+        }
         else
         {
             CellGrid g = hg.Grid;
             g.Traverse(f.A, f.B, hg.Lo, hg.Hi, out int c0, out int c1);
             // Candidate cells: the cells the segment visits and their neighbours (a hot pixel within one unit of the
             // segment lies in a neighbouring cell because cells are at least two units wide).
-            for (int c = Math.Max(0, c0 - 1); c <= Math.Min(g.Cols - 1, c1 + 1); c++)
+            // A vertex exactly on the segment (the touching = false case) lies in a cell the segment visits, so no neighbours.
+            int nb = touching ? 1 : 0;
+            for (int c = Math.Max(0, c0 - nb); c <= Math.Min(g.Cols - 1, c1 + nb); c++)
             {
                 int rlo = int.MaxValue, rhi = int.MinValue;
-                for (int k = Math.Max(c0, c - 1); k <= Math.Min(c1, c + 1); k++)
+                for (int k = Math.Max(c0, c - nb); k <= Math.Min(c1, c + nb); k++)
                 {
                     rlo = Math.Min(rlo, hg.Lo[k - c0]);
                     rhi = Math.Max(rhi, hg.Hi[k - c0]);
                 }
-                rlo = Math.Max(0, rlo - 1);
-                rhi = Math.Min(g.Rows - 1, rhi + 1);
+                rlo = Math.Max(0, rlo - nb);
+                rhi = Math.Min(g.Rows - 1, rhi + nb);
                 for (int r = rlo; r <= rhi; r++)
                 {
                     int cell = (r * g.Cols) + c;
@@ -524,31 +622,66 @@ internal sealed class Arrangement
 
     // Every fragment end is a hot pixel, so the sorted hot pixels serve as the vertex list; those no segment uses are
     // dropped by the renumbering below.
-    private static void BuildSegments(List<Frag> frags, P[] verts, Arrangement r)
+    private static void BuildSegments(List<Frag> frags, P[] verts, HotGrid grid, Arrangement r)
     {
         int n = frags.Count;
-        var keys = new long[n];
-        var order = new int[n];
         var dd0 = new int[n];
         var dd1 = new int[n];
+        long[] keys = new long[n];
+        int[]? order = null;
+        ulong[]? packed = null;
+        // Vertex and fragment numbers that fit the packed form: vertex a (20 bits), vertex b (20 bits), fragment (24 bits).
+        bool pack = verts.Length < (1 << 20) && n < (1 << 24);
+        if (pack)
+        {
+            packed = new ulong[n];
+        }
+        else
+        {
+            order = new int[n];
+        }
         for (int i = 0; i < n; i++)
         {
             Frag f = frags[i];
-            int a = Array.BinarySearch(verts, f.A);
-            int b = Array.BinarySearch(verts, f.B);
+            int a = grid.IndexOf(f.A);
+            int b = grid.IndexOf(f.B);
             int sign = 1;
             if (a > b)
             {
                 (a, b) = (b, a);
                 sign = -1;
             }
-            keys[i] = ((long)a << 32) | (uint)b;
-            order[i] = i;
-            dd0[i] = f.Op == 0 ? sign : 0;
-            dd1[i] = f.Op == 1 ? sign : 0;
+            if (pack)
+            {
+                packed![i] = ((ulong)a << 44) | ((ulong)b << 24) | (uint)i;
+            }
+            else
+            {
+                keys[i] = ((long)a << 32) | (uint)b;
+                order![i] = i;
+            }
+            dd0[i] = f.Op != 1 ? sign : 0;
+            dd1[i] = f.Op != 0 ? sign : 0;
+        }
+        if (pack)
+        {
+            Array.Sort(packed!);
+            for (int i = 0; i < n; i++)
+            {
+                ulong v = packed![i];
+                keys[i] = (long)(((v >> 44) << 32) | ((v >> 24) & 0xFFFFF));
+            }
+            order = new int[n];
+            for (int i = 0; i < n; i++)
+            {
+                order[i] = (int)(packed![i] & 0xFFFFFF);
+            }
+        }
+        else
+        {
+            Array.Sort(keys, order!);
         }
         // Equal keys are summed, so their relative order does not matter.
-        Array.Sort(keys, order);
         var a2 = new List<int>();
         var b2 = new List<int>();
         var d0 = new List<int>();
@@ -559,8 +692,8 @@ internal sealed class Arrangement
             int s0 = 0, s1 = 0;
             while (i < n && keys[i] == key)
             {
-                s0 += dd0[order[i]];
-                s1 += dd1[order[i]];
+                s0 += dd0[order![i]];
+                s1 += dd1[order![i]];
                 i++;
             }
             if (s0 != 0 || s1 != 0)
