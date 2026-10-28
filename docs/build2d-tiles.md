@@ -8,7 +8,8 @@ text produces the same tiles, bit for bit.
 
 1. **Resolve:** outlines or a tile map → `Region` (union of the outlines; true cells of a tile map). Obstacles are
    `Region.Difference`. This is the geometry document's job.
-2. **Shrink:** `Region.Offset(-AgentRadius)` with round joins and the default arc tolerance; radius 0 skips it.
+2. **Shrink:** the one-sided shrink by `AgentRadius` described in the geometry document (round joins, equal-area arcs, arc
+   tolerance `max(CellSize / 4, min(0.0825 × AgentRadius, CellSize / 2))`); radius 0 skips it.
    One mesh serves one agent class; several agent sizes are several builds with different settings.
 3. **Slice:** cut the region along the tile lines and partition each tile into convex polygons (below).
 4. **Tile data:** `Mesh2DPipeline.ToTileData` per tile, through `NavTileAssembler.FromPolygons`.

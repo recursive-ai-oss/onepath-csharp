@@ -94,16 +94,12 @@ internal static class Report
             double? dOurs = o is null ? null : exact > 0 ? (o - exact) * 100 / exact : (o == 0 ? 0 : double.PositiveInfinity);
             double? dRef = r is null ? null : exact > 0 ? (r - exact) * 100 / exact : (r == 0 ? 0 : double.PositiveInfinity);
             double? dOursRef = o is null || r is null || r == 0 ? null : (o - r) * 100 / r;
-            // Within 1% of the exact area; where the exact area is a few cells (a sliver left at a large radius) 1% is below the
-            // rounding of one polygon vertex, so an absolute difference of up to 0.02 world units^2 also passes.
-            string gate = dOurs is null ? "no ours" : Math.Abs(dOurs.Value) <= 1.0 ? "pass" : Math.Abs(o!.Value - exact) <= GateAbsolute ? "pass (absolute)" : "FAIL";
+            string gate = dOurs is null ? "no ours" : Math.Abs(dOurs.Value) <= 1.0 ? "pass" : "FAIL";
             string refName = refs.FirstOrDefault()?.Side ?? "-";
             sb.Append("| ").Append(row.Id).Append(" | ").Append(Fmt(exact)).Append(" | ").Append(Fmt(o)).Append(" | ").Append(Pct(dOurs)).Append(" | ").Append(gate)
               .Append(" | ").Append(refName).Append(" | ").Append(Fmt(r)).Append(" | ").Append(Pct(dRef)).Append(" | ").Append(Pct(dOursRef)).Append(" |\n");
         }
     }
-
-    private const double GateAbsolute = 0.02;
 
     private static string Pct(double? d) => d is null ? "n/a" : d.Value.ToString("+0.00;-0.00;0.00", CultureInfo.InvariantCulture) + "%";
 }

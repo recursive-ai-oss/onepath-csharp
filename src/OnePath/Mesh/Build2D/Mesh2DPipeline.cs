@@ -20,6 +20,14 @@ public static class Mesh2DPipeline
     }
 
     /// <summary>
+    /// The arc tolerance the build passes to <see cref="Shrink"/>: a quarter cell, raised to the octagon's tolerance
+    /// (0.0825 of the radius) so that mid-sized radii use 8 vertices per circle, but never above half a cell, so the
+    /// polygonal arcs stay within a cell of the true circle at any radius.
+    /// </summary>
+    internal static double ArcTolerance(NavSettings settings) =>
+        Math.Max(settings.CellSize / 4, Math.Min(0.0825 * settings.AgentRadius, settings.CellSize / 2));
+
+    /// <summary>
     /// Shrinks the walkable area by the agent radius (round joins); a radius of zero returns the region. The polygonal
     /// arcs stay within <paramref name="arcTolerance"/> of the true circle (default: a sixteenth of the agent radius,
     /// far below a navigation cell); only the pieces that can change the result are built.
@@ -87,7 +95,7 @@ public static class Mesh2DPipeline
         ArgumentNullException.ThrowIfNull(settings);
         NavMeshParams p = settings.ToParams();
         NavMeshParams.CheckWorld(settings.Height, nameof(settings.Height));
-        Region shrunk = Shrink(walkable, settings.AgentRadius, settings.CellSize / 4);
+        Region shrunk = Shrink(walkable, settings.AgentRadius, ArcTolerance(settings));
         var tiles = new List<NavTileData>();
         foreach (TilePartition t in TileSlicer.Slice(shrunk, p))
         {

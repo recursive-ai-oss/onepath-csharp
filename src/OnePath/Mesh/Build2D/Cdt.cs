@@ -15,8 +15,14 @@ namespace RecursiveAI.OnePath.Mesh.Build2D;
 internal sealed class Cdt
 {
     private const long SuperExtent = 1L << 45;
+    private const long SmallBound = 1L << 29;
 
     private readonly P[] _p;
+    private readonly long[] _px; // coordinates of the real vertices, for the integer predicate paths
+    private readonly long[] _py;
+    private readonly bool _small; // every real vertex is below 2^29 in magnitude, so the long-arithmetic predicates apply
+    private int[] _stack = new int[64];
+    private int _sp;
     private readonly int _n; // real vertex count; vertices _n.._n+2 are the bounding triangle
     private int[] _v;        // 3 vertices per triangle, counter-clockwise
     private int[] _nb;       // neighbour across edge i = (v[i], v[i+1]); -1 on the outer border
@@ -46,6 +52,18 @@ internal sealed class Cdt
         _p[_n] = new P(-SuperExtent, -SuperExtent);
         _p[_n + 1] = new P(3 * SuperExtent, -SuperExtent);
         _p[_n + 2] = new P(-SuperExtent, 3 * SuperExtent);
+        _px = new long[_n];
+        _py = new long[_n];
+        _small = true;
+        for (int i = 0; i < _n; i++)
+        {
+            _px[i] = points[i].X;
+            _py[i] = points[i].Y;
+            if ((ulong)(points[i].X + SmallBound) >= (2UL * SmallBound) || (ulong)(points[i].Y + SmallBound) >= (2UL * SmallBound))
+            {
+                _small = false;
+            }
+        }
         int cap = (2 * _n) + 8;
         _v = new int[3 * cap];
         _nb = new int[3 * cap];
@@ -56,15 +74,116 @@ internal sealed class Cdt
         _tc = 1;
         _vt[_n] = _vt[_n + 1] = _vt[_n + 2] = 0;
 
-        for (int i = 0; i < _n; i++)
+        foreach (int vi in InsertionOrder())
         {
-            Insert(i);
+            Insert(vi);
         }
         foreach (var (a, b) in constraints)
         {
             InsertConstraint(a, b);
         }
         RestoreDelaunay();
+    }
+
+    /// <summary>
+    /// The order points are inserted in: biased randomised insertion (Amenta, Choi &amp; Rote 2003) with a fixed hash of the
+    /// vertex index as the random choice, so every platform inserts in the same order. Round t holds the points whose
+    /// hash has t trailing zero bits (about half the points are in round 0); the rare points go first, and within a round
+    /// points follow a Hilbert curve over a 4096 x 4096 grid, ties by index, so each point is found a few triangles from
+    /// the last. Sorted order would walk across whole columns of the triangulation for every point.
+    /// </summary>
+    private int[] InsertionOrder()
+    {
+        int n = _n;
+        var order = new int[n];
+        if (n < 64)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                order[i] = i;
+            }
+            return order;
+        }
+        long minX = long.MaxValue, minY = long.MaxValue, maxX = long.MinValue, maxY = long.MinValue;
+        for (int i = 0; i < n; i++)
+        {
+            minX = Math.Min(minX, _p[i].X);
+            maxX = Math.Max(maxX, _p[i].X);
+            minY = Math.Min(minY, _p[i].Y);
+            maxY = Math.Max(maxY, _p[i].Y);
+        }
+        long range = Math.Max(maxX - minX, maxY - minY);
+        int shift = 0;
+        while ((range >> shift) >= 4096)
+        {
+            shift++;
+        }
+        int top = Math.Max(0, (31 - System.Numerics.BitOperations.LeadingZeroCount((uint)n)) - 3); // about n / 8 points in the first round
+        var keys = new ulong[n];
+        for (int i = 0; i < n; i++)
+        {
+            ulong z = (ulong)i + 0x9E3779B97F4A7C15UL;
+            z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
+            z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
+            z ^= z >> 31;
+            int t = Math.Min(top, System.Numerics.BitOperations.TrailingZeroCount(z));
+            ulong h = Hilbert((int)((_p[i].X - minX) >> shift), (int)((_p[i].Y - minY) >> shift));
+            keys[i] = ((ulong)(top - t) << 56) | (h << 32) | (uint)i;
+            order[i] = i;
+        }
+        Array.Sort(keys);
+        for (int i = 0; i < n; i++)
+        {
+            order[i] = (int)(keys[i] & 0xFFFFFFFFUL);
+        }
+        return order;
+    }
+
+    // Distance along the Hilbert curve of order 12 (a 4096 x 4096 grid) of cell (x, y).
+    private static ulong Hilbert(int x, int y)
+    {
+        const int N = 4096;
+        ulong d = 0;
+        for (int s = N / 2; s > 0; s /= 2)
+        {
+            int rx = (x & s) != 0 ? 1 : 0, ry = (y & s) != 0 ? 1 : 0;
+            d += (ulong)s * (ulong)s * (ulong)((3 * rx) ^ ry);
+            if (ry == 0)
+            {
+                if (rx == 1)
+                {
+                    x = N - 1 - x;
+                    y = N - 1 - y;
+                }
+                (x, y) = (y, x);
+            }
+        }
+        return d;
+    }
+
+    // Orientation of vertices a, b and the point p: the same sign as Geo.Orient, without its range checks when all three are
+    // real vertices of a small input.
+    private int OrientV(int a, int b, int c)
+    {
+        if (_small && a < _n && b < _n && c < _n)
+        {
+            long det = ((_px[b] - _px[a]) * (_py[c] - _py[a])) - ((_py[b] - _py[a]) * (_px[c] - _px[a]));
+            return det > 0 ? 1 : det < 0 ? -1 : 0;
+        }
+        return Geo.Orient(_p[a], _p[b], _p[c]);
+    }
+
+    private int InCircleV(int a, int b, int c, int d)
+    {
+        if (_small && a < _n && b < _n && c < _n && d < _n)
+        {
+            long adx = _px[a] - _px[d], ady = _py[a] - _py[d], bdx = _px[b] - _px[d], bdy = _py[b] - _py[d], cdx = _px[c] - _px[d], cdy = _py[c] - _py[d];
+            long alift = (adx * adx) + (ady * ady), blift = (bdx * bdx) + (bdy * bdy), clift = (cdx * cdx) + (cdy * cdy);
+            long bc = (bdx * cdy) - (cdx * bdy), ca = (cdx * ady) - (adx * cdy), ab = (adx * bdy) - (bdx * ady);
+            Int128 det = ((Int128)alift * bc) + ((Int128)blift * ca) + ((Int128)clift * ab);
+            return det > 0 ? 1 : det < 0 ? -1 : 0;
+        }
+        return Geo.InCircle(_p[a], _p[b], _p[c], _p[d]);
     }
 
     private static int Next(int i) => i == 2 ? 0 : i + 1;
@@ -110,7 +229,7 @@ internal sealed class Cdt
 
     // ---- point location and insertion ----
 
-    private int Locate(P p, out int edge)
+    private int Locate(int pi, out int edge)
     {
         int t = _last;
         int steps = 0;
@@ -123,7 +242,7 @@ internal sealed class Cdt
             int zeros = 0;
             for (int i = 0; i < 3; i++)
             {
-                int s = Geo.Orient(_p[_v[k + i]], _p[_v[k + Next(i)]], p);
+                int s = OrientV(_v[k + i], _v[k + Next(i)], pi);
                 if (s < 0)
                 {
                     moved = _nb[k + i];
@@ -140,7 +259,7 @@ internal sealed class Cdt
                 t = moved;
                 if (++steps > limit)
                 {
-                    return LocateSlow(p, out edge);
+                    return LocateSlow(pi, out edge);
                 }
                 continue;
             }
@@ -153,7 +272,7 @@ internal sealed class Cdt
         }
     }
 
-    private int LocateSlow(P p, out int edge)
+    private int LocateSlow(int pi, out int edge)
     {
         for (int t = 0; t < _tc; t++)
         {
@@ -162,7 +281,7 @@ internal sealed class Cdt
             bool outside = false;
             for (int i = 0; i < 3 && !outside; i++)
             {
-                int s = Geo.Orient(_p[_v[k + i]], _p[_v[k + Next(i)]], p);
+                int s = OrientV(_v[k + i], _v[k + Next(i)], pi);
                 if (s < 0) { outside = true; }
                 else if (s == 0) { zeros++; zeroEdge = i; }
             }
@@ -177,9 +296,8 @@ internal sealed class Cdt
 
     private void Insert(int pi)
     {
-        P p = _p[pi];
-        int t = Locate(p, out int edge);
-        var stack = new List<int>(16);
+        int t = Locate(pi, out int edge);
+        _sp = 0;
         if (edge < 0)
         {
             int k = 3 * t;
@@ -193,9 +311,9 @@ internal sealed class Cdt
             SetNeighborAcross(n1, b, c, t1);
             SetNeighborAcross(n2, c, a, t2);
             _vt[pi] = t;
-            stack.Add(t);
-            stack.Add(t1);
-            stack.Add(t2);
+            Push(t);
+            Push(t1);
+            Push(t2);
         }
         else
         {
@@ -226,25 +344,33 @@ internal sealed class Cdt
             SetNeighborAcross(nBC, b, c, t3);
             SetNeighborAcross(nAD, a, d, t4);
             _vt[pi] = t;
-            stack.Add(t);
-            stack.Add(t3);
-            stack.Add(u);
-            stack.Add(t4);
+            Push(t);
+            Push(t3);
+            Push(u);
+            Push(t4);
         }
         _last = t;
         // Legalize the edges opposite pi (Lawson flips).
-        while (stack.Count > 0)
+        while (_sp > 0)
         {
-            int tt = stack[^1];
-            stack.RemoveAt(stack.Count - 1);
-            LegalizeEdge(tt, OppositeEdge(tt, pi), stack);
+            int tt = _stack[--_sp];
+            LegalizeEdge(tt, OppositeEdge(tt, pi));
         }
     }
 
     // Edge of t opposite vertex v (the edge not incident to v).
     private int OppositeEdge(int t, int v) => Next(IndexOf(t, v));
 
-    private void LegalizeEdge(int t, int e, List<int> stack)
+    private void Push(int t)
+    {
+        if (_sp == _stack.Length)
+        {
+            Array.Resize(ref _stack, _stack.Length * 2);
+        }
+        _stack[_sp++] = t;
+    }
+
+    private void LegalizeEdge(int t, int e)
     {
         int k = 3 * t;
         if (_con[k + e])
@@ -259,12 +385,12 @@ internal sealed class Cdt
         int a = _v[k + e], b = _v[k + Next(e)], c = _v[k + Prev(e)];
         int j = EdgeIndex(u, b, a);
         int d = _v[(3 * u) + Prev(j)];
-        if (Geo.InCircle(_p[a], _p[b], _p[c], _p[d]) > 0)
+        if (InCircleV(a, b, c, d) > 0)
         {
             Flip(t, e);
             // After the flip, t = (a, d, c) and u = (d, b, c): both contain c == pi; check their outer edges.
-            stack.Add(t);
-            stack.Add(u);
+            Push(t);
+            Push(u);
         }
     }
 
@@ -479,8 +605,8 @@ internal sealed class Cdt
                     int a = _v[k + e], b = _v[k + Next(e)], c = _v[k + Prev(e)];
                     int j = EdgeIndex(u, b, a);
                     int d = _v[(3 * u) + Prev(j)];
-                    if (Geo.InCircle(_p[a], _p[b], _p[c], _p[d]) > 0
-                        && Geo.Orient(_p[c], _p[d], _p[a]) * Geo.Orient(_p[c], _p[d], _p[b]) < 0)
+                    if (InCircleV(a, b, c, d) > 0
+                        && OrientV(c, d, a) * OrientV(c, d, b) < 0)
                     {
                         Flip(t, e);
                         flipped = true;
