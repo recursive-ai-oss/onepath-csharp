@@ -255,6 +255,10 @@ internal readonly struct BitFinder : IJumpFinder
     private readonly OctileMap _map;
     private readonly ulong[] _rows;
     private readonly ulong[] _cols;
+    private readonly ulong[] _rowFwd;
+    private readonly ulong[] _rowBwd;
+    private readonly ulong[] _colFwd;
+    private readonly ulong[] _colBwd;
     private readonly byte[] _nb;
     private readonly int _rs;
     private readonly int _cs;
@@ -268,6 +272,10 @@ internal readonly struct BitFinder : IJumpFinder
         _map = map;
         _rows = map.Rows;
         _cols = map.Cols;
+        _rowFwd = map.RowStopForward;
+        _rowBwd = map.RowStopBackward;
+        _colFwd = map.ColStopForward;
+        _colBwd = map.ColStopBackward;
         _nb = map.Neighbors;
         _rs = map.RowStride;
         _cs = map.ColStride;
@@ -284,8 +292,8 @@ internal readonly struct BitFinder : IJumpFinder
         int goalPos = core.GoalY == y ? core.GoalX + 64 : -1;
         int self = (y + 1) * _rs;
         return dx > 0
-            ? OctileMap.ScanForward(_rows, self, _rs, x + 64, goalPos)
-            : OctileMap.ScanBackward(_rows, self, _rs, x + 64, goalPos);
+            ? OctileMap.ScanForward(_rows, _rowFwd, self, x + 64, goalPos)
+            : OctileMap.ScanBackward(_rows, _rowBwd, self, x + 64, goalPos);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -294,8 +302,8 @@ internal readonly struct BitFinder : IJumpFinder
         int goalPos = core.GoalX == x ? core.GoalY + 64 : -1;
         int self = (x + 1) * _cs;
         return dy > 0
-            ? OctileMap.ScanForward(_cols, self, _cs, y + 64, goalPos)
-            : OctileMap.ScanBackward(_cols, self, _cs, y + 64, goalPos);
+            ? OctileMap.ScanForward(_cols, _colFwd, self, y + 64, goalPos)
+            : OctileMap.ScanBackward(_cols, _colBwd, self, y + 64, goalPos);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -347,7 +355,14 @@ internal readonly struct BitFinder : IJumpFinder
                     break;
                 }
                 default:
-                    Diagonal(core, node, x, y, a, b, d);
+                    if (_improved)
+                    {
+                        DiagonalImproved(core, node, x, y, a, b, d);
+                    }
+                    else
+                    {
+                        Diagonal(core, node, x, y, a, b, d);
+                    }
                     break;
             }
         }
@@ -360,8 +375,6 @@ internal readonly struct BitFinder : IJumpFinder
         int dy = OctileMap.Dy[d];
         int need = OctileMap.DiagonalNeed[d];
         int delta = dx + (dy * _w);
-        int hDir = dx > 0 ? 1 : 3;
-        int vDir = dy > 0 ? 2 : 0;
         int c = node;
         int n = 0;
         while (true)
@@ -380,22 +393,66 @@ internal readonly struct BitFinder : IJumpFinder
                 core.Offer(c, a, b + n, x, y, d, node);
                 return;
             }
-            int h = Horizontal(core, x, y, dx);
-            int v = Vertical(core, x, y, dy);
-            if (!_improved)
+            if (Horizontal(core, x, y, dx) > 0 || Vertical(core, x, y, dy) > 0)
             {
-                if (h > 0 || v > 0)
-                {
-                    core.Offer(c, a, b + n, x, y, d, node);
-                    return;
-                }
-                continue;
+                core.Offer(c, a, b + n, x, y, d, node);
+                return;
             }
-            // Improved pruning: this cell is only a turning point; offer the straight jump points it leads to and keep going.
+        }
+    }
+
+    // Improved pruning (Harabor & Grastien 2014): a cell of the diagonal run is only a turning point; offer the straight jump points it leads to
+    // and keep going. Same scans as Diagonal, with the line indices and stop arrays kept incrementally instead of recomputed per cell.
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    private void DiagonalImproved(JumpCore core, int node, int x, int y, int a, int b, int d)
+    {
+        int dx = OctileMap.Dx[d];
+        int dy = OctileMap.Dy[d];
+        int need = OctileMap.DiagonalNeed[d];
+        int delta = dx + (dy * _w);
+        int hDir = dx > 0 ? 1 : 3;
+        int vDir = dy > 0 ? 2 : 0;
+        ulong[] rowStops = dx > 0 ? _rowFwd : _rowBwd;
+        ulong[] colStops = dy > 0 ? _colFwd : _colBwd;
+        ulong[] rows = _rows;
+        ulong[] cols = _cols;
+        byte[] nbs = _nb;
+        int goalX = core.GoalX;
+        int goalY = core.GoalY;
+        int rowSelf = (y + 1) * _rs;
+        int colSelf = (x + 1) * _cs;
+        int rowStep = dy * _rs;
+        int colStep = dx * _cs;
+        int c = node;
+        int n = 0;
+        while (true)
+        {
+            // No corner cutting: both cells beside the move and the target must be free.
+            if ((nbs[c] & need) != need)
+            {
+                return;
+            }
+            c += delta;
+            x += dx;
+            y += dy;
+            rowSelf += rowStep;
+            colSelf += colStep;
+            n++;
+            if (c == core.Goal)
+            {
+                core.Offer(c, a, b + n, x, y, d, node);
+                return;
+            }
+            int h = dx > 0
+                ? OctileMap.ScanForward(rows, rowStops, rowSelf, x + 64, goalY == y ? goalX + 64 : -1)
+                : OctileMap.ScanBackward(rows, rowStops, rowSelf, x + 64, goalY == y ? goalX + 64 : -1);
             if (h > 0)
             {
                 core.Offer(c + (dx * h), a + h, b + n, x + (dx * h), y, hDir, node);
             }
+            int v = dy > 0
+                ? OctileMap.ScanForward(cols, colStops, colSelf, y + 64, goalX == x ? goalY + 64 : -1)
+                : OctileMap.ScanBackward(cols, colStops, colSelf, y + 64, goalX == x ? goalY + 64 : -1);
             if (v > 0)
             {
                 core.Offer(c + (dy * v * _w), a + v, b + n, x, y + (dy * v), vDir, node);

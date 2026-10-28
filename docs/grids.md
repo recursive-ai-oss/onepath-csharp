@@ -221,6 +221,13 @@ A neighbour byte per cell (`OctileMap.Neighbors`, bit d = neighbour in direction
 successor set without cell lookups; a diagonal step is allowed when the neighbour byte has the step's two components and the
 diagonal itself. The bit rows and columns of `OctileMap` are padded with 64 blocked positions before each line and a blocked word
 after it, so scans never leave the array and the carry between words needs no test. A goal on the scan line is a stop bit of its own.
+To make a scan step one word read, the map also keeps four arrays in the layout of the bit rows and columns (`RowStopForward`,
+`RowStopBackward`, `ColStopForward`, `ColStopBackward`): bit i of word k is set when a scan along that line direction stops at that
+cell, that is when the cell is a wall (`~w`) or has a forced neighbour (a cell beside the line is free while the one beside the previous line cell is
+not; the neighbouring lines' words and the carry bit of the adjacent word are read once, when the array is built). Padding words and
+padding lines are all ones. A cell edit recomputes the words of the three lines around it and the words before and after the edited
+word. A scan masks the stop word with the positions beyond the start, adds the goal bit, and takes the first set bit; the result is a
+wall (no jump point, 0) or the step count, as before.
 The JPS+ finder reads `JpsPlusIndex` with the goal bounding above.
 
 **Improved pruning** (`BitFinder`/`TableFinder` with `improvedPruning`; Harabor & Grastien 2014, section "Improved Pruning
@@ -230,6 +237,10 @@ A diagonal run from a node therefore does not stop at such cells: at each cell o
 continues until a wall; the run's last cell is not a node. A hop from a node to such a successor is walked diagonal steps first, then
 straight, when the path is written out, which is obstacle free because it is the run followed by the scan. In a test on dao-brc000d
 this expands 83 678 nodes against 210 340 for JPS and 83 501 for the black-box reference's improved JPS.
+
+The improved-pruning search is internal: the bar runner and `GridOptima` construct it directly, and no public option selects it. Should an
+option expose it, it ships marked `[Experimental("ONEPATH0001")]` (`System.Diagnostics.CodeAnalysis.ExperimentalAttribute`, diagnostic id
+`ONEPATH0001`) until a locked comparison confirms it is as fast as the black-box reference on every Moving AI row.
 
 **Bar driver.** `bench/Bar/OursGrid.cs` loads the map and builds the bit maps and tables outside `search_time` (`preprocess_time`
 reports them), runs 40 untimed warm-up instances, then times one pass over the scenario (`ONEPATH_GRID_PASSES=N` takes the

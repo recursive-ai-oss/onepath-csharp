@@ -47,6 +47,14 @@ internal sealed class OctileMap : IGridChangeListener, IDisposable
         }
         Rows = new ulong[rows];
         Cols = new ulong[cols];
+        RowStopForward = new ulong[rows];
+        RowStopBackward = new ulong[rows];
+        ColStopForward = new ulong[cols];
+        ColStopBackward = new ulong[cols];
+        Array.Fill(RowStopForward, ~0UL);
+        Array.Fill(RowStopBackward, ~0UL);
+        Array.Fill(ColStopForward, ~0UL);
+        Array.Fill(ColStopBackward, ~0UL);
         Neighbors = new byte[(long)_w * _h];
         for (int y = 0; y < _h; y++)
         {
@@ -58,6 +66,20 @@ internal sealed class OctileMap : IGridChangeListener, IDisposable
                     Cols[((x + 1) * ColStride) + ((y + 64) >> 6)] |= 1UL << ((y + 64) & 63);
                 }
                 Neighbors[(y * _w) + x] = ComputeNeighbors(x, y);
+            }
+        }
+        for (int y = 0; y < _h; y++)
+        {
+            for (int k = 1; k < RowStride - 1; k++)
+            {
+                StopWord(Rows, RowStopForward, RowStopBackward, RowStride, y + 1, k);
+            }
+        }
+        for (int x = 0; x < _w; x++)
+        {
+            for (int k = 1; k < ColStride - 1; k++)
+            {
+                StopWord(Cols, ColStopForward, ColStopBackward, ColStride, x + 1, k);
             }
         }
         grid.AddListener(this);
@@ -78,6 +100,22 @@ internal sealed class OctileMap : IGridChangeListener, IDisposable
 
     /// <summary>Bit columns: column <c>x</c> starts at word <c>(x + 1) * ColStride</c>, cell <c>y</c> is bit <c>y + 64</c>. Set = walkable.</summary>
     public ulong[] Cols { get; }
+
+    /// <summary>
+    /// For <see cref="Rows"/>, the cells where an eastward scan stops: walls, and free cells with a forced neighbour (a cell beside the line is free
+    /// while the one beside the previous line cell is not). Same layout as <see cref="Rows"/>; padding words are all ones. Precomputed so a scan
+    /// step reads one word instead of five.
+    /// </summary>
+    public ulong[] RowStopForward { get; }
+
+    /// <summary>As <see cref="RowStopForward"/> for a westward scan.</summary>
+    public ulong[] RowStopBackward { get; }
+
+    /// <summary>As <see cref="RowStopForward"/> for <see cref="Cols"/>, a southward scan.</summary>
+    public ulong[] ColStopForward { get; }
+
+    /// <summary>As <see cref="RowStopForward"/> for <see cref="Cols"/>, a northward scan.</summary>
+    public ulong[] ColStopBackward { get; }
 
     /// <summary>Bit <c>d</c> of <c>Neighbors[y * Width + x]</c> is set when the neighbour in direction <c>d</c> is inside the grid and walkable.</summary>
     public byte[] Neighbors { get; }
@@ -115,6 +153,27 @@ internal sealed class OctileMap : IGridChangeListener, IDisposable
         {
             Rows[ri] &= ~rowBit;
             Cols[ci] &= ~colBit;
+        }
+        // The cell is a forced-neighbour cause for the lines beside it and for the next or previous cell along its own line, which may sit in the next or previous word.
+        for (int j = y - 1; j <= y + 1; j++)
+        {
+            if ((uint)j < (uint)_h)
+            {
+                for (int k = Math.Max(1, ((x + 64) >> 6) - 1); k <= Math.Min(RowStride - 2, ((x + 64) >> 6) + 1); k++)
+                {
+                    StopWord(Rows, RowStopForward, RowStopBackward, RowStride, j + 1, k);
+                }
+            }
+        }
+        for (int i = x - 1; i <= x + 1; i++)
+        {
+            if ((uint)i < (uint)_w)
+            {
+                for (int k = Math.Max(1, ((y + 64) >> 6) - 1); k <= Math.Min(ColStride - 2, ((y + 64) >> 6) + 1); k++)
+                {
+                    StopWord(Cols, ColStopForward, ColStopBackward, ColStride, i + 1, k);
+                }
+            }
         }
         for (int j = -1; j <= 1; j++)
         {
@@ -165,36 +224,47 @@ internal sealed class OctileMap : IGridChangeListener, IDisposable
         return table;
     }
 
+    // Recomputes the stop words of word k of line `line` (padded index: the line before it is line - 1).
+    // A free cell has a forced neighbour in a scan along the line when a cell beside the line is free while the one beside the previous line cell is not
+    // (Harabor & Grastien 2011); walls always stop.
+    private static void StopWord(ulong[] bits, ulong[] forward, ulong[] backward, int stride, int line, int k)
+    {
+        int self = line * stride;
+        int up = self - stride;
+        int down = self + stride;
+        ulong w = bits[self + k];
+        ulong a = bits[up + k];
+        ulong b = bits[down + k];
+        ulong aPrev = bits[up + k - 1] >> 63;
+        ulong bPrev = bits[down + k - 1] >> 63;
+        ulong aNext = bits[up + k + 1] << 63;
+        ulong bNext = bits[down + k + 1] << 63;
+        forward[self + k] = ~w | (a & ~((a << 1) | aPrev)) | (b & ~((b << 1) | bPrev));
+        backward[self + k] = ~w | (a & ~((a >> 1) | aNext)) | (b & ~((b >> 1) | bNext));
+    }
+
     // Scan one line of a bit map forwards (towards larger positions) from the cell at bit position `pos`, which is not included.
-    // `self` is the word index of the line start, `stride` the words per line (the lines before and after it are the neighbouring
-    // rows or columns). Returns the number of steps to the first cell that is the goal (bit goalPos, or -1 for none) or has a forced neighbour (a cell beside the line is free while the one
-    // beside the previous line cell is not; Harabor & Grastien 2011), counting the step; 0 if a wall comes first.
+    // `self` is the word index of the line start. `stops` holds the stop words of the line (see RowStopForward).
+    // Returns the number of steps to the first cell that is the goal (bit goalPos, or -1 for none) or has a forced neighbour, counting the step;
+    // 0 if a wall comes first.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int ScanForward(ulong[] bits, int self, int stride, int pos, int goalPos)
+    public static int ScanForward(ulong[] bits, ulong[] stops, int self, int pos, int goalPos)
     {
         int p0 = pos + 1;
         int k = p0 >> 6;
         ulong mask = ~0UL << (p0 & 63);
-        int up = self - stride;
-        int down = self + stride;
         while (true)
         {
-            ulong w = bits[self + k];
-            ulong a = bits[up + k];
-            ulong b = bits[down + k];
-            ulong ac = bits[up + k - 1] >> 63;
-            ulong bc = bits[down + k - 1] >> 63;
-            ulong forced = (a & ~((a << 1) | ac)) | (b & ~((b << 1) | bc));
-            ulong stops = (~w | forced) & mask;
+            ulong s = stops[self + k] & mask;
             if ((goalPos >> 6) == k)
             {
-                stops |= (1UL << (goalPos & 63)) & mask;
+                s |= (1UL << (goalPos & 63)) & mask;
             }
-            if (stops != 0)
+            if (s != 0)
             {
-                int bit = BitOperations.TrailingZeroCount(stops);
+                int bit = BitOperations.TrailingZeroCount(s);
                 // A wall stops the scan without a result; a forced neighbour or the goal is a free cell.
-                return ((w >> bit) & 1) == 0 ? 0 : (k << 6) + bit - pos;
+                return ((bits[self + k] >> bit) & 1) == 0 ? 0 : (k << 6) + bit - pos;
             }
             k++;
             mask = ~0UL;
@@ -203,30 +273,22 @@ internal sealed class OctileMap : IGridChangeListener, IDisposable
 
     // The same scan towards smaller positions.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int ScanBackward(ulong[] bits, int self, int stride, int pos, int goalPos)
+    public static int ScanBackward(ulong[] bits, ulong[] stops, int self, int pos, int goalPos)
     {
         int p0 = pos - 1;
         int k = p0 >> 6;
         ulong mask = ~0UL >> (63 - (p0 & 63));
-        int up = self - stride;
-        int down = self + stride;
         while (true)
         {
-            ulong w = bits[self + k];
-            ulong a = bits[up + k];
-            ulong b = bits[down + k];
-            ulong ac = bits[up + k + 1] << 63;
-            ulong bc = bits[down + k + 1] << 63;
-            ulong forced = (a & ~((a >> 1) | ac)) | (b & ~((b >> 1) | bc));
-            ulong stops = (~w | forced) & mask;
+            ulong s = stops[self + k] & mask;
             if ((goalPos >> 6) == k)
             {
-                stops |= (1UL << (goalPos & 63)) & mask;
+                s |= (1UL << (goalPos & 63)) & mask;
             }
-            if (stops != 0)
+            if (s != 0)
             {
-                int bit = 63 - BitOperations.LeadingZeroCount(stops);
-                return ((w >> bit) & 1) == 0 ? 0 : pos - ((k << 6) + bit);
+                int bit = 63 - BitOperations.LeadingZeroCount(s);
+                return ((bits[self + k] >> bit) & 1) == 0 ? 0 : pos - ((k << 6) + bit);
             }
             k--;
             mask = ~0UL;
