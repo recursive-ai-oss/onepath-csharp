@@ -54,6 +54,60 @@ public class NavMeshPathNodeModelTests
     }
 
     [Fact]
+    public void PolygonModelQueryObjectFollowsMeshEdits()
+    {
+        // One long-lived query object must give what a fresh one gives after tiles are removed and put back.
+        TiledNavMesh m = NavMeshWorlds.RandomMesh(5, -2, -2, 4, 4, 2, detail: false, offMesh: 2);
+        var reused = new NavMeshQuery(m, 65536, PathNodeModel.Polygon);
+        var filter = new QueryFilter();
+        List<PolyRef> polys = AllPolys(m);
+        var rng = new NavMeshWorlds.Rng(99);
+        var pairs = new List<(PolyRef, PolyRef)>();
+        for (int i = 0; i < 40; i++)
+        {
+            pairs.Add((polys[rng.Int(polys.Count)], polys[rng.Int(polys.Count)]));
+        }
+        PathStatus Run(NavMeshQuery q, PolyRef s, PolyRef e, PolyRef[] buffer, out int count)
+        {
+            PathStatus st = q.BeginPath(s, e, Centre(m, s), Centre(m, e), filter);
+            if (st != PathStatus.InProgress)
+            {
+                count = 0;
+                return st;
+            }
+            q.UpdatePath(int.MaxValue);
+            return q.FinishPath(buffer, out count, out _, out _);
+        }
+
+        void Compare()
+        {
+            var fresh = new NavMeshQuery(m, 65536, PathNodeModel.Polygon);
+            var a = new PolyRef[512];
+            var b = new PolyRef[512];
+            foreach ((PolyRef s, PolyRef e) in pairs)
+            {
+                if (!m.TryGetPoly(s, out _, out _) || !m.TryGetPoly(e, out _, out _))
+                {
+                    continue;
+                }
+                PathStatus sa = Run(reused, s, e, a, out int na);
+                PathStatus sb = Run(fresh, s, e, b, out int nb);
+                Assert.Equal(sb, sa);
+                Assert.Equal(nb, na);
+                Assert.True(a.AsSpan(0, na).SequenceEqual(b.AsSpan(0, nb)));
+            }
+        }
+
+        Compare();
+        NavTile removed = m.GetTileBySlot(3)!;
+        TileRef removedRef = m.GetSlotRef(3);
+        Assert.True(m.RemoveTile(removedRef));
+        Compare();
+        m.AddTile(removed);
+        Compare();
+    }
+
+    [Fact]
     public void PolygonModelFindsTheSameReachabilityAsCrossingAndReturnsConnectedLoopFreeCorridors()
     {
         int reachable = 0, unreachable = 0;

@@ -782,26 +782,31 @@ public sealed partial class NavMeshQuery
         int last = --_heapCount;
         if (last > 0)
         {
+            // Bottom-up sift (Wegener 1993): follow the smaller child down to a leaf, then lift the displaced last entry
+            // from there. One comparison per level on the way down; the order popped is the same as a top-down sift's.
             HeapEntry x = heap[last];
             int i = 0;
-            while (true)
+            int c = 1;
+            while (c < last)
             {
-                int c = (2 * i) + 1;
-                if (c >= last)
-                {
-                    break;
-                }
                 int r = c + 1;
                 if (r < last && (heap[r].F < heap[c].F || (heap[r].F == heap[c].F && heap[r].Seq < heap[c].Seq)))
                 {
                     c = r;
                 }
-                if (x.F < heap[c].F || (x.F == heap[c].F && x.Seq < heap[c].Seq))
+                heap[i] = heap[c];
+                i = c;
+                c = (2 * i) + 1;
+            }
+            while (i > 0)
+            {
+                int parent = (i - 1) >> 1;
+                if (heap[parent].F < x.F || (heap[parent].F == x.F && heap[parent].Seq < x.Seq))
                 {
                     break;
                 }
-                heap[i] = heap[c];
-                i = c;
+                heap[i] = heap[parent];
+                i = parent;
             }
             heap[i] = x;
         }
