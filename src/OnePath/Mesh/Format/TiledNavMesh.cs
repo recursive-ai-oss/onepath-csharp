@@ -180,6 +180,14 @@ public sealed class TiledNavMesh
         return tl.Links.AsSpan(a, b - a);
     }
 
+    // Links of a polygon already resolved by TryGetPoly (slot and index known valid), skipping the second validation.
+    internal ReadOnlySpan<NavLink> LinksOfResolved(int slot, int polyIndex)
+    {
+        TileLinks tl = _links[slot];
+        int a = tl.PolyStart[polyIndex];
+        return tl.Links.AsSpan(a, tl.PolyStart[polyIndex + 1] - a);
+    }
+
     /// <summary>The reference for polygon <paramref name="polyIndex"/> of a valid tile reference, or <see cref="PolyRef.Invalid"/>.</summary>
     public PolyRef GetPolyRef(TileRef tile, int polyIndex)
     {

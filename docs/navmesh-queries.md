@@ -39,6 +39,11 @@ Off-mesh links are tested with their own flags and area as well as the target po
 Surface height at (x, z): with detail, the first detail triangle (in index order) containing the point, by barycentric
 coordinates with a tolerance of 1e-9; without detail, the first triangle of the fan (v0, vi, vi+1) containing it. A point in no
 triangle (rounding at the boundary) takes the plane of the triangle it violates least.
+A polygon with 12 or more detail triangles is looked up through a per-tile grid (built on first use, cached with the tile): the
+polygon's detail box is cut into `d × d` cells, `d = clamp(floor(sqrt(triangles / 2)), 2, 32)`, each cell lists, in triangle order,
+every triangle whose box (widened by `1e-6 × its larger side + 1e-9`) touches the cell (widened by 1e-6 of a cell) plus every
+ill-shaped triangle (twice-area below `1e-6 × side²`). The first listed triangle that contains the point is the first containing
+triangle overall, so the result is bit-identical to the plain scan; when none contains it the plain scan runs for the least-violating plane.
 
 The winner minimises the squared 3D distance from `center` to the closest point; ties go to the lowest
 (tile column, tile row, layer, polygon index). This is the multi-layer rule: on overlapping floors the one whose surface is
@@ -72,6 +77,21 @@ in-tile neighbour edges by edge index, then the polygon's links in link order.
 `MinAreaCost × 3D distance to the end position`. Open list: binary heap ordered by (f, insertion sequence), so the pop order is fully
 specified; a stale heap entry (node already expanded) is skipped. One *iteration* is one expansion of a node (stale pops are free).
 Reaching the end polygon adds a terminal node (cost of the final leg); the search ends when the terminal node is popped (`Success`).
+
+**Node model.** The query object has a `PathNodeModel`, fixed when it is created.
+
+- `Crossing` (the default) is the algorithm above.
+- `Polygon`: one node per polygon, keyed by the polygon alone. A node sits at the position where the cheapest route found so far enters
+  the polygon, and its cost is that route's cost to that position. Leaving a polygon from position *c* (start position for the start
+  polygon) through an in-tile edge from vertex *a* to vertex *b*, with *e* the end position and *w = e − c* in X/Z, the entry
+  position is `a + s (b − a)` (heights interpolated the same way) with `s = cross(c − a, w) / cross(b − a, w)` clamped to [0, 1], or
+  `s = 0.5` when `cross(b − a, w)` is zero; through a tile-portal link, the same `s` clamped to `[RangeMin / 255, RangeMax / 255]`
+  (the fraction `(RangeMin + RangeMax) / 510` when the denominator is zero); through an off-mesh link, the far end point as above.
+  Leg costs, the heuristic, the terminal node, the open-list order and the iteration count are as for `Crossing`. A relaxation succeeds when
+  the new cost is strictly lower than the node's, even if the node was already expanded (it is then reopened and its position and parent
+  change). Moves back into the polygon the node was reached from are not generated. The cost is a real walk's length but not the least one
+  of the polygon-to-polygon cost model, so corridors can differ from `Crossing`'s; it expands about half the nodes. On generated test levels the mean string-pulled
+  path length differs from `Crossing`'s by -0.5% to +1.4%.
 
 **Partial paths.** If the open list empties, or the node limit (`maxNodes` of the query object, default 65536; new nodes beyond it
 are dropped) stops the search from finding the end, the result is `Partial`: the corridor leads to the expanded node closest (3D) to the

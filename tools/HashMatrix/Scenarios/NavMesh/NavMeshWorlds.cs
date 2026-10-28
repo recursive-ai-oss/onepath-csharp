@@ -202,6 +202,57 @@ internal static class NavMeshWorlds
         d.DetailTriangles = dt.ToArray();
     }
 
+    // One large polygon with a finely triangulated, bumpy detail surface (the lookup grid is used from 12 triangles up).
+    public static TiledNavMesh BumpyMesh(bool shuffle, out int detailTriangles)
+    {
+        NavMeshParams p = NavMeshWorlds.Params();
+        double o = p.TileOriginX(0), oz = p.TileOriginZ(0);
+        double[] wv = [o, 0, oz, o + 8, 0, oz, o + 8, 0, oz + 8, o, 0, oz + 8];
+        NavTileData d = NavTileAssembler.FromPolygons(p, 0, 0, 0, 0.0, wv, [4], [0, 1, 2, 3], [1], [1]);
+        const int g = 9;
+        var dv = new List<float>();
+        for (int i = 0; i < g; i++)
+        {
+            for (int j = 0; j < g; j++)
+            {
+                dv.Add(i);
+                dv.Add((float)(0.5 * Math.Sin(i * 1.3) * Math.Cos(j * 0.7)));
+                dv.Add(j);
+            }
+        }
+        var tris = new List<byte[]>();
+        for (int i = 0; i < g - 1; i++)
+        {
+            for (int j = 0; j < g - 1; j++)
+            {
+                int a = (i * g) + j, b = ((i + 1) * g) + j, c = ((i + 1) * g) + j + 1, e = (i * g) + j + 1;
+                tris.Add([(byte)(4 + a), (byte)(4 + b), (byte)(4 + c), 1]);
+                tris.Add([(byte)(4 + a), (byte)(4 + c), (byte)(4 + e), 1]);
+            }
+        }
+        if (shuffle)
+        {
+            var rng = new NavMeshWorlds.Rng(5);
+            for (int i = tris.Count - 1; i > 0; i--)
+            {
+                int k = rng.Int(i + 1);
+                (tris[i], tris[k]) = (tris[k], tris[i]);
+            }
+        }
+        var dt = new List<byte>();
+        foreach (byte[] t in tris)
+        {
+            dt.AddRange(t);
+        }
+        detailTriangles = tris.Count;
+        d.DetailMeshes = [new DetailMesh { VertexBase = 0, TriangleBase = 0, VertexCount = (byte)(g * g), TriangleCount = (ushort)tris.Count }];
+        d.DetailVertices = dv.ToArray();
+        d.DetailTriangles = dt.ToArray();
+        var m = new TiledNavMesh(p);
+        m.AddTile(NavTile.Create(d, p));
+        return m;
+    }
+
     public static TiledNavMesh RandomMesh(ulong seed, int x0, int z0, int nx, int nz, int layers, bool detail, int offMesh)
     {
         NavMeshParams p = Params();
