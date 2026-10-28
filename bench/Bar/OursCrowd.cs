@@ -20,8 +20,8 @@ namespace RecursiveAI.OnePath.Bar;
 /// documented default agent settings (neighbour distance 15, 10 neighbours, horizons 10 and 5, radius 2, speed 2), dt 0.25; our side is the
 /// ORCA solver itself (<see cref="OrcaSimulator"/>), one thread unless <c>--threads</c> says otherwise.</item>
 /// <item><c>crowd</c> (against DetourCrowd and DotRecast): N agents with the harness's start/goal rule on the point set, speed 3.5, acceleration 8,
-/// dt 0.05; our side is <see cref="Crowd"/>, one thread. Until a builder can build the suite's OBJ levels the mesh is the format test generator's
-/// and the points are scaled onto it, as for the query rows, so the rows are comparable in method, not yet in geometry (<c>mesh_source</c> says so).</item>
+/// dt 0.05; our side is <see cref="Crowd"/>, one thread. With an <c>--obj</c> level the mesh is our 3D builder's on the reference settings and the points are
+/// used as they are, like the query rows; without one it is the format test generator's with the points scaled onto it (<c>mesh_source</c> says which).</item>
 /// </list>
 /// Quality rows ours prints in addition: <c>arrived</c>, <c>moving_at_end</c>, <c>worst_overlap</c> (deepest agent-agent penetration at the end, units),
 /// <c>mean_overlap</c> over agent pairs closer than the sum of their radii.
@@ -126,14 +126,32 @@ internal static class OursCrowd
         foreach (string line in File.ReadLines(pointsFile))
         {
             string[] f = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (f.Length >= 3)
+            if (f.Length >= 3 && f[0][0] != '#')
             {
                 raw.Add(new Vector3D(double.Parse(f[0], CultureInfo.InvariantCulture), double.Parse(f[1], CultureInfo.InvariantCulture), double.Parse(f[2], CultureInfo.InvariantCulture)));
             }
         }
         double x0 = raw.Min(p => p.X), x1 = raw.Max(p => p.X), z0 = raw.Min(p => p.Z), z1 = raw.Max(p => p.Z);
-        TiledNavMesh mesh = NavMeshWorlds.RandomMesh(7, -4, -4, 8, 8, 1, detail: false, offMesh: 0);
-        var pts = raw.Select(p => new Vector3D(-47 + ((p.X - x0) / Math.Max(1e-9, x1 - x0) * 62), 0.2, -47 + ((p.Z - z0) / Math.Max(1e-9, z1 - z0) * 62))).ToList();
+        TiledNavMesh mesh;
+        List<Vector3D> pts;
+        string meshSource;
+        string? objFile = Arg(t, "obj", "");
+        if (File.Exists(objFile))
+        {
+            // The level's own mesh, built with the reference settings (solo unless the row says tiled), and the points as they are.
+            bool tiled = Arg(t, "mode", "solo") == "tiled";
+            int tileCells = Int(t, "tile-size", 64);
+            (double[] ov, int[] oi) = OursBuild.LoadObj(objFile);
+            mesh = OursBuild.Build(ov, oi, tiled, tileCells).Tiles;
+            pts = raw;
+            meshSource = "3D builder, " + OursBuild.Describe(tiled, tileCells);
+        }
+        else
+        {
+            mesh = NavMeshWorlds.RandomMesh(7, -4, -4, 8, 8, 1, detail: false, offMesh: 0);
+            pts = raw.Select(p => new Vector3D(-47 + ((p.X - x0) / Math.Max(1e-9, x1 - x0) * 62), 0.2, -47 + ((p.Z - z0) / Math.Max(1e-9, z1 - z0) * 62))).ToList();
+            meshSource = "format test generator (8x8 tiles); points scaled onto it";
+        }
         var q = new NavMeshQuery(mesh);
         var usable = new List<NearestPoly>();
         foreach (Vector3D p in pts)
@@ -218,7 +236,7 @@ internal static class OursCrowd
             R(row, "arrived", arrived, "count"),
             R(row, "threads", threads, "count"),
             R(row, "peak_rss", Process.GetCurrentProcess().PeakWorkingSet64 / (1024.0 * 1024.0), "MB"),
-            new Row(row.Part, row.Id, OurScenarios.Side, "mesh_source", "format test generator (8x8 tiles); points scaled onto it", "text"),
+            new Row(row.Part, row.Id, OurScenarios.Side, "mesh_source", meshSource, "text"),
         };
         if (agents.Count <= 2000)
         {

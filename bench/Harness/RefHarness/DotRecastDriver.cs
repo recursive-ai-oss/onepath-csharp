@@ -16,7 +16,7 @@ internal static class DotRecastDriver
 {
     private const string Side = "dotrecast-2026.3.1";
 
-    private sealed class Settings
+    internal sealed class Settings
     {
         public float Cs = 0.3f, Ch = 0.2f, AgentHeight = 2.0f, AgentRadius = 0.6f, Climb = 0.9f, Slope = 45.0f;
         public float RegionMin = 8, RegionMerge = 20, EdgeLen = 12, EdgeErr = 1.3f, DetailDist = 6, DetailErr = 1;
@@ -40,7 +40,7 @@ internal static class DotRecastDriver
     {
         if (a.Pos.Count < 2)
         {
-            Console.Error.WriteLine("usage: dotrecast build|query|crowd --obj f.obj ...");
+            Console.Error.WriteLine("usage: dotrecast build|query|crowd|tilecache --obj f.obj ...");
             return 2;
         }
 
@@ -49,6 +49,7 @@ internal static class DotRecastDriver
             case "build": return Build(a);
             case "query": return Query(a);
             case "crowd": return Crowd(a);
+            case "tilecache": return DotRecastTileCache.Run(a);
             default:
                 Console.Error.WriteLine("unknown subcommand " + a.Pos[1]);
                 return 2;
@@ -56,7 +57,7 @@ internal static class DotRecastDriver
     }
 
     /// <summary>A plain triangle soup as the library's input-geometry interface.</summary>
-    private sealed class Geom : DotRecast.Recast.Geom.IRcInputGeomProvider
+    internal sealed class Geom : DotRecast.Recast.Geom.IRcInputGeomProvider
     {
         private readonly DotRecast.Recast.Geom.RcTriMesh mesh;
         private readonly RcVec3f bmin, bmax;
@@ -97,7 +98,7 @@ internal static class DotRecastDriver
         public int Tw = 1, Th = 1;
     }
 
-    private static RcConfig MakeConfig(Settings s, bool tiled) =>
+    internal static RcConfig MakeConfig(Settings s, bool tiled) =>
         new RcConfig(tiled, s.TileSize, s.TileSize, tiled ? (int)Math.Ceiling(s.AgentRadius / s.Cs) + 3 : 0, RcPartition.WATERSHED, s.Cs, s.Ch, s.Slope, s.AgentHeight, s.AgentRadius, s.Climb,
             (int)s.RegionMin, (int)s.RegionMerge, s.EdgeLen, s.EdgeErr, s.Nvp, s.DetailDist, s.DetailErr, true, true, true,
             new RcAreaModification(63), true);
@@ -163,16 +164,20 @@ internal static class DotRecastDriver
         }
 
         RcRecast.CalcGridSize(o.Bmin, o.Bmax, s.Cs, out int gw, out int gh);
+        if (Environment.GetEnvironmentVariable("REFHARNESS_DEBUG") != null)
+        {
+            Console.Error.WriteLine($"grid {gw}x{gh} bounds {o.Bmin} .. {o.Bmax} cs {s.Cs} tile {s.TileSize}");
+        }
+
         o.Tw = (gw + s.TileSize - 1) / s.TileSize;
         o.Th = (gh + s.TileSize - 1) / s.TileSize;
-        float tcs = s.TileSize * s.Cs;
         for (int y = 0; y < o.Th; y++)
         {
             for (int x = 0; x < o.Tw; x++)
             {
-                var lo = new RcVec3f(o.Bmin.X + x * tcs, o.Bmin.Y, o.Bmin.Z + y * tcs);
-                var hi = new RcVec3f(o.Bmin.X + (x + 1) * tcs, o.Bmax.Y, o.Bmin.Z + (y + 1) * tcs);
-                AddTile(s, builder.Build(geom, new RcBuilderConfig(cfg, lo, hi, x, y), false), x, y, o);
+                // The tile overload takes the bounds of the whole input and the tile's grid position: it offsets the box itself.
+                // (Passing the tile's own box offsets it twice, so only the lower-left quarter of the level gets built.)
+                AddTile(s, builder.Build(geom, new RcBuilderConfig(cfg, o.Bmin, o.Bmax, x, y), false), x, y, o);
             }
         }
 

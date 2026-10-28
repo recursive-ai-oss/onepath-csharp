@@ -64,4 +64,46 @@ internal static class TileMapWorld
         }
         return cells;
     }
+
+    /// <summary>
+    /// The exact area of the floor points at least <paramref name="radius"/> away from every wall, for a tile map whose walls are the solid
+    /// tiles and everything outside the map, with round joins at convex wall corners (the Minkowski erosion of the floor by a disc).
+    /// This is the 2D gate's yardstick; it does not use any builder.
+    /// <para>
+    /// Method: for a radius up to half a tile, wall tiles two or more tiles away are farther than the radius from every point of a
+    /// floor tile, so each floor tile only sees its eight neighbours. Inside a tile of side T the lost area is the union of a strip of
+    /// width r along each side that borders a wall, plus a quarter disc of radius r at each corner whose two adjacent sides border
+    /// floor but whose diagonal neighbour is a wall. For r &lt;= T/2 these pieces overlap only where two strips meet in an r x r corner
+    /// square, so with S wall sides, C wall-side pairs meeting at a corner and D quarter discs, lost = 2 r S - r^2 C + (pi r^2 / 4) D.
+    /// Everything is a small integer count times a closed form; the only inexact step is the double rounding of pi (relative error
+    /// below 2^-52 per tile), so the sum is within 1e-9 relative of the true area for any map this runner uses.
+    /// </para>
+    /// </summary>
+    public static double ExactErodedArea(bool[] floor, int tiles, double radius)
+    {
+        if (!(radius >= 0 && radius <= TileUnits / 2))
+        {
+            throw new ArgumentOutOfRangeException(nameof(radius), radius, "the closed form holds for radius in [0, half a tile]");
+        }
+        bool Floor(int x, int z) => x >= 0 && z >= 0 && x < tiles && z < tiles && floor[(z * tiles) + x];
+        double r = radius, t = TileUnits, area = 0;
+        for (int z = 0; z < tiles; z++)
+        {
+            for (int x = 0; x < tiles; x++)
+            {
+                if (!floor[(z * tiles) + x])
+                {
+                    continue;
+                }
+                bool w = !Floor(x - 1, z), e = !Floor(x + 1, z), s = !Floor(x, z - 1), n = !Floor(x, z + 1);
+                int sides = (w ? 1 : 0) + (e ? 1 : 0) + (s ? 1 : 0) + (n ? 1 : 0);
+                int pairs = ((w && s) ? 1 : 0) + ((s && e) ? 1 : 0) + ((e && n) ? 1 : 0) + ((n && w) ? 1 : 0);
+                int discs = ((!w && !s && !Floor(x - 1, z - 1)) ? 1 : 0) + ((!s && !e && !Floor(x + 1, z - 1)) ? 1 : 0)
+                          + ((!e && !n && !Floor(x + 1, z + 1)) ? 1 : 0) + ((!n && !w && !Floor(x - 1, z + 1)) ? 1 : 0);
+                double lost = (2 * r * sides) - (r * r * pairs) + (Math.PI * r * r / 4 * discs);
+                area += (t * t) - lost;
+            }
+        }
+        return area;
+    }
 }

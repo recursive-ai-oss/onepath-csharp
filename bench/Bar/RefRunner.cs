@@ -205,7 +205,7 @@ internal static class RefRunner
         ];
     }
 
-    private static double? ParsePeakRss(string stderr)
+    internal static double? ParsePeakRss(string stderr)
     {
         foreach (var raw in stderr.Split('\n'))
         {

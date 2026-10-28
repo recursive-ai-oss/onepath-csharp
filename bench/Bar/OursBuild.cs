@@ -74,7 +74,10 @@ internal static class OursBuild
         "cs=0.3 ch=0.2 h=2 r=0.6 climb=0.9 slope=45 regmin=8 regmerge=20 edge=12 err=1.3 nvp=6 dd=6 de=1" + (tiled ? " tile=" + tileCells.ToString(CultureInfo.InvariantCulture) : string.Empty);
 
     /// <summary>Builds the level on the reference settings.</summary>
-    public static NavMesh Build(double[] verts, int[] idx, bool tiled, int tileCells)
+    public static NavMesh Build(double[] verts, int[] idx, bool tiled, int tileCells) => NavMesh.Build(verts, idx, SettingsFor(verts, tiled, tileCells));
+
+    /// <summary>The settings <see cref="Build"/> uses: the reference rows' humanoid values, the level's minimum corner as origin.</summary>
+    public static NavSettings SettingsFor(double[] verts, bool tiled, int tileCells)
     {
         double minX = double.MaxValue, minZ = double.MaxValue;
         for (int i = 0; i < verts.Length; i += 3)
@@ -82,7 +85,7 @@ internal static class OursBuild
             minX = Math.Min(minX, verts[i]);
             minZ = Math.Min(minZ, verts[i + 2]);
         }
-        var s = new NavSettings
+        return new NavSettings
         {
             CellSize = (double)0.3f,
             CellHeight = (double)0.2f,
@@ -102,7 +105,6 @@ internal static class OursBuild
             // A tile of tileCells cells; the solo build is one tile large enough for any level in the suite.
             TileSize = tiled ? (double)(tileCells * 0.3f) : 512,
         };
-        return NavMesh.Build(verts, idx, s);
     }
 
     public static double Coverage(TiledNavMesh m)

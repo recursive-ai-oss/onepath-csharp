@@ -25,6 +25,7 @@
     <PackageReference Include="DotRecast.Recast" />
     <PackageReference Include="DotRecast.Detour" />
     <PackageReference Include="DotRecast.Detour.Crowd" />
+    <PackageReference Include="DotRecast.Detour.TileCache" />
   </ItemGroup>
   <PropertyGroup Condition="'$(Rvo2CsDll)' != ''">
     <DefineConstants>$(DefineConstants);RVO2CS</DefineConstants>
