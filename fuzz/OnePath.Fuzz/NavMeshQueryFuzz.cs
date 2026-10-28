@@ -93,7 +93,7 @@ internal static class NavMeshQueryFuzz
                 var filter = new QueryFilter { ExcludeFlags = b.U8() < 40 ? (ushort)(1 << (b.U8() % 3)) : (ushort)0 };
                 if (b.U8() < 60)
                 {
-                    filter.SetAreaCost(b.U8() % 64, 0.25 + (b.U8() / 32.0));
+                    filter = filter.WithAreaCost(b.U8() % 64, 0.25 + (b.U8() / 32.0));
                 }
                 try
                 {

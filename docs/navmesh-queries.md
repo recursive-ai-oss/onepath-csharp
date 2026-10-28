@@ -19,7 +19,7 @@ are world doubles; vertices are float32 tile-local values widened to double and 
 A filter decides which polygons may be used and prices travel:
 
 - `QueryFilter` (plain): `IncludeFlags` (default 0xFFFF = anything, including polygons with no flags set; otherwise at least
-  one flag bit must match), `ExcludeFlags` (default 0; any match rejects), per-area multipliers `SetAreaCost(area, cost)`
+  one flag bit must match), `ExcludeFlags` (default 0; any match rejects), per-area multipliers `WithAreaCost(area, cost)` (returns a new filter; a filter is immutable once built)
   (default 1; `+∞` forbids the area; costs must be > 0), and an optional `Func<ushort, byte, bool>` predicate.
 - `IQueryFilter` (struct generic, for speed): `Passes(flags, area)`, `AreaCost(area)`, `MinAreaCost`.
   `MinAreaCost` must not exceed the true minimum area cost or paths stop being optimal; 0 disables the heuristic.

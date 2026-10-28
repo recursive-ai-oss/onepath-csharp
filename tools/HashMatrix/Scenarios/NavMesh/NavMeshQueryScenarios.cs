@@ -56,7 +56,7 @@ internal static class NavMeshQueryScenarios
             var o = new PathOptions
             {
                 SearchExtents = new Vector3D(2, 5, 2),
-                Filter = i % 3 == 1 ? new QueryFilter { ExcludeFlags = 2 }.SetAreaCost(1, 3).SetAreaCost(9, 2) : null,
+                Filter = i % 3 == 1 ? new QueryFilter { ExcludeFlags = 2 }.WithAreaCost(1, 3).WithAreaCost(9, 2) : null,
             };
             PathResult p = q.FindPath(Spot(r), Spot(r), o);
             ctx.Write((int)p.Detail);
@@ -157,7 +157,7 @@ internal static class NavMeshQueryScenarios
         TiledNavMesh m = NavMeshWorlds.RandomMesh(15, -1, -1, 3, 3, 3, detail: true, offMesh: 2);
         var q = new NavMeshQuery(m);
         var r = new NavMeshWorlds.Rng(5);
-        var f = new QueryFilter { ExcludeFlags = 2 }.SetAreaCost(3, double.PositiveInfinity);
+        var f = new QueryFilter { ExcludeFlags = 2 }.WithAreaCost(3, double.PositiveInfinity);
         var polys = new PolyRef[512];
         var parents = new PolyRef[512];
         var dist = new double[512];

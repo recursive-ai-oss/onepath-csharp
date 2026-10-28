@@ -4,6 +4,14 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Breaking
+
+- **`QueryFilter` is immutable after construction.** `IncludeFlags`, `ExcludeFlags` and `Predicate` are `init`-only (set them in an object initializer), and `SetAreaCost` is replaced by `WithAreaCost(area, cost)`, which returns a new filter and leaves the original alone. A filter inside `PathOptions` or `CrowdOptions` can therefore be shared by queries, crowds and threads without one caller changing it under another. Migrate `f.SetAreaCost(3, x);` to `f = f.WithAreaCost(3, x);`.
+
+### Added
+
+- `HexGrid.FindPathAsync` and `VoxelGrid.FindPathAsync` (cell and world-position forms), shaped like `Grid.FindPathAsync`: the result equals the synchronous one, cancellation and argument errors come through the task, and the grid must not be edited while the task runs. On single-threaded WebAssembly, await the task; never block on it.
+
 ## [0.5.0-preview.1]
 
 ### Breaking

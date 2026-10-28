@@ -27,7 +27,7 @@ public class NavMeshAreaQueryTests
         var f = new QueryFilter { ExcludeFlags = i % 3 == 1 ? (ushort)4 : (ushort)0 };
         if (i % 4 == 2)
         {
-            f.SetAreaCost(3, double.PositiveInfinity);
+            f = f.WithAreaCost(3, double.PositiveInfinity);
         }
         return f;
     }
@@ -294,7 +294,7 @@ public class NavMeshAreaQueryTests
     {
         TiledNavMesh m = NavMeshWorlds.RandomMesh(41, -1, -1, 1, 1, 2, detail: true, offMesh: 0);
         var q = new NavMeshQuery(m);
-        QueryFilter f = new QueryFilter { ExcludeFlags = 4 }.SetAreaCost(3, double.PositiveInfinity);
+        QueryFilter f = new QueryFilter { ExcludeFlags = 4 }.WithAreaCost(3, double.PositiveInfinity);
         List<PolyRef> polys = AllPolys(m, f);
         Assert.True(polys.Count > 20);
         double total = 0;

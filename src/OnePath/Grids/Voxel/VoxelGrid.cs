@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 using RecursiveAI.OnePath.Grids;
 using RecursiveAI.OnePath.Grids.Voxel;
 
@@ -368,6 +369,38 @@ public sealed partial class VoxelGrid
             return VoxelPath.Invalid(PathStatus.GoalInvalid);
         }
         return FindPathCore(s, g, options ?? DefaultOptions, true, cancellationToken);
+    }
+
+    /// <summary>
+    /// Same as <see cref="FindPath(VoxelCell, VoxelCell, VoxelOptions?, CancellationToken)"/>, run on the thread pool so the calling thread
+    /// (a frame loop, a UI thread) is not blocked. The result equals the synchronous one for the same grid and options; nothing
+    /// depends on timing or on which thread runs it. Do not edit the grid until the task has completed. On single-threaded
+    /// WebAssembly the work runs on the same thread when you yield: always await the task, never block on it.
+    /// </summary>
+    /// <param name="start">Start voxel.</param>
+    /// <param name="goal">Goal voxel.</param>
+    /// <param name="options">Query options; null means <see cref="VoxelOptions.Default"/>.</param>
+    /// <param name="cancellationToken">Checked every 256 iterations; the task then ends cancelled.</param>
+    /// <returns>A task for the result.</returns>
+    /// <exception cref="OperationCanceledException">Cancellation was requested (thrown through the task).</exception>
+    public Task<VoxelPath> FindPathAsync(VoxelCell start, VoxelCell goal, VoxelOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        VoxelOptions o = options ?? DefaultOptions;
+        // Task.Run only moves the work; the search is the synchronous one, so the result is the same.
+        return Task.Run(() => FindPathCore(start, goal, o, false, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>World-position form of <see cref="FindPathAsync(VoxelCell, VoxelCell, VoxelOptions?, CancellationToken)"/>; the result carries world-space voxel centres.</summary>
+    /// <param name="start">Start position.</param>
+    /// <param name="goal">Goal position.</param>
+    /// <param name="options">Query options; null means <see cref="VoxelOptions.Default"/>.</param>
+    /// <param name="cancellationToken">Checked every 256 iterations; the task then ends cancelled.</param>
+    /// <returns>A task for the result.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN or beyond ±2^21 (thrown through the task).</exception>
+    /// <exception cref="OperationCanceledException">Cancellation was requested (thrown through the task).</exception>
+    public Task<VoxelPath> FindPathAsync(VoxelPoint start, VoxelPoint goal, VoxelOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        return Task.Run(() => FindPath(start, goal, options, cancellationToken), cancellationToken);
     }
 
     private VoxelPath FindPathCore(VoxelCell start, VoxelCell goal, VoxelOptions o, bool world, CancellationToken token)

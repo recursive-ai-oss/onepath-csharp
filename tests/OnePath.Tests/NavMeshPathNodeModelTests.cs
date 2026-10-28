@@ -14,11 +14,11 @@ public class NavMeshPathNodeModelTests
     private static QueryFilter MixedFilter(NavMeshWorlds.Rng r)
     {
         var f = new QueryFilter { ExcludeFlags = r.Int(3) == 0 ? (ushort)4 : (ushort)0 };
-        f.SetAreaCost(1, 1.0 + r.Int(4));
-        f.SetAreaCost(2, 0.5 + (0.5 * r.Int(3)));
+        f = f.WithAreaCost(1, 1.0 + r.Int(4));
+        f = f.WithAreaCost(2, 0.5 + (0.5 * r.Int(3)));
         if (r.Int(4) == 0)
         {
-            f.SetAreaCost(3, double.PositiveInfinity);
+            f = f.WithAreaCost(3, double.PositiveInfinity);
         }
         return f;
     }
