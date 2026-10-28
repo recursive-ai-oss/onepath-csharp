@@ -64,6 +64,8 @@ public sealed class SolidHeightfield
     // The span store and column heads for the filters' inner loops: indices reachable from the heads are below _used by construction.
     internal SolidSpan[] RawSpans => _spans;
 
+    internal int[] RawHeads => _heads;
+
     /// <summary>The number of live spans with a non-zero area.</summary>
     internal int CountWalkable()
     {

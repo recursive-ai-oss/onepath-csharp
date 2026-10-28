@@ -60,7 +60,7 @@ public static class SpanFilters
         ArgumentNullException.ThrowIfNull(hf);
         CheckHeightClimb(walkableHeight, walkableClimb);
         HeightfieldFrame f = hf.Frame;
-        ReadOnlySpan<int> heads = hf.Heads;
+        int[] heads = hf.RawHeads;
         SolidSpan[] spans = hf.RawSpans;
         int width = f.Width;
         int depth = f.Depth;
@@ -112,7 +112,9 @@ public static class SpanFilters
         }
     }
 
-    private static bool IsLedge(ReadOnlySpan<int> heads, SolidSpan[] spans, int width, int depth, int x, int z, int floor, int ceiling, int height, int climb)
+    // Raw accesses: a column index is checked against the grid before it is used, and the chain indices come from the heads and the Next links, which are
+    // below the used count of the span store.
+    private static bool IsLedge(int[] heads, SolidSpan[] spans, int width, int depth, int x, int z, int floor, int ceiling, int height, int climb)
     {
         int minAccessible = Unbounded;
         int maxAccessible = -Unbounded;
@@ -131,10 +133,10 @@ public static class SpanFilters
                 // Beyond the grid there is nothing to stand on.
                 return true;
             }
-            int first = heads[col];
+            int first = Raw.At(heads, col);
             // The gap below the column's first span is a floor at -climb: it counts as a drop for anything that stands higher.
             int nFloor = -climb;
-            int nCeil = first == -1 ? Unbounded : spans[first].Min;
+            int nCeil = first == -1 ? Unbounded : Raw.At(spans, first).Min;
             int cur = first;
             while (true)
             {
@@ -155,9 +157,9 @@ public static class SpanFilters
                 {
                     break;
                 }
-                ref readonly SolidSpan ns = ref spans[cur];
+                ref readonly SolidSpan ns = ref Raw.At(spans, cur);
                 nFloor = ns.Max;
-                nCeil = ns.Next == -1 ? Unbounded : spans[ns.Next].Min;
+                nCeil = ns.Next == -1 ? Unbounded : Raw.At(spans, ns.Next).Min;
                 cur = ns.Next;
             }
         }

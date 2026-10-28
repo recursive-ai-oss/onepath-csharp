@@ -145,7 +145,7 @@ public static class Erosion
         for (int k = 0; k < count; k++)
         {
             int i = forward ? k : count - 1 - k;
-            int cur = dist[i];
+            int cur = Raw.At(dist, i);
             if (cur == 0)
             {
                 continue;
@@ -157,58 +157,58 @@ public static class Erosion
                 if (forward)
                 {
                     // -x (0) with the -z hop; -z (3) with the -x and +x hops.
-                    int n0 = link[b];
+                    int n0 = Raw.At(link, b);
                     if (n0 >= 0)
                     {
-                        best = Math.Min(best, dist[n0] + OrthogonalCost);
-                        int m = link[(4 * n0) + 3];
+                        best = Math.Min(best, Raw.At(dist, n0) + OrthogonalCost);
+                        int m = Raw.At(link, (4 * n0) + 3);
                         if (m >= 0)
                         {
-                            best = Math.Min(best, dist[m] + DiagonalCost);
+                            best = Math.Min(best, Raw.At(dist, m) + DiagonalCost);
                         }
                     }
-                    int n3 = link[b + 3];
+                    int n3 = Raw.At(link, b + 3);
                     if (n3 >= 0)
                     {
-                        best = Math.Min(best, dist[n3] + OrthogonalCost);
-                        int m = link[4 * n3];
+                        best = Math.Min(best, Raw.At(dist, n3) + OrthogonalCost);
+                        int m = Raw.At(link, 4 * n3);
                         if (m >= 0)
                         {
-                            best = Math.Min(best, dist[m] + DiagonalCost);
+                            best = Math.Min(best, Raw.At(dist, m) + DiagonalCost);
                         }
-                        m = link[(4 * n3) + 2];
+                        m = Raw.At(link, (4 * n3) + 2);
                         if (m >= 0)
                         {
-                            best = Math.Min(best, dist[m] + DiagonalCost);
+                            best = Math.Min(best, Raw.At(dist, m) + DiagonalCost);
                         }
                     }
                 }
                 else
                 {
                     // +x (2) with the +z hop; +z (1) with the +x and -x hops.
-                    int n2 = link[b + 2];
+                    int n2 = Raw.At(link, b + 2);
                     if (n2 >= 0)
                     {
-                        best = Math.Min(best, dist[n2] + OrthogonalCost);
-                        int m = link[(4 * n2) + 1];
+                        best = Math.Min(best, Raw.At(dist, n2) + OrthogonalCost);
+                        int m = Raw.At(link, (4 * n2) + 1);
                         if (m >= 0)
                         {
-                            best = Math.Min(best, dist[m] + DiagonalCost);
+                            best = Math.Min(best, Raw.At(dist, m) + DiagonalCost);
                         }
                     }
-                    int n1 = link[b + 1];
+                    int n1 = Raw.At(link, b + 1);
                     if (n1 >= 0)
                     {
-                        best = Math.Min(best, dist[n1] + OrthogonalCost);
-                        int m = link[(4 * n1) + 2];
+                        best = Math.Min(best, Raw.At(dist, n1) + OrthogonalCost);
+                        int m = Raw.At(link, (4 * n1) + 2);
                         if (m >= 0)
                         {
-                            best = Math.Min(best, dist[m] + DiagonalCost);
+                            best = Math.Min(best, Raw.At(dist, m) + DiagonalCost);
                         }
-                        m = link[4 * n1];
+                        m = Raw.At(link, 4 * n1);
                         if (m >= 0)
                         {
-                            best = Math.Min(best, dist[m] + DiagonalCost);
+                            best = Math.Min(best, Raw.At(dist, m) + DiagonalCost);
                         }
                     }
                 }
@@ -217,27 +217,27 @@ public static class Erosion
             {
                 for (int d = 0; d < 4; d++)
                 {
-                    int nb = link[b + d];
+                    int nb = Raw.At(link, b + d);
                     if (nb < 0)
                     {
                         continue;
                     }
-                    best = Math.Min(best, dist[nb] + OrthogonalCost);
-                    int m1 = link[(4 * nb) + ((d + 1) & 3)];
+                    best = Math.Min(best, Raw.At(dist, nb) + OrthogonalCost);
+                    int m1 = Raw.At(link, (4 * nb) + ((d + 1) & 3));
                     if (m1 >= 0)
                     {
-                        best = Math.Min(best, dist[m1] + DiagonalCost);
+                        best = Math.Min(best, Raw.At(dist, m1) + DiagonalCost);
                     }
-                    int m3 = link[(4 * nb) + ((d + 3) & 3)];
+                    int m3 = Raw.At(link, (4 * nb) + ((d + 3) & 3));
                     if (m3 >= 0)
                     {
-                        best = Math.Min(best, dist[m3] + DiagonalCost);
+                        best = Math.Min(best, Raw.At(dist, m3) + DiagonalCost);
                     }
                 }
             }
             if (best < cur)
             {
-                dist[i] = best;
+                Raw.At(dist, i) = best;
                 changed = true;
             }
         }

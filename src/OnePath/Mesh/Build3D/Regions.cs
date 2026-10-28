@@ -240,6 +240,8 @@ public static class Regions
         var assignSpan = new int[widest];
         var assignRegion = new int[widest];
         var queue = new int[widest];
+        // Raw accesses below: every span index comes from order or from a graph entry that is -1 or below n, and the arrays hold n entries; the
+        // frontier, assignment and queue arrays hold the widest level, which bounds every count written to them.
         for (int level = maxDist; level >= 0; level--)
         {
             int lo = start[level];
@@ -263,33 +265,33 @@ public static class Regions
                     if (singleArea)
                     {
                         // One area id: a neighbour with a region has it too.
-                        int t = nbr[b];
+                        int t = Raw.At(nbr, b);
                         if (t >= 0)
                         {
-                            best = region[t];
+                            best = Raw.At(region, t);
                         }
-                        t = nbr[b + 1];
+                        t = Raw.At(nbr, b + 1);
                         if (t >= 0)
                         {
-                            int rt = region[t];
+                            int rt = Raw.At(region, t);
                             if (rt > 0 && (best == 0 || rt < best))
                             {
                                 best = rt;
                             }
                         }
-                        t = nbr[b + 2];
+                        t = Raw.At(nbr, b + 2);
                         if (t >= 0)
                         {
-                            int rt = region[t];
+                            int rt = Raw.At(region, t);
                             if (rt > 0 && (best == 0 || rt < best))
                             {
                                 best = rt;
                             }
                         }
-                        t = nbr[b + 3];
+                        t = Raw.At(nbr, b + 3);
                         if (t >= 0)
                         {
-                            int rt = region[t];
+                            int rt = Raw.At(region, t);
                             if (rt > 0 && (best == 0 || rt < best))
                             {
                                 best = rt;
@@ -298,34 +300,34 @@ public static class Regions
                     }
                     else
                     {
-                        byte a = areaOf[s];
-                        int t = nbr[b];
-                        if (t >= 0 && areaOf[t] == a)
+                        byte a = Raw.At(areaOf, s);
+                        int t = Raw.At(nbr, b);
+                        if (t >= 0 && Raw.At(areaOf, t) == a)
                         {
-                            best = region[t];
+                            best = Raw.At(region, t);
                         }
-                        t = nbr[b + 1];
-                        if (t >= 0 && areaOf[t] == a)
+                        t = Raw.At(nbr, b + 1);
+                        if (t >= 0 && Raw.At(areaOf, t) == a)
                         {
-                            int rt = region[t];
+                            int rt = Raw.At(region, t);
                             if (rt > 0 && (best == 0 || rt < best))
                             {
                                 best = rt;
                             }
                         }
-                        t = nbr[b + 2];
-                        if (t >= 0 && areaOf[t] == a)
+                        t = Raw.At(nbr, b + 2);
+                        if (t >= 0 && Raw.At(areaOf, t) == a)
                         {
-                            int rt = region[t];
+                            int rt = Raw.At(region, t);
                             if (rt > 0 && (best == 0 || rt < best))
                             {
                                 best = rt;
                             }
                         }
-                        t = nbr[b + 3];
-                        if (t >= 0 && areaOf[t] == a)
+                        t = Raw.At(nbr, b + 3);
+                        if (t >= 0 && Raw.At(areaOf, t) == a)
                         {
-                            int rt = region[t];
+                            int rt = Raw.At(region, t);
                             if (rt > 0 && (best == 0 || rt < best))
                             {
                                 best = rt;
@@ -334,14 +336,14 @@ public static class Regions
                     }
                     if (best > 0)
                     {
-                        assignSpan[ac] = s;
-                        assignRegion[ac] = best;
+                        Raw.At(assignSpan, ac) = s;
+                        Raw.At(assignRegion, ac) = best;
                         ac++;
                     }
                 }
                 for (int k = 0; k < ac; k++)
                 {
-                    region[assignSpan[k]] = assignRegion[k];
+                    Raw.At(region, Raw.At(assignSpan, k)) = Raw.At(assignRegion, k);
                 }
                 remaining -= ac;
                 if (remaining == 0)
@@ -354,14 +356,14 @@ public static class Regions
                 int nc = 0;
                 for (int k = 0; k < ac; k++)
                 {
-                    int s = assignSpan[k];
+                    int s = Raw.At(assignSpan, k);
                     for (int d = 0; d < 4; d++)
                     {
-                        int t = nbr[(4 * s) + d];
-                        if (t >= 0 && region[t] == 0 && areaOf[t] != 0 && dist[t] == level && mark[t] != stamp)
+                        int t = Raw.At(nbr, (4 * s) + d);
+                        if (t >= 0 && Raw.At(region, t) == 0 && Raw.At(areaOf, t) != 0 && Raw.At(dist, t) == level && Raw.At(mark, t) != stamp)
                         {
-                            mark[t] = stamp;
-                            frontier[nc++] = t;
+                            Raw.At(mark, t) = stamp;
+                            Raw.At(frontier, nc++) = t;
                         }
                     }
                 }
@@ -371,25 +373,25 @@ public static class Regions
             for (int k = lo; remaining > 0 && k < hi; k++)
             {
                 int s0 = order[k];
-                if (region[s0] != 0)
+                if (Raw.At(region, s0) != 0)
                 {
                     continue;
                 }
                 int id = ++next;
-                region[s0] = id;
+                Raw.At(region, s0) = id;
                 int qh = 0, qt = 0;
-                queue[qt++] = s0;
-                byte area0 = areaOf[s0];
+                Raw.At(queue, qt++) = s0;
+                byte area0 = Raw.At(areaOf, s0);
                 while (qh < qt)
                 {
-                    int s = queue[qh++];
+                    int s = Raw.At(queue, qh++);
                     for (int d = 0; d < 4; d++)
                     {
-                        int t = nbr[(4 * s) + d];
-                        if (t >= 0 && region[t] == 0 && areaOf[t] == area0 && dist[t] == level)
+                        int t = Raw.At(nbr, (4 * s) + d);
+                        if (t >= 0 && Raw.At(region, t) == 0 && Raw.At(areaOf, t) == area0 && Raw.At(dist, t) == level)
                         {
-                            region[t] = id;
-                            queue[qt++] = t;
+                            Raw.At(region, t) = id;
+                            Raw.At(queue, qt++) = t;
                         }
                     }
                 }
