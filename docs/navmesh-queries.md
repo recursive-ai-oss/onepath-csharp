@@ -78,10 +78,10 @@ in-tile neighbour edges by edge index, then the polygon's links in link order.
 specified; a stale heap entry (node already expanded) is skipped. One *iteration* is one expansion of a node (stale pops are free).
 Reaching the end polygon adds a terminal node (cost of the final leg); the search ends when the terminal node is popped (`Success`).
 
-**Node model.** The query object has a `PathNodeModel`, fixed when it is created.
+**Node model.** The query object has a `PathNodeModel`, fixed when it is created; `Polygon` unless the constructor is given `Crossing`.
 
-- `Crossing` (the default) is the algorithm above.
-- `Polygon`: one node per polygon, keyed by the polygon alone. A node sits at the position where the cheapest route found so far enters
+- `Crossing` is the algorithm above: exact for the midpoint-crossing cost model, about three times the nodes of `Polygon`.
+- `Polygon` (the default): one node per polygon, keyed by the polygon alone. A node sits at the position where the cheapest route found so far enters
   the polygon, and its cost is that route's cost to that position. Leaving a polygon from position *c* (start position for the start
   polygon) through an in-tile edge from vertex *a* to vertex *b*, with *e* the end position and *w = e − c* in X/Z, the entry
   position is `a + s (b − a)` (heights interpolated the same way) with `s = cross(c − a, w) / cross(b − a, w)` clamped to [0, 1], or
