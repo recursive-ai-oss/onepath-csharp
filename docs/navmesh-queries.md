@@ -88,10 +88,12 @@ Reaching the end polygon adds a terminal node (cost of the final leg); the searc
   `s = 0.5` when `cross(b − a, w)` is zero; through a tile-portal link, the same `s` clamped to `[RangeMin / 255, RangeMax / 255]`
   (the fraction `(RangeMin + RangeMax) / 510` when the denominator is zero); through an off-mesh link, the far end point as above.
   Leg costs, the heuristic, the terminal node, the open-list order and the iteration count are as for `Crossing`. A relaxation succeeds when
-  the new cost is strictly lower than the node's, even if the node was already expanded (it is then reopened and its position and parent
-  change). Moves back into the polygon the node was reached from are not generated. The cost is a real walk's length but not the least one
+  the new estimated total (cost plus `MinAreaCost` times the straight distance from the entry position to the end position, the open-list key) is strictly lower than the
+  node's, even if the node was already expanded (it is then reopened and its position and parent change). Comparing the cost alone would keep whichever entry
+  point was cheapest to reach however far it lies from the way on; in a large polygon that is a long way round, and when the end is unreachable and the
+  whole reachable area is priced, the corridor to the polygon nearest the end came out about 20% too long on overlapping floors. Moves back into the polygon the node was reached from are not generated. The cost is a real walk's length but not the least one
   of the polygon-to-polygon cost model, so corridors can differ from `Crossing`'s; it expands about half the nodes. On generated test levels the mean string-pulled
-  path length differs from `Crossing`'s by -0.5% to +1.4%.
+  path length is 0% to 2.8% shorter than `Crossing`'s (it aims each entry point at the end position).
   *Implementation note (no effect on results):* the `Polygon` model finds a polygon's node through a table indexed by tile slot and
   polygon index (8 bytes per polygon of the mesh, resized when the mesh is edited) and not through a hash; the table is a speed device only.
 
@@ -99,14 +101,6 @@ Reaching the end polygon adds a terminal node (cost of the final leg); the searc
 are dropped) stops the search from finding the end, the result is `Partial`: the corridor leads to the expanded node closest (3D) to the
 end position (ties: the earliest expanded). `NodeLimitReached` tells which. An unfinished sliced search finished early returns
 the same kind of corridor with status `InProgress`.
-
-*`Polygon` model, open list emptied:* a polygon's cost is the cost of the best route found to it, not of the best route onward, and when the end is
-unreachable nothing stops the search, so every reachable polygon is priced that way and the route to the nearest one can be far from the shortest
-(on a tiled open floor it came out as two sides of a square, +14% in mean path length). So when the open list empties without reaching the end polygon and
-the nearest expanded node *n* is not the start polygon, one more search runs from the start position (same filter and budget, iterations counted on top)
-with *n*'s polygon as the end polygon and the point of that polygon closest to the original end position as the end position; its corridor is the
-result, and the status stays `Partial`. It runs at most once. If it too ends without reaching its end, the corridor leads to its nearest expanded node as above.
-`Crossing` does not do this: its routes are the least-cost ones already.
 
 **Corridor.** Polygons along the route, start first. If the route left a polygon and came back, the loop is removed (the first
 occurrence is kept), so every polygon appears once. A buffer shorter than the corridor receives its first part and `truncated` is set.
