@@ -510,9 +510,19 @@ public sealed partial class Crowd
             bool reuse = _rsOpt[i] is null;
             if (!reuse)
             {
-                old?.Deactivate();
+                // The same agent with other settings (they were changed with Agent.SetOptions): the handle stays valid.
+                Agent agent;
+                if (old is not null && old.Id == id)
+                {
+                    agent = old;
+                    agent.Options = _rsOpt[i]!;
+                }
+                else
+                {
+                    old?.Deactivate();
+                    agent = new Agent(this, i, id, _rsOpt[i]!);
+                }
                 old = null;
-                var agent = new Agent(this, i, id, _rsOpt[i]!);
                 _agents[i] = agent;
                 _agentOpt[i] = agent.Options;
                 _follow[i] = _rsFollow[i];

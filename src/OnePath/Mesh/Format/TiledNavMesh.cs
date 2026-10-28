@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using RecursiveAI.OnePath.Mesh.Queries;
 
 namespace RecursiveAI.OnePath.Mesh;
 
@@ -22,6 +24,35 @@ public sealed class TiledNavMesh
     private readonly Dictionary<long, List<int>> _columns = new();
     private int _tileCount;
     private int _offMeshTileCount;
+
+    // Spare query objects for the one-call (tier 1) forms. A query follows tile edits by itself (it compares EditCount before each
+    // search and keeps no per-search state between searches), so a pooled one answers exactly as a fresh one. A call takes a spare
+    // with an atomic exchange, so concurrent calls never share one; a call that finds none builds a fresh query. At most four are kept.
+    private readonly NavMeshQuery?[] _spareQueries = new NavMeshQuery?[4];
+
+    internal NavMeshQuery RentQuery()
+    {
+        for (int i = 0; i < _spareQueries.Length; i++)
+        {
+            NavMeshQuery? q = Interlocked.Exchange(ref _spareQueries[i], null);
+            if (q is not null)
+            {
+                return q;
+            }
+        }
+        return new NavMeshQuery(this);
+    }
+
+    internal void ReturnQuery(NavMeshQuery query)
+    {
+        for (int i = 0; i < _spareQueries.Length; i++)
+        {
+            if (Interlocked.CompareExchange(ref _spareQueries[i], query, null) is null)
+            {
+                return;
+            }
+        }
+    }
 
     /// <summary>Creates an empty mesh.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="p"/> is null.</exception>

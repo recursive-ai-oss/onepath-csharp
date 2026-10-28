@@ -22,7 +22,7 @@ public sealed class PathFollower
     private const double TinyDistance = 1e-9;
     private const int MaxHops = 4;
 
-    private readonly FollowerOptions _opt;
+    private FollowerOptions _opt;
     private readonly StraightPathPoint[] _corners;
     private PathCorridor _corr;
     private int _cornerCount;
@@ -54,6 +54,18 @@ public sealed class PathFollower
 
     /// <summary>The options in use.</summary>
     public FollowerOptions Options => _opt;
+
+    // Swaps the tuning of a placed follower in place; its path, position and velocity stay. The two sizes that fixed buffers were
+    // allocated for cannot change.
+    internal void ReplaceOptions(FollowerOptions options)
+    {
+        options.Validate();
+        if (options.CorridorCapacity != _opt.CorridorCapacity || options.MaxCorners != _opt.MaxCorners)
+        {
+            throw new ArgumentException("A live agent's path settings cannot change CorridorCapacity or MaxCorners; remove the agent and add it again.", nameof(options));
+        }
+        _opt = options;
+    }
 
     /// <summary>The corridor (raw access for tier-3 use and for drawing).</summary>
     public PathCorridor Corridor => _corr;
