@@ -9,7 +9,7 @@ namespace RecursiveAI.OnePath.Micro;
 /// per goal, and the repair of a field after one cell edit against recomputing it. Each invocation uses the first 20 scenario goals.
 /// </summary>
 [MemoryDiagnoser]
-public sealed class FlowFieldBenchmarks
+public class FlowFieldBenchmarks
 {
     private readonly GridAStarBenchmarks _inputs = new();
     private Grid _grid = null!;

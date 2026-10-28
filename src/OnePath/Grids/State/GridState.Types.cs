@@ -107,6 +107,7 @@ public sealed partial class Grid
                 _clearanceVersion = Version;
             }
             _jpsPlus = null;
+            DropOctileCaches();
             _blockMap?.Dispose();
             _blockMap = null;
             foreach (HpaHierarchy h in _hpa)

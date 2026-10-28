@@ -12,7 +12,7 @@ namespace RecursiveAI.OnePath.GridOptima;
 
 /// <summary>
 /// Checks path costs (A*, JPS, JPS+, a flow field or HPA*) against the published optimal lengths of Moving AI Lab scenario sets.
-/// Usage: <c>GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--alg astar|jps|jps+|flow|hpa] [--chunk N] [--smooth 0|1]</c> (hpa reports suboptimality instead of mismatches), where DIR holds
+/// Usage: <c>GridOptima --maps DIR --set NAME [--threads N] [--limit N] [--tolerance RELATIVE] [--alg astar|jps|jpsP|jps+|jpsP+|astar-generic|jps-generic|jps+-generic|flow|hpa] [--chunk N] [--smooth 0|1]</c> (hpa reports suboptimality instead of mismatches), where DIR holds
 /// <c>NAME-map.zip</c> and <c>NAME-scen.zip</c> (as downloaded from the benchmark site; never committed) or a folder NAME of loose files.
 /// Prints one summary line: scenarios, mismatches, maximum absolute difference. Exit code 1 if any mismatch.
 /// <c>--replan lpa|dstar</c> instead checks incremental replanning: per map, <c>--per-map</c> scenarios; after each of <c>--rounds</c> random wall toggles
@@ -331,6 +331,14 @@ public static class Program
 
         public void CopyPath(int[] destination) => Path().CopyTo(destination, 0);
 
+        private static Searcher Fast<TEngine>(TEngine engine, Func<int, int, SearchStatus> run)
+            where TEngine : class, IOctileEngine => new()
+            {
+                Run = (s, g) => run(s, g) == SearchStatus.Found,
+                Cost = () => engine.PathCost,
+                Path = () => { int[] p = new int[engine.PathLength()]; engine.CopyPath(p); return p; },
+            };
+
         public static Searcher Create(string alg, Grid grid)
         {
             var buffers = new GridSearchBuffers(grid.CellCount);
@@ -338,6 +346,21 @@ public static class Program
             switch (alg)
             {
                 case "astar":
+                {
+                    var a = new OctileAStar(grid);
+                    return Fast(a, (s, g) => a.Run(s, g, false, int.MaxValue, false));
+                }
+                case "jps" or "jpsP":
+                {
+                    var j = new OctileJump<BitFinder>(new BitFinder(new OctileMap(grid), alg == "jpsP"), grid.Width, grid.Height);
+                    return Fast(j, (s, g) => j.Run(s, g, false, int.MaxValue, false));
+                }
+                case "jps+" or "jpsP+":
+                {
+                    var j = new OctileJump<TableFinder>(new TableFinder(new JpsPlusIndex(grid), new OctileMap(grid), alg == "jpsP+"), grid.Width, grid.Height);
+                    return Fast(j, (s, g) => j.Run(s, g, false, int.MaxValue, false));
+                }
+                case "astar-generic":
                 {
                     var a = new AStar<SquareTopology, DefaultStepCost, OctileHeuristic>(grid.CreateTopology(), default, heuristic, buffers);
                     return new Searcher
@@ -347,7 +370,7 @@ public static class Program
                         Path = () => { int[] p = new int[a.PathLength()]; a.CopyPath(p); return p; },
                     };
                 }
-                case "jps":
+                case "jps-generic":
                 {
                     var j = new JumpSearch<BlockJumper, OctileHeuristic>(new BlockJumper(new BlockMap(grid)), heuristic, 1.0, buffers);
                     return new Searcher
@@ -357,7 +380,7 @@ public static class Program
                         Path = () => { int[] p = new int[j.PathLength()]; j.CopyPath(p); return p; },
                     };
                 }
-                case "jps+":
+                case "jps+-generic":
                 {
                     var index = new JpsPlusIndex(grid);
                     var j = new JumpSearch<TableJumper, OctileHeuristic>(new TableJumper(index), heuristic, 1.0, buffers);
@@ -381,7 +404,7 @@ public static class Program
                     };
                 }
                 default:
-                    throw new ArgumentException($"unknown algorithm '{alg}' (astar, jps, jps+ or flow)");
+                    throw new ArgumentException($"unknown algorithm '{alg}' (astar, jps, jpsP, jps+, jpsP+, the -generic forms, or flow)");
             }
         }
     }
