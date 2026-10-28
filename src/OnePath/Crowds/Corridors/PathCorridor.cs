@@ -41,6 +41,7 @@ public sealed class PathCorridor
 
     private readonly PolyRef[] _path;
     private readonly PolyRef[] _scratch;
+    private readonly StraightPathPoint[] _pullScratch = new StraightPathPoint[64];
     private int _count;
     private Vector3D _position;
     private Vector3D _target;
@@ -484,6 +485,16 @@ public sealed class PathCorridor
         {
             return false;
         }
+        // A route that is cheaper to the search is not always shorter to walk (a polygon-node search charges polygon centres, and
+        // its choice between two ways round an obstacle can change with the agent's place in its polygon, so the corridor flips
+        // back and forth and the agent stands between them). Take the new route only if the string-pulled walk to the same point
+        // gets shorter.
+        double oldLen = PulledLength(query, _path.AsSpan(0, t + 1), endPos);
+        double newLen = PulledLength(query, found[..n], endPos);
+        if (!(newLen < oldLen * (1 - 1e-4)))
+        {
+            return false;
+        }
         // Splice found ++ corridor[t+1..] with loops cut (first occurrence kept); built in place after shifting the tail.
         // The result is at most n + tail long, which can exceed the capacity only if the found route is longer than the window.
         int total = n + tail;
@@ -501,6 +512,21 @@ public sealed class PathCorridor
         found[..n].CopyTo(_path);
         _count = CutLoops(_path, total);
         return true;
+    }
+
+    // Length of the shortest way from the agent's position to `end` through `polys` (infinity when it cannot be pulled).
+    private double PulledLength(NavMeshQuery query, ReadOnlySpan<PolyRef> polys, Vector3D end)
+    {
+        if (query.FindStraightPath(_position, end, polys, _pullScratch, out int n, out bool truncated) != QueryStatus.Success || truncated || n < 1)
+        {
+            return double.PositiveInfinity;
+        }
+        double sum = 0;
+        for (int i = 1; i < n; i++)
+        {
+            sum += Vector3D.Distance(_pullScratch[i - 1].Position, _pullScratch[i].Position);
+        }
+        return sum;
     }
 
     // Removes loops in place: a polygon met again cuts everything between its two occurrences (the first stays).

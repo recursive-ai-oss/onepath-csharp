@@ -284,6 +284,15 @@ public sealed class PathFollower
                 return false;
             }
         }
+        // A search that ran out of budget leaves a corridor that ends at the polygon closest to the goal so far, which is a guess: in
+        // a field of obstacles it often leads into a pocket, and the walk out of it is the extra length. Wait for the search to finish
+        // (the budget doubles every round, so a few steps) rather than walk the guess.
+        if (_rounds > 0 && _corr.NeedsReplan && !_corr.IsComplete)
+        {
+            _velocity = default;
+            ResetProgress();
+            return false;
+        }
         // 3. Shortcuts, on their step schedule.
         if (!FindCorners(query, filter))
         {
@@ -297,7 +306,7 @@ public sealed class PathFollower
         }
         if (_opt.TopologyInterval > 0 && _steps % _opt.TopologyInterval == 0)
         {
-            optimized |= _corr.OptimizeTopology(query, filter, _opt.TopologyBudget);
+            optimized |= _corr.OptimizeTopology(TopologyQuery(query), filter, _opt.TopologyBudget);
         }
         if (optimized && !FindCorners(query, filter))
         {
@@ -421,6 +430,7 @@ public sealed class PathFollower
         {
             return false;
         }
+        AimPastCorner(ci, ref dx, ref dz, ref dist);
         wantedX = dx / dist * wanted;
         wantedZ = dz / dist * wanted;
         _crowdCorner = ci;
@@ -550,6 +560,58 @@ public sealed class PathFollower
         return false;
     }
 
+    // Searches that improve a corridor judge routes by the walk they give; a polygon-node query judges by polygon centres and can
+    // return a way round an obstacle that is up to a half longer. They run on a small crossing-node query of their own.
+    internal NavMeshQuery? LocalQuery;
+
+    private NavMeshQuery TopologyQuery(NavMeshQuery query)
+    {
+        if (query.NodeModel == PathNodeModel.Crossing)
+        {
+            return query;
+        }
+        if (LocalQuery is null || !ReferenceEquals(LocalQuery.Mesh, query.Mesh))
+        {
+            // A crossing-node search creates a few nodes per expansion.
+            LocalQuery = new NavMeshQuery(query.Mesh, Math.Clamp(8 * Math.Max(_opt.RefineBudget, _opt.TopologyBudget), 1024, 1 << 20), PathNodeModel.Crossing);
+        }
+        return LocalQuery;
+    }
+
+        private const int RefineWindow = 64;
+
+    // Aims past an intermediate corner (see FollowerOptions.CornerClearance): the corner is a wall vertex the path bends around, so
+    // the free side is opposite the change of direction (incoming minus outgoing direction). dx, dz, dist: the vector to the corner.
+    private void AimPastCorner(int ci, ref double dx, ref double dz, ref double dist)
+    {
+        double k = _opt.CornerClearance;
+        if (!(k > 0) || ci >= _cornerCount - 1 || (_corners[ci].Flags & StraightPathMarks.OffMeshConnection) != 0)
+        {
+            return;
+        }
+        Vector3D c = _corners[ci].Position, n = _corners[ci + 1].Position;
+        double ex = n.X - c.X, ez = n.Z - c.Z;
+        double elen = Math.Sqrt((ex * ex) + (ez * ez));
+        if (!(elen > TinyDistance))
+        {
+            return;
+        }
+        double ox = (dx / dist) - (ex / elen), oz = (dz / dist) - (ez / elen);
+        double olen = Math.Sqrt((ox * ox) + (oz * oz));
+        if (!(olen > 1e-6))
+        {
+            return; // no bend
+        }
+        double ax = dx + (ox / olen * k), az = dz + (oz / olen * k);
+        double alen = Math.Sqrt((ax * ax) + (az * az));
+        if (alen > 0)
+        {
+            dx = ax;
+            dz = az;
+            dist = alen;
+        }
+    }
+
     // How many corridor polygons the leg to a corner can lie in: up to and including the corner's own polygon.
     private int LegLimit(PolyRef cornerPoly)
     {
@@ -668,6 +730,9 @@ public sealed class PathFollower
         switch (s)
         {
             case QueryStatus.InProgress:
+                // The next round starts again from the agent with twice the budget: continuing from the end of the guess would
+                // splice a second search onto the first and the route would no longer be the shortest.
+                _corr.RequestReplan();
                 if (++_rounds >= _opt.MaxReplanRounds)
                 {
                     _state = FollowerState.NoPath;
@@ -683,6 +748,10 @@ public sealed class PathFollower
                 break;
             default:
                 _rounds = 0;
+                if (s == QueryStatus.Success && _opt.RefineBudget > 0 && query.NodeModel == PathNodeModel.Polygon)
+                {
+                    _corr.OptimizeTopology(TopologyQuery(query), filter, _opt.RefineBudget, RefineWindow);
+                }
                 break;
         }
         return s;

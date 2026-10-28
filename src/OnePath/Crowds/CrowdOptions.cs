@@ -93,6 +93,8 @@ public sealed record AgentOptions
             ArrivalRadius = ArrivalRadius,
             // Agents queue at a link: they start the crossing within their body diameter of its entry (a link end is attached to the mesh within a few radii), not within a hair of it.
             OffMeshTriggerRadius = Path is null ? Math.Max(f.OffMeshTriggerRadius, 2 * Radius) : f.OffMeshTriggerRadius,
+            // Avoidance keeps agents WallClearance off walls and corners lie on wall vertices: the agent aims a little outside that.
+            CornerClearance = Path is null ? (2 * WallClearance) + 0.01 : f.CornerClearance,
             StuckWindow = Path is null ? 0 : f.StuckWindow,
             CorridorCapacity = Path is null ? 64 : f.CorridorCapacity,
         };
