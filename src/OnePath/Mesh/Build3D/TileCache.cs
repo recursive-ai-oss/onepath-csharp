@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 
 namespace RecursiveAI.OnePath.Mesh.Build3D;
@@ -12,7 +13,10 @@ namespace RecursiveAI.OnePath.Mesh.Build3D;
 /// them at once. The queue is in a fixed order (first queued, first rebuilt; one operation queues its tiles by tile row, then column), and a tile is always
 /// rebuilt from the obstacles and volumes in force when it is processed, so the mesh after all queued work is done does not depend on how the work was sliced.
 /// The rules are in <c>docs/build3d-runtime.md</c>.
+/// <para>Preview: a tile rebuild costs several times what a comparable native tile cache spends, and the cost is being reduced; the API and the
+/// rebuilt tiles' polygon layout may still change (diagnostic <c>ONEPATH0002</c>).</para>
 /// </summary>
+[Experimental("ONEPATH0002")]
 public sealed class TileCache
 {
     private const uint Magic = 0x4B54_4E4F; // "ONTK" little-endian

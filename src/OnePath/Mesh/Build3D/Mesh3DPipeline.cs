@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using RecursiveAI.OneMath;
 using RegionStage = RecursiveAI.OnePath.Mesh.Build3D.Regions;
 
@@ -129,6 +130,7 @@ public sealed class Mesh3DPipeline
     /// </summary>
     /// <exception cref="ArgumentException">As for <see cref="BuildSoup"/>.</exception>
     /// <exception cref="ArgumentOutOfRangeException">As for <see cref="BuildSoup"/>.</exception>
+    [Experimental("ONEPATH0002")]
     public TileCache BuildSoupCached(ReadOnlySpan<double> vertices, ReadOnlySpan<int> indices)
     {
         var cache = new TileCache(this);
@@ -281,6 +283,7 @@ public sealed class Mesh3DPipeline
     /// <summary>Builds the mesh of a voxel chunk like <see cref="BuildChunk"/> and keeps the per-tile intermediate data in a <see cref="TileCache"/>.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="chunk"/> is null.</exception>
     /// <exception cref="ArgumentException">materialAreas has a length other than 0 or 256.</exception>
+    [Experimental("ONEPATH0002")]
     public TileCache BuildChunkCached(VoxelChunk chunk, ReadOnlySpan<byte> materialAreas = default)
     {
         var cache = new TileCache(this);
@@ -319,6 +322,7 @@ public sealed class Mesh3DPipeline
 
     /// <summary>Builds the mesh of a solid heightfield like <see cref="BuildHeightfield"/> and keeps the per-tile intermediate data in a <see cref="TileCache"/>.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="heightfield"/> is null.</exception>
+    [Experimental("ONEPATH0002")]
     public TileCache BuildHeightfieldCached(SolidHeightfield heightfield)
     {
         var cache = new TileCache(this);
@@ -405,6 +409,7 @@ public sealed class Mesh3DPipeline
     // ---------------------------------------------------------------- one tile
 
     /// <summary>Temporary obstacles baked into every tile this pipeline builds (see <see cref="TileObstacle"/>); applied after erosion with their footprint grown by the agent radius, in list order.</summary>
+    [Experimental("ONEPATH0002")]
     public IList<TileObstacle> Obstacles { get; } = new List<TileObstacle>();
 
     /// <summary>

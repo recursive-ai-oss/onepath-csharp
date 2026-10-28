@@ -3,5 +3,7 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- These projects exercise the preview tile cache on purpose. -->
+    <NoWarn>$(NoWarn);ONEPATH0002</NoWarn>
   </PropertyGroup>
 </Project>
