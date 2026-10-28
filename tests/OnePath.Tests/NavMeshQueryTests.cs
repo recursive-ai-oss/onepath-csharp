@@ -854,12 +854,14 @@ public class NavMeshQueryTests
         {
             Round();
         }
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 20; i++)
+        long allocated = AllocationProbe.SteadyState(() =>
         {
-            Round();
-        }
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            for (int i = 0; i < 20; i++)
+            {
+                Round();
+            }
+        });
+        Assert.Equal(0, allocated);
     }
 
     [Fact]
