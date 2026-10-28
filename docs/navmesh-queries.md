@@ -100,6 +100,14 @@ are dropped) stops the search from finding the end, the result is `Partial`: the
 end position (ties: the earliest expanded). `NodeLimitReached` tells which. An unfinished sliced search finished early returns
 the same kind of corridor with status `InProgress`.
 
+*`Polygon` model, open list emptied:* a polygon's cost is the cost of the best route found to it, not of the best route onward, and when the end is
+unreachable nothing stops the search, so every reachable polygon is priced that way and the route to the nearest one can be far from the shortest
+(on a tiled open floor it came out as two sides of a square, +14% in mean path length). So when the open list empties without reaching the end polygon and
+the nearest expanded node *n* is not the start polygon, one more search runs from the start position (same filter and budget, iterations counted on top)
+with *n*'s polygon as the end polygon and the point of that polygon closest to the original end position as the end position; its corridor is the
+result, and the status stays `Partial`. It runs at most once. If it too ends without reaching its end, the corridor leads to its nearest expanded node as above.
+`Crossing` does not do this: its routes are the least-cost ones already.
+
 **Corridor.** Polygons along the route, start first. If the route left a polygon and came back, the loop is removed (the first
 occurrence is kept), so every polygon appears once. A buffer shorter than the corridor receives its first part and `truncated` is set.
 `Cost` is the route cost before loop removal.

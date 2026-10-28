@@ -62,6 +62,12 @@ snapped to the nearest polygon within a (2, 4, 2) box and pairs with an unsnappe
 `findPath` followed by `findStraightPath`; an incomplete path (goal unreachable) is counted in `path_partial` and
 measured to the closest reachable point. Raycasts go from the first to the second point of each pair.
 
+On the 3D levels about two thirds of the pairs of `overlapping` (and a few percent of `city`, `ramps`, `stairs`) have an unreachable goal, so the
+mean path length mixes whole routes with routes to the closest reachable point; `tools/bench/quality-3d.sh` therefore reports `path_found` and
+`path_partial` of both sides beside the means, with the search in both node models (the reference's midpoint-crossing model is `Crossing`).
+For per-pair comparison, `ONEPATH_DUMP_PATHS=<file>` (ours) and `HARNESS_DUMP_PATHS=<file>` (the Recast driver) write one line per pair:
+index, status, corridor polygons, string-pulled length, both points.
+
 Our side of a crowd row is run untimed in the same process, repeatedly (with a pause after each so the JIT finishes promoting hot methods) until two runs in a row agree within 3%, before the timed run: a native reference is optimized from its first instruction, and a few dozen steps of a small crowd never reach the JIT's promotion thresholds. The row argument `--prewarm 0` turns it off.
 
 The crowd scenarios: **navmesh crowd** — N agents start at the query points and walk to other query points

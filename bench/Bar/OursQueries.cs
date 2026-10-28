@@ -143,6 +143,33 @@ internal static class OursQueries
             return Ms(start);
         }
 
+        // ONEPATH_DUMP_PATHS=<file>: one line per pair (index, status, corridor polygons, straight-path length) for per-pair comparison of two builds.
+        string? dump = Environment.GetEnvironmentVariable("ONEPATH_DUMP_PATHS");
+        if (dump is not null)
+        {
+            using var w = new StreamWriter(dump);
+            foreach (var (a, b) in pairs)
+            {
+                NearestPoly A = snapped[a], B = snapped[b];
+                QueryStatus s = q.FindPath(A.Poly, B.Poly, A.Point, B.Point, in filter, corridor, out int n);
+                double len = 0;
+                if (n > 0)
+                {
+                    Vector3D end = B.Point;
+                    if (s == QueryStatus.Partial)
+                    {
+                        q.ClosestPointOnPoly(corridor[n - 1], B.Point, out end, out _);
+                    }
+                    q.FindStraightPath(A.Point, end, corridor.AsSpan(0, n), straight, out int sc, out _);
+                    for (int i = 1; i < sc; i++)
+                    {
+                        len += Vector3D.Distance(straight[i - 1].Position, straight[i].Position);
+                    }
+                }
+                w.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{a / 2} {s} {n} {len:R} {pts[a].X:R} {pts[a].Y:R} {pts[a].Z:R} {pts[b].X:R} {pts[b].Y:R} {pts[b].Z:R}"));
+            }
+        }
+
         double RayPass()
         {
             hits = 0;

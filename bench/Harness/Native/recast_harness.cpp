@@ -560,6 +560,27 @@ static int cmdQuery(const Args& a) {
     }
     tPath.push_back(nowMs() - t0);
   }
+  // HARNESS_DUMP_PATHS=<file>: one line per pair (index, status, corridor polygons, straight-path length, both points) for per-pair comparison.
+  if (const char* dumpPath = std::getenv("HARNESS_DUMP_PATHS")) {
+    if (FILE* df = std::fopen(dumpPath, "w")) {
+      for (auto& pr : pairs) {
+        const QueryPoint& A = sp[pr.first]; const QueryPoint& B = sp[pr.second];
+        int pc = 0;
+        q->findPath(A.ref, B.ref, A.pos, B.pos, &filter, path.data(), &pc, kMax);
+        double len = 0; int sc = 0;
+        bool part = pc > 0 && path[pc - 1] != B.ref;
+        if (pc > 0) {
+          float endPos[3]; dtVcopy(endPos, B.pos);
+          if (part) q->closestPointOnPoly(path[pc - 1], B.pos, endPos, nullptr);
+          q->findStraightPath(A.pos, endPos, path.data(), pc, straight.data(), sflags.data(), spRefs.data(), &sc, kMax);
+          for (int i = 1; i < sc; ++i) len += dtVdist(&straight[(i - 1) * 3], &straight[i * 3]);
+        }
+        std::fprintf(df, "%d %s %d %.9g %g %g %g %g %g %g\n", pr.first / 2, part ? "Partial" : "Success", pc, len,
+                     pts[3 * pr.first], pts[3 * pr.first + 1], pts[3 * pr.first + 2], pts[3 * pr.second], pts[3 * pr.second + 1], pts[3 * pr.second + 2]);
+      }
+      std::fclose(df);
+    }
+  }
   long hits = 0;
   for (int rep = 0; rep < reps; ++rep) {
     hits = 0;
