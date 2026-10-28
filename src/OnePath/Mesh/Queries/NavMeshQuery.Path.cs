@@ -7,29 +7,44 @@ public sealed partial class NavMeshQuery
 {
     // Search state. A node is a crossing: leaving polygon `from` through exit `exit` into polygon `arrival`, at the
     // crossing position. The start node is the start position in the start polygon; one terminal node stands for the end.
-    private ulong[] _nArrival = [];
-    private ulong[] _nFrom = [];
-    private int[] _nExit = [];
-    private int[] _nParent = [];
-    private double[] _nG = [];
-    private double[] _nX = [];
-    private double[] _nY = [];
-    private double[] _nZ = [];
-    private bool[] _nClosed = [];
-    private int _nodeCount;
+    private struct Node
+    {
+        public ulong Arrival;
+        public double G;
+        public double X;
+        public double Y;
+        public double Z;
+        public double H; // straight distance from the node position to the end position
+        public int Parent;
+        public bool Closed;
+    }
 
-    private int[] _hStamp = [];
-    private ulong[] _hKeyA = [];
-    private int[] _hKeyB = [];
-    private int[] _hNode = [];
+    private struct HashSlot
+    {
+        public ulong KeyA;
+        public int KeyB;
+        public int Node;
+        public int Stamp;
+    }
+
+    private struct HeapEntry
+    {
+        public double F;
+        public int Seq;
+        public int Node;
+    }
+
+    private Node[] _nodes = [];
+    private int _nodeCount;
+    private HashSlot[] _hash = [];
     private int _hMask;
     private int _stamp;
 
-    private double[] _heapF = new double[1024];
-    private int[] _heapSeq = new int[1024];
-    private int[] _heapNode = new int[1024];
+    private HeapEntry[] _heap = new HeapEntry[1024];
     private int _heapCount;
     private int _seq;
+
+    private readonly bool _polygonNodes;
 
     private enum SearchState { None, Active, Done }
 
@@ -50,24 +65,13 @@ public sealed partial class NavMeshQuery
     private void InitPathBuffers()
     {
         int n = _maxNodes + 2;
-        _nArrival = new ulong[n];
-        _nFrom = new ulong[n];
-        _nExit = new int[n];
-        _nParent = new int[n];
-        _nG = new double[n];
-        _nX = new double[n];
-        _nY = new double[n];
-        _nZ = new double[n];
-        _nClosed = new bool[n];
+        _nodes = new Node[n];
         int h = 16;
         while (h < 2 * n)
         {
             h <<= 1;
         }
-        _hStamp = new int[h];
-        _hKeyA = new ulong[h];
-        _hKeyB = new int[h];
-        _hNode = new int[h];
+        _hash = new HashSlot[h];
         _hMask = h - 1;
     }
 
@@ -115,7 +119,7 @@ public sealed partial class NavMeshQuery
         _stamp++;
         if (_stamp == int.MaxValue)
         {
-            Array.Clear(_hStamp);
+            Array.Clear(_hash);
             _stamp = 1;
         }
         _nodeCount = 0;
@@ -125,15 +129,17 @@ public sealed partial class NavMeshQuery
         _endPoly = endPoly;
         _endPos = endPos;
         _terminalNodeIndex = -1;
-        int root = FindOrAdd(0, -1, startPoly.Value, out _);
-        _nParent[root] = -1;
-        _nG[root] = 0.0;
-        _nX[root] = startPos.X;
-        _nY[root] = startPos.Y;
-        _nZ[root] = startPos.Z;
+        int root = _polygonNodes ? FindOrAdd(startPoly.Value, 0, startPoly.Value, out _) : FindOrAdd(0, -1, startPoly.Value, out _);
+        _nodes[root].Parent = -1;
+        _nodes[root].G = 0.0;
+        _nodes[root].X = startPos.X;
+        _nodes[root].Y = startPos.Y;
+        _nodes[root].Z = startPos.Z;
         _best = root;
         _bestH = Vector3D.Distance(startPos, endPos);
-        Push(Heuristic(startPos.X, startPos.Y, startPos.Z, in filter), root);
+        double h0 = EndDistance(startPos.X, startPos.Y, startPos.Z);
+        _nodes[root].H = h0;
+        Push(filter.MinAreaCost * h0, root);
         _state = SearchState.Active;
         return _beginStatus = PathStatus.InProgress;
     }
@@ -170,11 +176,11 @@ public sealed partial class NavMeshQuery
         while (budget > 0 && _heapCount > 0)
         {
             int node = PopMin();
-            if (_nClosed[node])
+            if (_nodes[node].Closed)
             {
                 continue; // stale entry from an earlier, more expensive route
             }
-            _nClosed[node] = true;
+            _nodes[node].Closed = true;
             budget--;
             _iterations++;
             if (node == _terminalNodeIndex)
@@ -215,12 +221,12 @@ public sealed partial class NavMeshQuery
         bool done = _state == SearchState.Done;
         int target = _terminal >= 0 ? _terminal : _best;
         PathStatus status = _terminal >= 0 ? PathStatus.Success : (done ? PathStatus.Partial : PathStatus.InProgress);
-        cost = _nG[target];
+        cost = _nodes[target].G;
         int len = 0;
         int cur = target;
         if (cur == _terminalNodeIndex)
         {
-            cur = _nParent[cur];
+            cur = _nodes[cur].Parent;
         }
         while (cur >= 0)
         {
@@ -229,13 +235,13 @@ public sealed partial class NavMeshQuery
                 Array.Resize(ref _chain, len * 2);
             }
             _chain[len++] = cur;
-            cur = _nParent[cur];
+            cur = _nodes[cur].Parent;
         }
         int w = 0;
         // Chain is leaf to root; walk root to leaf, removing loops (a polygon met twice cuts everything between).
         for (int i = len - 1; i >= 0; i--)
         {
-            ulong poly = _nArrival[_chain[i]];
+            ulong poly = _nodes[_chain[i]].Arrival;
             // Search the output so far (stored in _outTmp) for this polygon.
             int seen = FindInTmp(poly, w);
             if (seen >= 0)
@@ -291,9 +297,9 @@ public sealed partial class NavMeshQuery
         var list = new System.Collections.Generic.List<PolyRef>();
         for (int i = 0; i < _nodeCount; i++)
         {
-            if (_nClosed[i])
+            if (_nodes[i].Closed)
             {
-                list.Add(new PolyRef(_nArrival[i]));
+                list.Add(new PolyRef(_nodes[i].Arrival));
             }
         }
         return list.ToArray();
@@ -326,23 +332,42 @@ public sealed partial class NavMeshQuery
         return x ^ (x >> 33);
     }
 
-    private double Heuristic<TFilter>(double x, double y, double z, in TFilter filter)
-        where TFilter : struct, IQueryFilter
+    private double EndDistance(double x, double y, double z)
     {
         double dx = x - _endPos.X, dy = y - _endPos.Y, dz = z - _endPos.Z;
-        return filter.MinAreaCost * Math.Sqrt((dx * dx) + (dy * dy) + (dz * dz));
+        return Math.Sqrt((dx * dx) + (dy * dy) + (dz * dz));
+    }
+
+    // False when the node a move would reach already costs no more than the cost before the move (a leg never costs less than
+    // zero), so the move cannot improve it and its position, leg and heuristic need not be computed.
+    private bool MayImprove(ulong from, int exit, ulong arrival, double g)
+    {
+        HashSlot[] hash = _hash;
+        ulong key = _polygonNodes ? arrival : from;
+        int ex = _polygonNodes ? 0 : exit;
+        int h = (int)(Mix(key ^ ((ulong)(uint)ex * 0x9E3779B97F4A7C15UL)) & (ulong)_hMask);
+        while (hash[h].Stamp == _stamp)
+        {
+            if (hash[h].KeyA == key && hash[h].KeyB == ex)
+            {
+                return g < _nodes[hash[h].Node].G;
+            }
+            h = (h + 1) & _hMask;
+        }
+        return true;
     }
 
     // Finds the node for (from, exit) or creates it; returns -1 when the node limit stops creation.
     private int FindOrAdd(ulong from, int exit, ulong arrival, out bool created)
     {
+        HashSlot[] hash = _hash;
         int h = (int)(Mix(from ^ ((ulong)(uint)exit * 0x9E3779B97F4A7C15UL)) & (ulong)_hMask);
-        while (_hStamp[h] == _stamp)
+        while (hash[h].Stamp == _stamp)
         {
-            if (_hKeyA[h] == from && _hKeyB[h] == exit)
+            if (hash[h].KeyA == from && hash[h].KeyB == exit)
             {
                 created = false;
-                return _hNode[h];
+                return hash[h].Node;
             }
             h = (h + 1) & _hMask;
         }
@@ -353,16 +378,8 @@ public sealed partial class NavMeshQuery
             return -1;
         }
         int n = _nodeCount++;
-        _hStamp[h] = _stamp;
-        _hKeyA[h] = from;
-        _hKeyB[h] = exit;
-        _hNode[h] = n;
-        _nArrival[n] = arrival;
-        _nFrom[n] = from;
-        _nExit[n] = exit;
-        _nG[n] = double.PositiveInfinity;
-        _nParent[n] = -1;
-        _nClosed[n] = false;
+        hash[h] = new HashSlot { Stamp = _stamp, KeyA = from, KeyB = exit, Node = n };
+        _nodes[n] = new Node { Arrival = arrival, G = double.PositiveInfinity, Parent = -1 };
         return n;
     }
 
@@ -370,34 +387,53 @@ public sealed partial class NavMeshQuery
     private void Relax<TFilter>(int parent, ulong from, int exit, ulong arrival, double g, double x, double y, double z, in TFilter filter)
         where TFilter : struct, IQueryFilter
     {
-        int n = FindOrAdd(from, exit, arrival, out bool created);
-        if (n < 0 || _nClosed[n] || !(g < _nG[n]))
+        bool created;
+        int n;
+        if (_polygonNodes)
         {
-            return;
+            // One node per polygon, positioned where the best route found so far enters it. A closed node whose route
+            // improves is reopened: entry-point costs are not consistent, so a later route can be cheaper.
+            n = FindOrAdd(arrival, 0, arrival, out created);
+            if (n < 0 || !(g < _nodes[n].G))
+            {
+                return;
+            }
+            _nodes[n].Closed = false;
+            created = true;
         }
-        _nG[n] = g;
-        _nParent[n] = parent;
+        else
+        {
+            n = FindOrAdd(from, exit, arrival, out created);
+            if (n < 0 || _nodes[n].Closed || !(g < _nodes[n].G))
+            {
+                return;
+            }
+        }
+        _nodes[n].G = g;
+        _nodes[n].Parent = parent;
         if (created)
         {
-            _nX[n] = x;
-            _nY[n] = y;
-            _nZ[n] = z;
+            _nodes[n].X = x;
+            _nodes[n].Y = y;
+            _nodes[n].Z = z;
         }
-        Push(g + Heuristic(x, y, z, in filter), n);
+        double h = EndDistance(x, y, z);
+        _nodes[n].H = h;
+        Push(g + (filter.MinAreaCost * h), n);
     }
 
     private void Expand<TFilter>(int node, in TFilter filter)
         where TFilter : struct, IQueryFilter
     {
-        var poly = new PolyRef(_nArrival[node]);
+        var poly = new PolyRef(_nodes[node].Arrival);
         if (!_mesh.TryGetPoly(poly, out NavTile t, out int pi))
         {
             return;
         }
-        double cx = _nX[node], cy = _nY[node], cz = _nZ[node];
-        double g = _nG[node];
+        double cx = _nodes[node].X, cy = _nodes[node].Y, cz = _nodes[node].Z;
+        double g = _nodes[node].G;
         double cost = filter.AreaCost(t.PolyAreas[pi]);
-        double hHere = Math.Sqrt(((cx - _endPos.X) * (cx - _endPos.X)) + ((cy - _endPos.Y) * (cy - _endPos.Y)) + ((cz - _endPos.Z) * (cz - _endPos.Z)));
+        double hHere = _nodes[node].H;
         if (hHere < _bestH)
         {
             _bestH = hHere;
@@ -411,20 +447,25 @@ public sealed partial class NavMeshQuery
             {
                 _terminalNodeIndex = term;
                 double tg = g + (hHere * cost);
-                if (!_nClosed[term] && tg < _nG[term])
+                if (!_nodes[term].Closed && tg < _nodes[term].G)
                 {
-                    _nG[term] = tg;
-                    _nParent[term] = node;
+                    _nodes[term].G = tg;
+                    _nodes[term].Parent = node;
                     if (created)
                     {
-                        _nX[term] = _endPos.X;
-                        _nY[term] = _endPos.Y;
-                        _nZ[term] = _endPos.Z;
+                        _nodes[term].X = _endPos.X;
+                        _nodes[term].Y = _endPos.Y;
+                        _nodes[term].Z = _endPos.Z;
                     }
                     Push(tg, term);
                 }
             }
         }
+        // Polygon nodes only: stepping straight back into the polygon this node was reached from is never cheaper than the
+        // parent's own entry, so the move is not generated. (Crossing nodes keep it: it creates distinct nodes whose ties
+        // are part of that model's specified order.)
+        int parentNode = _nodes[node].Parent;
+        ulong back = _polygonNodes && parentNode >= 0 && parentNode != _terminalNodeIndex ? _nodes[parentNode].Arrival : 0UL;
         ReadOnlySpan<float> v = t.Vertices;
         ReadOnlySpan<ushort> idx = t.PolyIndices;
         int n = t.PolyVertexCounts[pi];
@@ -437,22 +478,45 @@ public sealed partial class NavMeshQuery
                 continue;
             }
             int q = nb - 1;
-            if (!filter.Passes(t.PolyFlags[q], t.PolyAreas[q]))
+            ulong target = new PolyRef(poly.Salt, poly.TileSlot, q).Value;
+            if (target == back || !filter.Passes(t.PolyFlags[q], t.PolyAreas[q]) || (_polygonNodes && !MayImprove(poly.Value, e, target, g)))
             {
                 continue;
             }
             int a = 3 * idx[b + e], c = 3 * idx[b + ((e + 1) % n)];
-            double mx = t.OriginX + (((double)v[a] + v[c]) * 0.5);
-            double my = t.OriginY + (((double)v[a + 1] + v[c + 1]) * 0.5);
-            double mz = t.OriginZ + (((double)v[a + 2] + v[c + 2]) * 0.5);
+            double mx, my, mz;
+            if (_polygonNodes)
+            {
+                // Enter through the point of the edge that the straight line from here to the goal crosses (clamped to the
+                // edge): any point on the edge gives a real route, and this one follows the string-pulled path closely.
+                double ax = t.OriginX + v[a], az = t.OriginZ + v[a + 2];
+                double dx = ((double)v[c] - v[a]), dz = ((double)v[c + 2] - v[a + 2]);
+                double wx = _endPos.X - cx, wz = _endPos.Z - cz;
+                double den = (dx * wz) - (dz * wx);
+                double s = 0.5;
+                if (den != 0)
+                {
+                    s = (((cx - ax) * wz) - ((cz - az) * wx)) / den;
+                    s = s < 0 ? 0 : (s > 1 ? 1 : s);
+                }
+                mx = ax + (dx * s);
+                my = t.OriginY + v[a + 1] + (((double)v[c + 1] - v[a + 1]) * s);
+                mz = az + (dz * s);
+            }
+            else
+            {
+                mx = t.OriginX + (((double)v[a] + v[c]) * 0.5);
+                my = t.OriginY + (((double)v[a + 1] + v[c + 1]) * 0.5);
+                mz = t.OriginZ + (((double)v[a + 2] + v[c + 2]) * 0.5);
+            }
             double leg = Dist(cx, cy, cz, mx, my, mz) * cost;
-            Relax(node, poly.Value, e, new PolyRef(poly.Salt, poly.TileSlot, q).Value, g + leg, mx, my, mz, in filter);
+            Relax(node, poly.Value, e, target, g + leg, mx, my, mz, in filter);
         }
-        ReadOnlySpan<NavLink> links = _mesh.GetLinks(poly);
+        ReadOnlySpan<NavLink> links = _mesh.LinksOfResolved(poly.TileSlot, pi);
         for (int j = 0; j < links.Length; j++)
         {
             NavLink l = links[j];
-            if (!_mesh.TryGetPoly(l.Target, out NavTile qt, out int qi) || !filter.Passes(qt.PolyFlags[qi], qt.PolyAreas[qi]))
+            if (l.Target.Value == back || !_mesh.TryGetPoly(l.Target, out NavTile qt, out int qi) || !filter.Passes(qt.PolyFlags[qi], qt.PolyAreas[qi]))
             {
                 continue;
             }
@@ -461,6 +525,19 @@ public sealed partial class NavMeshQuery
             {
                 int a = 3 * idx[b + l.Index], c = 3 * idx[b + ((l.Index + 1) % n)];
                 double s = ((l.RangeMin + l.RangeMax) * 0.5) / 255.0;
+                if (_polygonNodes)
+                {
+                    double ax = t.OriginX + v[a], az = t.OriginZ + v[a + 2];
+                    double dx = ((double)v[c] - v[a]), dz = ((double)v[c + 2] - v[a + 2]);
+                    double wx = _endPos.X - cx, wz = _endPos.Z - cz;
+                    double den = (dx * wz) - (dz * wx);
+                    if (den != 0)
+                    {
+                        double lo = l.RangeMin / 255.0, hi = l.RangeMax / 255.0;
+                        s = (((cx - ax) * wz) - ((cz - az) * wx)) / den;
+                        s = s < lo ? lo : (s > hi ? hi : s);
+                    }
+                }
                 double mx = t.OriginX + v[a] + ((v[c] - (double)v[a]) * s);
                 double my = t.OriginY + v[a + 1] + ((v[c + 1] - (double)v[a + 1]) * s);
                 double mz = t.OriginZ + v[a + 2] + ((v[c + 2] - (double)v[a + 2]) * s);
@@ -493,40 +570,34 @@ public sealed partial class NavMeshQuery
 
     private void Push(double f, int node)
     {
-        if (_heapCount == _heapF.Length)
+        if (_heapCount == _heap.Length)
         {
-            Array.Resize(ref _heapF, _heapCount * 2);
-            Array.Resize(ref _heapSeq, _heapCount * 2);
-            Array.Resize(ref _heapNode, _heapCount * 2);
+            Array.Resize(ref _heap, _heapCount * 2);
         }
+        HeapEntry[] heap = _heap;
         int i = _heapCount++;
         int seq = _seq++;
         while (i > 0)
         {
             int parent = (i - 1) >> 1;
-            if (_heapF[parent] < f || (_heapF[parent] == f && _heapSeq[parent] < seq))
+            if (heap[parent].F < f || (heap[parent].F == f && heap[parent].Seq < seq))
             {
                 break;
             }
-            _heapF[i] = _heapF[parent];
-            _heapSeq[i] = _heapSeq[parent];
-            _heapNode[i] = _heapNode[parent];
+            heap[i] = heap[parent];
             i = parent;
         }
-        _heapF[i] = f;
-        _heapSeq[i] = seq;
-        _heapNode[i] = node;
+        heap[i] = new HeapEntry { F = f, Seq = seq, Node = node };
     }
 
     private int PopMin()
     {
-        int result = _heapNode[0];
+        HeapEntry[] heap = _heap;
+        int result = heap[0].Node;
         int last = --_heapCount;
         if (last > 0)
         {
-            double f = _heapF[last];
-            int seq = _heapSeq[last];
-            int node = _heapNode[last];
+            HeapEntry x = heap[last];
             int i = 0;
             while (true)
             {
@@ -536,22 +607,18 @@ public sealed partial class NavMeshQuery
                     break;
                 }
                 int r = c + 1;
-                if (r < last && (_heapF[r] < _heapF[c] || (_heapF[r] == _heapF[c] && _heapSeq[r] < _heapSeq[c])))
+                if (r < last && (heap[r].F < heap[c].F || (heap[r].F == heap[c].F && heap[r].Seq < heap[c].Seq)))
                 {
                     c = r;
                 }
-                if (f < _heapF[c] || (f == _heapF[c] && seq < _heapSeq[c]))
+                if (x.F < heap[c].F || (x.F == heap[c].F && x.Seq < heap[c].Seq))
                 {
                     break;
                 }
-                _heapF[i] = _heapF[c];
-                _heapSeq[i] = _heapSeq[c];
-                _heapNode[i] = _heapNode[c];
+                heap[i] = heap[c];
                 i = c;
             }
-            _heapF[i] = f;
-            _heapSeq[i] = seq;
-            _heapNode[i] = node;
+            heap[i] = x;
         }
         return result;
     }

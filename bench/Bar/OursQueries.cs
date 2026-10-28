@@ -86,7 +86,10 @@ internal static class OursQueries
             meshSource = "format test generator (8x8 tiles); points scaled onto it";
         }
 
-        var q = new NavMeshQuery(mesh);
+        // Search node model: --node-model in the row, else the ONEPATH_NODE_MODEL environment variable (polygon or crossing), else the query default.
+        string? model = OursBuild.Arg(t, "--node-model") ?? Environment.GetEnvironmentVariable("ONEPATH_NODE_MODEL");
+        NavMeshQuery q = string.Equals(model, "polygon", StringComparison.OrdinalIgnoreCase) ? new NavMeshQuery(mesh, 65536, PathNodeModel.Polygon)
+            : string.Equals(model, "crossing", StringComparison.OrdinalIgnoreCase) ? new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing) : new NavMeshQuery(mesh);
         var filter = new PlainFilterStruct();
         var ext = new Vector3D(2, 4, 2);
         var snapped = new NearestPoly[pts.Count];
@@ -182,6 +185,7 @@ internal static class OursQueries
             R("nearest_per_sec", pts.Count / (tNear.Min() / 1000.0), "1/s"),
             R("peak_rss", Process.GetCurrentProcess().PeakWorkingSet64 / (1024.0 * 1024.0), "MB"),
             new Row(row.Part, id, side, "mesh_source", meshSource, "text"),
+            new Row(row.Part, id, side, "path_node_model", q.NodeModel.ToString(), "text"),
         };
     }
 
