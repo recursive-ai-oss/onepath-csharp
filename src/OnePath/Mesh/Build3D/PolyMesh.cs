@@ -102,13 +102,11 @@ public static class Polygonizer
             {
                 continue;
             }
-            ContourVertex[] v = c.Vertices;
+            ContourVertex[] v = DropStraightWallVertices(c.Vertices);
             if (v.Length < 3)
             {
                 continue;
             }
-            tris.Clear();
-            degenerate += EarClip(v, tris);
             // Weld by position: bridge duplicates collapse, and neighbouring regions share vertices on their common boundary. Corners at the same
             // (x, z) whose floor rows differ by at most one are one vertex (a contour that touches itself at a corner would otherwise give a polygon
             // two vertices at one place); the first vertex created there wins.
@@ -150,6 +148,8 @@ public static class Polygonizer
                     walls.Add((global[i], global[j]));
                 }
             }
+            tris.Clear();
+            degenerate += EarClip(v, tris);
             var polys = new List<int[]>();
             for (int t = 0; t < tris.Count; t += 3)
             {
@@ -170,6 +170,69 @@ public static class Polygonizer
             }
         }
         return new PolyMesh(contours.Frame, maxVertsPerPoly, verts.ToArray(), counts.ToArray(), indices.ToArray(), areas.ToArray(), regions.ToArray(), degenerate);
+    }
+
+    // A vertex in the middle of a straight wall (both edges walls, exactly collinear, same direction) is dropped before ear clipping. Such vertices are
+    // left by the edge-length split of simplification; a polygon spends one of its vertex slots on each, so keeping them raises the polygon count for
+    // nothing: the wall they sit on is the same line either way. Portals, bridge ends and corners are never touched. A loop that would fall below
+    // three vertices is returned as it was.
+    private static ContourVertex[] DropStraightWallVertices(ContourVertex[] v)
+    {
+        int n = v.Length;
+        var keep = new bool[n];
+        Array.Fill(keep, true);
+        int kept = n;
+        bool changed = true;
+        while (changed && kept > 3)
+        {
+            changed = false;
+            for (int i = 0; i < n && kept > 3; i++)
+            {
+                if (!keep[i])
+                {
+                    continue;
+                }
+                int pi = (i + n - 1) % n;
+                while (!keep[pi])
+                {
+                    pi = (pi + n - 1) % n;
+                }
+                int ni = (i + 1) % n;
+                while (!keep[ni])
+                {
+                    ni = (ni + 1) % n;
+                }
+                if (v[pi].Neighbor != 0 || v[i].Neighbor != 0)
+                {
+                    continue;
+                }
+                long cr = ((long)(v[i].X - v[pi].X) * (v[ni].Z - v[pi].Z)) - ((long)(v[i].Z - v[pi].Z) * (v[ni].X - v[pi].X));
+                long dot = ((long)(v[i].X - v[pi].X) * (v[ni].X - v[i].X)) + ((long)(v[i].Z - v[pi].Z) * (v[ni].Z - v[i].Z));
+                long span = ((long)(v[ni].X - v[pi].X) * (v[ni].X - v[pi].X)) + ((long)(v[ni].Z - v[pi].Z) * (v[ni].Z - v[pi].Z));
+                // The floor row must stay within one row of the straight line between the neighbours, so slopes along a wall keep their height.
+                long dy = Math.Abs(((long)(v[i].Y - v[pi].Y) * span) - ((long)(v[ni].Y - v[pi].Y) * (dot + ((long)(v[i].X - v[pi].X) * (v[i].X - v[pi].X)) + ((long)(v[i].Z - v[pi].Z) * (v[i].Z - v[pi].Z)))));
+                if (cr == 0 && dot > 0 && dy <= span)
+                {
+                    keep[i] = false;
+                    kept--;
+                    changed = true;
+                }
+            }
+        }
+        if (kept == n)
+        {
+            return v;
+        }
+        var r = new ContourVertex[kept];
+        int k = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (keep[i])
+            {
+                r[k++] = v[i];
+            }
+        }
+        return r;
     }
 
     // Twice the signed area of (a, b, c) with x right, z up; exact in long for coordinates below 2^20.
