@@ -99,11 +99,20 @@ admissible and consistent for the default cost model; hooks that lower costs, or
 the same expansion order, path and cost as one unsliced run. The tier-1 `GridOptions.IterationBudget` ends the query with
 `PathStatus.BudgetExhausted` after that many iterations.
 
+**Cancellation and async (tier 1).** Every one-line `FindPath` (square, hex, voxel) takes an optional `CancellationToken`. A token that
+can be cancelled makes the engine run in slices of 256 iterations and check the token before each one; cancelling throws
+`OperationCanceledException`, leaves the grid untouched and the next query exact. Slicing never changes a result (see above),
+so a token that is never cancelled returns the same path, cost and counts as no token, and `IterationBudget` counts the same
+iterations. `Grid.FindPathAsync` (cells or world points) runs the same synchronous search on the thread pool and returns what
+`FindPath` returns; the grid must not be edited until the task completes, and cancellation, like any error, comes through the task.
+
 ## API tiers
 
 1. **Happy path.** `Grid.From(bool[,])` (or spans, `Grid.FromText(picture)` with `.` open, `#` wall and `1`-`9` areas, or `MovingAiMap.ToGrid()`; `HexGrid.FromText` likewise), `grid.FindPath(a, b[, GridOptions])` with
    cells or world points; `GridOptions` (connectivity, diagonal rule, agent size, heuristic, weight, `StepCost` and `Blocked`
    delegates, expansion recording, iteration budget) with presets `Default`, `FourConnected`, `NoSqueezing`, `ForAgentSize(n)`.
+   `GridOptions`, `VoxelOptions` and `PathOptions` are immutable once built: set properties in an object initializer, and a shared
+   preset such as `GridOptions.Default` cannot be changed under another caller.
    Start or goal outside the grid, blocked or too narrow for the agent give `StartInvalid`/`GoalInvalid`, not exceptions. The
    delegates are adapted onto the struct-generic core; nothing here needs a struct callback.
 2. **Middle.** `grid.CreateTopology(agentSize, connectivity, diagonals)` gives a `SquareTopology` (hex: `HexGrid.CreateTopology()`);

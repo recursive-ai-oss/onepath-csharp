@@ -53,11 +53,11 @@ internal static class NavMeshQueryScenarios
         var r = new NavMeshWorlds.Rng(2);
         for (int i = 0; i < 120; i++)
         {
-            var o = new PathOptions { SearchExtents = new Vector3D(2, 5, 2) };
-            if (i % 3 == 1)
+            var o = new PathOptions
             {
-                o.Filter = new QueryFilter { ExcludeFlags = 2 }.SetAreaCost(1, 3).SetAreaCost(9, 2);
-            }
+                SearchExtents = new Vector3D(2, 5, 2),
+                Filter = i % 3 == 1 ? new QueryFilter { ExcludeFlags = 2 }.SetAreaCost(1, 3).SetAreaCost(9, 2) : null,
+            };
             PathResult p = q.FindPath(Spot(r), Spot(r), o);
             ctx.Write((int)p.Detail);
             ctx.Write(p.Cost);

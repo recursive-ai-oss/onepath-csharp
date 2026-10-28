@@ -93,12 +93,22 @@ public sealed partial class Grid
         }
     }
 
-    private GridPath FindPathFastAStar(int a, int b, GridOptions o, double unitCost, Func<Cell, WorldPoint>? centre)
+    private GridPath FindPathFastAStar(int a, int b, GridOptions o, double unitCost, Func<Cell, WorldPoint>? centre, CancellationToken token)
     {
         OctileAStar engine = Interlocked.Exchange(ref _fastAStar, null) ?? new OctileAStar(this);
         try
         {
-            SearchStatus status = engine.Run(a, b, o.Heuristic == GridHeuristic.Zero, o.IterationBudget, o.RecordExpansions);
+            SearchStatus status;
+            if (token.CanBeCanceled)
+            {
+                engine.Begin(a, b, o.Heuristic == GridHeuristic.Zero);
+                bool record = o.RecordExpansions;
+                status = SearchDrive.Run(o.IterationBudget, n => engine.Step(n, record), token);
+            }
+            else
+            {
+                status = engine.Run(a, b, o.Heuristic == GridHeuristic.Zero, o.IterationBudget, o.RecordExpansions);
+            }
             return BuildFastPath(engine, status, unitCost, o, centre, GridAlgorithm.AStar, false);
         }
         finally
@@ -107,7 +117,7 @@ public sealed partial class Grid
         }
     }
 
-    private GridPath FindPathFastJump(int a, int b, GridOptions o, double unitCost, Func<Cell, WorldPoint>? centre, bool plus)
+    private GridPath FindPathFastJump(int a, int b, GridOptions o, double unitCost, Func<Cell, WorldPoint>? centre, bool plus, CancellationToken token)
     {
         bool zero = o.Heuristic == GridHeuristic.Zero;
         if (plus)
@@ -132,7 +142,16 @@ public sealed partial class Grid
             }
             try
             {
-                SearchStatus status = engine.Run(a, b, zero, o.IterationBudget, o.RecordExpansions);
+                SearchStatus status;
+                if (token.CanBeCanceled)
+                {
+                    engine.Begin(a, b, zero);
+                    status = SearchDrive.Run(o.IterationBudget, n => engine.Step(n, o.RecordExpansions), token);
+                }
+                else
+                {
+                    status = engine.Run(a, b, zero, o.IterationBudget, o.RecordExpansions);
+                }
                 return BuildFastPath(engine, status, unitCost, o, centre, GridAlgorithm.JpsPlus, true);
             }
             finally
@@ -145,7 +164,16 @@ public sealed partial class Grid
             OctileJump<BitFinder> engine = Interlocked.Exchange(ref _fastBit, null) ?? new OctileJump<BitFinder>(new BitFinder(GetOctileMap(), false), Width, Height);
             try
             {
-                SearchStatus status = engine.Run(a, b, zero, o.IterationBudget, o.RecordExpansions);
+                SearchStatus status;
+                if (token.CanBeCanceled)
+                {
+                    engine.Begin(a, b, zero);
+                    status = SearchDrive.Run(o.IterationBudget, n => engine.Step(n, o.RecordExpansions), token);
+                }
+                else
+                {
+                    status = engine.Run(a, b, zero, o.IterationBudget, o.RecordExpansions);
+                }
                 return BuildFastPath(engine, status, unitCost, o, centre, GridAlgorithm.Jps, true);
             }
             finally

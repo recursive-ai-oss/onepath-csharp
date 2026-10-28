@@ -20,12 +20,23 @@ internal static class NavMeshSmoke
         // Queries: the path across the tile boundary is the straight line, a ray along it is not stopped, one past the end is.
         var q = new NavMeshQuery(back);
         PathResult path = q.FindPath(new Vector3D(0.5, 0, 3), new Vector3D(15.5, 0, 3));
+        using var live = new System.Threading.CancellationTokenSource();
+        PathResult withToken = q.FindPath(new Vector3D(0.5, 0, 3), new Vector3D(15.5, 0, 3), null, live.Token);
+        bool tokenSame = withToken.Status == path.Status && withToken.Length == path.Length;
+        try  // a two-polygon route may finish before the first token check, so only the exception type is pinned
+        {
+            q.FindPath(new Vector3D(0.5, 0, 3), new Vector3D(15.5, 0, 3), null, new System.Threading.CancellationToken(true));
+        }
+        catch (OperationCanceledException)
+        {
+            // expected when the search needs more than one slice
+        }
         NearestPoly near = q.FindNearestPoly(new Vector3D(4, 1, 3), new Vector3D(1, 2, 1));
         var visited = new PolyRef[8];
         RaycastResult free = q.Raycast(a.Poly(0), new Vector3D(1, 0, 3), new Vector3D(14, 0, 3), null, visited, out int vc);
         RaycastResult blocked = q.Raycast(a.Poly(0), new Vector3D(1, 0, 3), new Vector3D(14, 0, 5), null, visited, out _);
         bool queries = path.Status == PathStatus.Found && System.Math.Abs(path.Length - 15.0) < 1e-9 && near.Poly == a.Poly(0)
-            && !free.Hit && vc == 2 && blocked.Hit;
+            && !free.Hit && vc == 2 && blocked.Hit && tokenSame;
         return same && linked && queries && NavMeshValidator.Validate(back).Count == 0 && Snapshot(back, a, b);
     }
 

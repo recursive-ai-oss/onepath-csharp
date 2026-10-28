@@ -690,7 +690,7 @@ public class NavMeshQueryTests
             var a = new Vector3D(-12 + r.Int(24) + 0.37, 0.2, -12 + r.Int(24) + 0.61);
             var b = new Vector3D(-12 + r.Int(24) + 0.11, 0.2, -12 + r.Int(24) + 0.83);
             var opt = new PathOptions { SearchExtents = new Vector3D(2, 5, 2) };
-            PathResult sync = q.FindPath(a, b, opt);
+            PathResult sync = q.FindPath(a, b, opt, cancellationToken: TestContext.Current.CancellationToken);
             foreach (int slice in new[] { 1, 5, 64 })
             {
                 PathResult asy = await q.FindPathAsync(a, b, opt, slice, TestContext.Current.CancellationToken);
@@ -723,19 +723,19 @@ public class NavMeshQueryTests
         var q = new NavMeshQuery(m);
         var a = new Vector3D(ox + 1, 0, oz + 1);
         var b = new Vector3D(ox + 5, 0, oz + 1);
-        PathResult ok = q.FindPath(a, b);
+        PathResult ok = q.FindPath(a, b, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.Found, ok.Status);
         Assert.Equal(3, ok.Corridor.Count);
         Assert.Equal(4.0, ok.Length, 9);
         var blocked = new PathOptions { Filter = new QueryFilter { ExcludeFlags = 2 } };
-        PathResult part = q.FindPath(a, b, blocked);
+        PathResult part = q.FindPath(a, b, blocked, cancellationToken: TestContext.Current.CancellationToken);
         // The end polygon is reachable only through the excluded one: the end is "nearby" but the search stops at the first square.
         Assert.Equal(PathStatus.Partial, part.Status);
         Assert.Single(part.Corridor);
         Assert.Equal(tr.Poly(0), part.Corridor[0]);
         // Costly middle area: cost grows, path same corridor (no alternative).
         var costly = new PathOptions { Filter = new QueryFilter().SetAreaCost(1, 10) };
-        PathResult c = q.FindPath(a, b, costly);
+        PathResult c = q.FindPath(a, b, costly, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(c.Cost > ok.Cost * 3);
     }
 
@@ -759,17 +759,17 @@ public class NavMeshQueryTests
         m.AddTile(NavTile.Create(Square(2, false), p));
         var q = new NavMeshQuery(m);
         Vector3D a = new(p.TileOriginX(0) + 1.5, 0, p.TileOriginZ(0) + 1.5), b = new(p.TileOriginX(2) + 2.5, 0, p.TileOriginZ(0) + 2.5);
-        PathResult fwd = q.FindPath(a, b);
+        PathResult fwd = q.FindPath(a, b, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.Found, fwd.Status);
         Assert.Equal(4, fwd.Points.Count);
         Assert.True(fwd.Points[1].Flags.HasFlag(StraightPathMarks.OffMeshConnection));
         Assert.Equal(p.TileOriginX(0) + 2, fwd.Points[1].Position.X);
         Assert.Equal(p.TileOriginX(0) + 18, fwd.Points[2].Position.X);
-        PathResult back = q.FindPath(b, a);
+        PathResult back = q.FindPath(b, a, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.Found, back.Status);
         Assert.True(back.Points[1].Flags.HasFlag(StraightPathMarks.OffMeshConnection));
         // The forbidden area closes the link.
-        PathResult closed = q.FindPath(a, b, new PathOptions { Filter = new QueryFilter().SetAreaCost(9, double.PositiveInfinity) });
+        PathResult closed = q.FindPath(a, b, new PathOptions { Filter = new QueryFilter().SetAreaCost(9, double.PositiveInfinity) }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.Partial, closed.Status);
     }
 
@@ -787,7 +787,7 @@ public class NavMeshQueryTests
         Assert.Throws<ArgumentOutOfRangeException>(() => q.FindNearestPoly(new Vector3D(3e6, 0, 0), new Vector3D(1, 1, 1)));
         Assert.Throws<ArgumentOutOfRangeException>(() => q.FindNearestPoly(good, new Vector3D(-1, 1, 1)));
         Assert.Throws<ArgumentOutOfRangeException>(() => q.FindNearestPoly(good, new Vector3D(double.PositiveInfinity, 1, 1)));
-        Assert.Throws<ArgumentOutOfRangeException>(() => q.FindPath(good, new Vector3D(0, double.NaN, 0)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => q.FindPath(good, new Vector3D(0, double.NaN, 0), cancellationToken: TestContext.Current.CancellationToken));
         Assert.Throws<ArgumentOutOfRangeException>(() => q.BeginPath(polys[0], polys[1], new Vector3D(double.PositiveInfinity, 0, 0), good));
         Assert.Throws<ArgumentOutOfRangeException>(() => q.Raycast(polys[0], good, new Vector3D(0, 0, double.NaN), null, buf, out _));
         Assert.Throws<ArgumentOutOfRangeException>(() => q.FindStraightPath(good, new Vector3D(1e9, 0, 0), polys.GetRange(0, 1).ToArray(), pts, out _, out _));
@@ -816,7 +816,7 @@ public class NavMeshQueryTests
         var tinyPath = new PolyRef[1];
         PolyRef x = polys[^1];
         Assert.True(q.FindPath(x, x, RandomPointIn(m, x, r), RandomPointIn(m, x, r), new AllPass(), tinyPath, out int tc) == QueryStatus.Success && tc == 1);
-        Assert.False(q.FindPath(new Vector3D(1e5, 0, 1e5), good).HasPath);
+        Assert.False(q.FindPath(new Vector3D(1e5, 0, 1e5), good, cancellationToken: TestContext.Current.CancellationToken).HasPath);
     }
 
     [Fact]
@@ -868,7 +868,7 @@ public class NavMeshQueryTests
     public void TierOneFindPathWorksOnTheMesh()
     {
         TiledNavMesh m = NavMeshWorlds.RandomMesh(6, 0, 0, 2, 2, 1, false, 0);
-        PathResult res = m.FindPath(new Vector3D(-15.5, 0.2, -15.5), new Vector3D(-1.5, 0.2, -1.5));
+        PathResult res = m.FindPath(new Vector3D(-15.5, 0.2, -15.5), new Vector3D(-1.5, 0.2, -1.5), cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(res.HasPath);
         Assert.True(res.Points.Count >= 2);
         Assert.True(res.Length > 0);

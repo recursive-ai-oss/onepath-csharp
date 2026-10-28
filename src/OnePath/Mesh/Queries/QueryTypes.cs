@@ -180,20 +180,20 @@ public readonly struct RaycastResult
     public bool Truncated { get; }
 }
 
-/// <summary>Options of the one-call path query (tier 1).</summary>
+/// <summary>Options of the one-call path query (tier 1). Immutable once constructed: set the properties in an object initializer.</summary>
 public sealed class PathOptions
 {
     /// <summary>Which polygons may be used and what they cost; null means everything at cost 1.</summary>
-    public QueryFilter? Filter { get; set; }
+    public QueryFilter? Filter { get; init; }
 
     /// <summary>Half extents of the box around the start and end positions that is searched for the nearest polygon. Default (2, 4, 2).</summary>
-    public Vector3D SearchExtents { get; set; } = new(2, 4, 2);
+    public Vector3D SearchExtents { get; init; } = new(2, 4, 2);
 
     /// <summary>Largest corridor length returned; longer corridors are cut. Default 4096.</summary>
-    public int MaxCorridor { get; set; } = 4096;
+    public int MaxCorridor { get; init; } = 4096;
 
     /// <summary>Largest number of straight-path points. Default 4096.</summary>
-    public int MaxPoints { get; set; } = 4096;
+    public int MaxPoints { get; init; } = 4096;
 }
 
 /// <summary>Result of the one-call path query.</summary>

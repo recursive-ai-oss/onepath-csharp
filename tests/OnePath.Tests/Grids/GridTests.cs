@@ -141,8 +141,8 @@ public class ClearanceAndAreaTests
         {
             g.SetWalkable(3, y, y == 2);
         }
-        Assert.True(g.FindPath(new Cell(0, 2), new Cell(6, 2)).Found);
-        Assert.Equal(PathStatus.NoPath, g.FindPath(new Cell(0, 1), new Cell(5, 1), GridOptions.ForAgentSize(2)).Status);
+        Assert.True(g.FindPath(new Cell(0, 2), new Cell(6, 2), cancellationToken: TestContext.Current.CancellationToken).Found);
+        Assert.Equal(PathStatus.NoPath, g.FindPath(new Cell(0, 1), new Cell(5, 1), GridOptions.ForAgentSize(2), cancellationToken: TestContext.Current.CancellationToken).Status);
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public class ClearanceAndAreaTests
         {
             g.SetArea(x, 1, 1);
         }
-        GridPath p = g.FindPath(new Cell(0, 1), new Cell(4, 1), GridOptions.FourConnected);
+        GridPath p = g.FindPath(new Cell(0, 1), new Cell(4, 1), GridOptions.FourConnected, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(p.Found);
         Assert.Equal(6.0, p.Cost); // up, 4 along row 0, down: 6 unit steps at cost 1
     }
@@ -176,13 +176,13 @@ public class ClearanceAndAreaTests
     public void StepCostAndBlockedDelegates()
     {
         var g = new Grid(5, 1);
-        GridPath plain = g.FindPath(new Cell(0, 0), new Cell(4, 0));
+        GridPath plain = g.FindPath(new Cell(0, 0), new Cell(4, 0), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(4.0, plain.Cost);
-        GridPath doubled = g.FindPath(new Cell(0, 0), new Cell(4, 0), new GridOptions { StepCost = (_, _, c) => c * 2 });
+        GridPath doubled = g.FindPath(new Cell(0, 0), new Cell(4, 0), new GridOptions { StepCost = (_, _, c) => c * 2 }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(8.0, doubled.Cost);
-        GridPath blocked = g.FindPath(new Cell(0, 0), new Cell(4, 0), new GridOptions { Blocked = c => c.X == 2 });
+        GridPath blocked = g.FindPath(new Cell(0, 0), new Cell(4, 0), new GridOptions { Blocked = c => c.X == 2 }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.NoPath, blocked.Status);
-        GridPath badGoal = g.FindPath(new Cell(0, 0), new Cell(4, 0), new GridOptions { Blocked = c => c.X == 4 });
+        GridPath badGoal = g.FindPath(new Cell(0, 0), new Cell(4, 0), new GridOptions { Blocked = c => c.X == 4 }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.GoalInvalid, badGoal.Status);
     }
 
@@ -223,7 +223,7 @@ public class CoordinateAndApiTests
     public void WorldCoordinatesBeyondTheBoundAreRejectedWithTheValueNamed(double bad)
     {
         var g = new Grid(4, 4);
-        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => g.FindPath(new WorldPoint(bad, 0), new WorldPoint(1, 1)));
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => g.FindPath(new WorldPoint(bad, 0), new WorldPoint(1, 1), cancellationToken: TestContext.Current.CancellationToken));
         Assert.Contains("2^21", ex.Message, StringComparison.Ordinal);
         Assert.Contains(double.IsNaN(bad) ? "NaN" : bad.ToString("R", System.Globalization.CultureInfo.InvariantCulture), ex.Message, StringComparison.Ordinal);
         Assert.Throws<ArgumentOutOfRangeException>(() => new GridSpace(bad, 0, 1));
@@ -233,7 +233,7 @@ public class CoordinateAndApiTests
     public void BoundaryValuesAreAccepted()
     {
         var g = new Grid(4, 4) { Space = new GridSpace(-2097152.0, 2097148.0, 1.0) };
-        GridPath p = g.FindPath(new WorldPoint(-2097152.0 + 0.5, 2097148.0 + 0.5), new WorldPoint(-2097152.0 + 3.5, 2097148.0 + 3.5));
+        GridPath p = g.FindPath(new WorldPoint(-2097152.0 + 0.5, 2097148.0 + 0.5), new WorldPoint(-2097152.0 + 3.5, 2097148.0 + 3.5), cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(p.Found);
         Assert.Equal(4, p.Points.Length);
         Assert.Equal(new WorldPoint(-2097152.0 + 0.5, 2097148.0 + 0.5), p.Points[0]);
@@ -258,21 +258,21 @@ public class CoordinateAndApiTests
     public void InvalidCellsAreReportedNotThrown()
     {
         var g = Grid.From(new bool[,] { { true, false }, { true, true } });
-        Assert.Equal(PathStatus.StartInvalid, g.FindPath(new Cell(-1, 0), new Cell(0, 0)).Status);
-        Assert.Equal(PathStatus.GoalInvalid, g.FindPath(new Cell(0, 0), new Cell(1, 0)).Status);
-        Assert.Equal(PathStatus.GoalInvalid, g.FindPath(new Cell(0, 0), new Cell(5, 5)).Status);
+        Assert.Equal(PathStatus.StartInvalid, g.FindPath(new Cell(-1, 0), new Cell(0, 0), cancellationToken: TestContext.Current.CancellationToken).Status);
+        Assert.Equal(PathStatus.GoalInvalid, g.FindPath(new Cell(0, 0), new Cell(1, 0), cancellationToken: TestContext.Current.CancellationToken).Status);
+        Assert.Equal(PathStatus.GoalInvalid, g.FindPath(new Cell(0, 0), new Cell(5, 5), cancellationToken: TestContext.Current.CancellationToken).Status);
         Assert.Throws<ArgumentOutOfRangeException>(() => g.GetArea(2, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => new Grid(0, 3));
         Assert.Throws<ArgumentOutOfRangeException>(() => new Grid(1 << 20, 1 << 20));
         Assert.Throws<ArgumentOutOfRangeException>(() => new GridOptions { AgentSize = 0 });
-        Assert.Throws<ArgumentException>(() => new HexGrid(2, 2).FindPath(new Cell(0, 0), new Cell(1, 1), GridOptions.ForAgentSize(2)));
+        Assert.Throws<ArgumentException>(() => new HexGrid(2, 2).FindPath(new Cell(0, 0), new Cell(1, 1), GridOptions.ForAgentSize(2), cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public void StartEqualsGoalCostsNothing()
     {
         var g = new Grid(3, 3);
-        GridPath p = g.FindPath(new Cell(1, 1), new Cell(1, 1));
+        GridPath p = g.FindPath(new Cell(1, 1), new Cell(1, 1), cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(p.Found);
         Assert.Equal(0.0, p.Cost);
         Assert.Equal([new Cell(1, 1)], p.Cells.ToArray());
@@ -282,10 +282,10 @@ public class CoordinateAndApiTests
     public void ExpansionsAreRecordedAsDebugData()
     {
         var g = new Grid(10, 10);
-        GridPath p = g.FindPath(new Cell(0, 0), new Cell(9, 9), new GridOptions { RecordExpansions = true });
+        GridPath p = g.FindPath(new Cell(0, 0), new Cell(9, 9), new GridOptions { RecordExpansions = true }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(p.ExpandedCount, p.ExpandedCells.Length);
         Assert.Equal(new Cell(0, 0), p.ExpandedCells[0]);
-        GridPath q = g.FindPath(new Cell(0, 0), new Cell(9, 9));
+        GridPath q = g.FindPath(new Cell(0, 0), new Cell(9, 9), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(0, q.ExpandedCells.Length);
     }
 
@@ -294,9 +294,9 @@ public class CoordinateAndApiTests
     {
         // Two diagonal walls: only a squeeze or a cut could connect the corners.
         var g = Grid.From(new bool[,] { { true, false }, { false, true } });
-        Assert.Equal(PathStatus.NoPath, g.FindPath(new Cell(0, 0), new Cell(1, 1)).Status);
-        Assert.Equal(PathStatus.NoPath, g.FindPath(new Cell(0, 0), new Cell(1, 1), GridOptions.NoSqueezing).Status);
-        GridPath all = g.FindPath(new Cell(0, 0), new Cell(1, 1), new GridOptions { Diagonals = DiagonalRule.AllowAll });
+        Assert.Equal(PathStatus.NoPath, g.FindPath(new Cell(0, 0), new Cell(1, 1), cancellationToken: TestContext.Current.CancellationToken).Status);
+        Assert.Equal(PathStatus.NoPath, g.FindPath(new Cell(0, 0), new Cell(1, 1), GridOptions.NoSqueezing, cancellationToken: TestContext.Current.CancellationToken).Status);
+        GridPath all = g.FindPath(new Cell(0, 0), new Cell(1, 1), new GridOptions { Diagonals = DiagonalRule.AllowAll }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(all.Found);
         Assert.Equal(GridMath.Sqrt2, all.Cost);
     }
@@ -343,7 +343,7 @@ public class CoordinateAndApiTests
     public void HexDistanceHeuristicIsExactOnEmptyGrids()
     {
         var g = new HexGrid(9, 9);
-        GridPath p = g.FindPath(new Cell(0, 0), new Cell(8, 8));
+        GridPath p = g.FindPath(new Cell(0, 0), new Cell(8, 8), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(g.ToAxial(new Cell(0, 0)).DistanceTo(g.ToAxial(new Cell(8, 8))), p.Cost);
     }
 }

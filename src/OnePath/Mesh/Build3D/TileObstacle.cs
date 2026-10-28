@@ -66,13 +66,13 @@ public sealed class TileObstacle
         }
     }
 
-    /// <summary>The shape.</summary>
+    /// <summary>Which kind of shape this is; <see cref="Parameters"/> lists its numbers.</summary>
     public ObstacleShape Shape { get; }
 
-    /// <summary>Lowest world y affected.</summary>
+    /// <summary>Lowest world y affected (world units).</summary>
     public double MinY { get; }
 
-    /// <summary>Highest world y affected.</summary>
+    /// <summary>Highest world y affected (world units).</summary>
     public double MaxY { get; }
 
     /// <summary>Smallest x of the shape's bounding box.</summary>
@@ -113,7 +113,7 @@ public sealed class TileObstacle
         return new TileObstacle(ObstacleShape.Cylinder, new[] { x, y, z, radius, height });
     }
 
-    /// <summary>An axis-aligned box.</summary>
+    /// <summary>An axis-aligned box. All values are world units; the corners are inclusive.</summary>
     /// <exception cref="ArgumentException">A value is NaN or infinite, or a minimum is above its maximum.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is beyond ±2^21.</exception>
     public static TileObstacle Box(double minX, double minY, double minZ, double maxX, double maxY, double maxZ)

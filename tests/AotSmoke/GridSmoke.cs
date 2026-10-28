@@ -29,6 +29,19 @@ internal static class GridSmoke
         GridPath blocked = grid.FindPath(new Cell(0, 0), new Cell(0, 4), new GridOptions { Blocked = c => c.X == 4 && c.Y == 1, StepCost = (_, _, cost) => cost * 2 });
         ok &= blocked.Status == PathStatus.NoPath;
 
+        // Cancellation: a live token changes nothing, a cancelled one throws and the grid still answers.
+        using var live = new System.Threading.CancellationTokenSource();
+        ok &= grid.FindPath(new Cell(0, 0), new Cell(0, 4), null, live.Token).Cost == path.Cost;
+        try
+        {
+            grid.FindPath(new Cell(0, 0), new Cell(0, 4), null, new System.Threading.CancellationToken(true));
+            ok = false;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        ok &= grid.FindPath(new Cell(0, 0), new Cell(0, 4)).Cost == path.Cost;
+
         // World-space query.
         grid.Space = new GridSpace(10, 20, 2);
         GridPath world = grid.FindPath(new WorldPoint(11, 21), new WorldPoint(11, 29));

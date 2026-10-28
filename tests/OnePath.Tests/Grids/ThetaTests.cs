@@ -91,11 +91,11 @@ public class ThetaTests
             {
                 Cell a = free[rng.NextInt(free.Count)];
                 Cell b = free[rng.NextInt(free.Count)];
-                GridPath astar = g.FindPath(a, b);
+                GridPath astar = g.FindPath(a, b, cancellationToken: TestContext.Current.CancellationToken);
                 double vis = maxDim <= 12 ? AnyAngleOracle.VisibilityGraphDistance(g, a, b, unit) : double.NaN;
                 foreach (GridAlgorithm alg in Algorithms)
                 {
-                    GridPath p = g.FindPath(a, b, new GridOptions { Algorithm = alg });
+                    GridPath p = g.FindPath(a, b, new GridOptions { Algorithm = alg }, cancellationToken: TestContext.Current.CancellationToken);
                     Assert.Equal(alg, p.Algorithm);
                     Assert.Equal(astar.Status, p.Status);
                     if (!p.Found)
@@ -145,7 +145,7 @@ public class ThetaTests
             }
             Cell a = free[rng.NextInt(free.Count)];
             Cell b = free[rng.NextInt(free.Count)];
-            bool reachable = g.FindPath(a, b).Found;
+            bool reachable = g.FindPath(a, b, cancellationToken: TestContext.Current.CancellationToken).Found;
             foreach (GridAlgorithm alg in Algorithms)
             {
                 foreach (GridOptions o in new[]
@@ -154,7 +154,7 @@ public class ThetaTests
                     new GridOptions { Algorithm = alg, Heuristic = GridHeuristic.Euclidean, HeuristicWeight = 3.0 },
                 })
                 {
-                    GridPath p = g.FindPath(a, b, o);
+                    GridPath p = g.FindPath(a, b, o, cancellationToken: TestContext.Current.CancellationToken);
                     Assert.Equal(alg, p.Algorithm);
                     Assert.Equal(reachable, p.Found);
                     if (p.Found)
@@ -183,7 +183,7 @@ public class ThetaTests
             Cell ca = free[rng.NextInt(free.Count)];
             Cell cb = free[rng.NextInt(free.Count)];
             double vis = AnyAngleOracle.VisibilityGraphDistance(g, ca, cb);
-            double astar = g.FindPath(ca, cb).Cost;
+            double astar = g.FindPath(ca, cb, cancellationToken: TestContext.Current.CancellationToken).Cost;
             foreach (ThetaVariant variant in new[] { ThetaVariant.Theta, ThetaVariant.Lazy, ThetaVariant.LazyRequeue })
             {
                 var s = new ThetaSearch<EuclideanHeuristic>(g, new EuclideanHeuristic(g.Width), variant);
@@ -224,7 +224,7 @@ public class ThetaTests
         var g = new Grid(60, 40);
         foreach (GridAlgorithm alg in Algorithms)
         {
-            GridPath p = g.FindPath(new Cell(2, 3), new Cell(50, 29), new GridOptions { Algorithm = alg });
+            GridPath p = g.FindPath(new Cell(2, 3), new Cell(50, 29), new GridOptions { Algorithm = alg }, cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(p.Found);
             Assert.Equal(2, p.Cells.Length);
             Assert.Equal(Math.Sqrt((48.0 * 48.0) + (26.0 * 26.0)), p.Cost);
@@ -238,11 +238,11 @@ public class ThetaTests
         foreach (GridAlgorithm alg in Algorithms)
         {
             var o = new GridOptions { Algorithm = alg };
-            GridPath same = g.FindPath(new Cell(3, 3), new Cell(3, 3), o);
+            GridPath same = g.FindPath(new Cell(3, 3), new Cell(3, 3), o, cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(same.Found);
             Assert.Single(same.Cells.ToArray());
             Assert.Equal(0.0, same.Cost);
-            GridPath w = g.FindPath(new WorldPoint(101, 201), new WorldPoint(137, 233), o);
+            GridPath w = g.FindPath(new WorldPoint(101, 201), new WorldPoint(137, 233), o, cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(w.Found);
             Assert.Equal(w.Cells.Length, w.Points.Length);
             Assert.Equal(new WorldPoint(102, 202), w.Points[0]);
@@ -268,14 +268,14 @@ public class ThetaTests
             ];
             foreach (GridOptions o in options)
             {
-                GridPath p = g.FindPath(a, b, o);
+                GridPath p = g.FindPath(a, b, o, cancellationToken: TestContext.Current.CancellationToken);
                 Assert.True(p.Found);
                 Assert.Equal(GridAlgorithm.AStar, p.Algorithm);
             }
             var mixed = new Grid(8, 8);
             mixed.Areas[1] = 3.0;
             mixed.SetArea(2, 2, 1);
-            Assert.Equal(GridAlgorithm.AStar, mixed.FindPath(a, b, new GridOptions { Algorithm = alg }).Algorithm);
+            Assert.Equal(GridAlgorithm.AStar, mixed.FindPath(a, b, new GridOptions { Algorithm = alg }, cancellationToken: TestContext.Current.CancellationToken).Algorithm);
         }
     }
 
@@ -323,7 +323,7 @@ public class ThetaTests
         var g = new Grid(100, 100);
         foreach (GridAlgorithm alg in Algorithms)
         {
-            GridPath p = g.FindPath(new Cell(0, 0), new Cell(99, 99), new GridOptions { Algorithm = alg, Heuristic = GridHeuristic.Zero, IterationBudget = 5 });
+            GridPath p = g.FindPath(new Cell(0, 0), new Cell(99, 99), new GridOptions { Algorithm = alg, Heuristic = GridHeuristic.Zero, IterationBudget = 5 }, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(PathStatus.BudgetExhausted, p.Status);
         }
     }

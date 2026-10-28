@@ -102,7 +102,7 @@ public class StateTests
     {
         Grid g = Sample();
         byte[] before = g.SaveState();
-        GridPath hpaBefore = g.FindPath(new Cell(0, 0), new Cell(9, 5), new GridOptions { Algorithm = GridAlgorithm.Hpa, HpaChunkSize = 4 });
+        GridPath hpaBefore = g.FindPath(new Cell(0, 0), new Cell(9, 5), new GridOptions { Algorithm = GridAlgorithm.Hpa, HpaChunkSize = 4 }, cancellationToken: TestContext.Current.CancellationToken);
         var seen = new List<Cell>();
         g.AddListener(new Recorder(seen));
         g.SetArea(4, 4, AreaCosts.Wall);
@@ -113,7 +113,7 @@ public class StateTests
         Assert.Equal([new Cell(4, 4), new Cell(5, 4)], seen);
         Assert.True(g.Version < version);
         Assert.False(g.GetArea(4, 4) == AreaCosts.Wall);
-        GridPath hpaAfter = g.FindPath(new Cell(0, 0), new Cell(9, 5), new GridOptions { Algorithm = GridAlgorithm.Hpa, HpaChunkSize = 4 });
+        GridPath hpaAfter = g.FindPath(new Cell(0, 0), new Cell(9, 5), new GridOptions { Algorithm = GridAlgorithm.Hpa, HpaChunkSize = 4 }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(hpaBefore.Cost, hpaAfter.Cost);
         Assert.True(hpaBefore.Cells.SequenceEqual(hpaAfter.Cells));
     }
@@ -334,9 +334,9 @@ public class StateTests
         }
         grid.SetArea(0, 0, 0);
         grid.SetArea(39, 29, 0);
-        GridPath quiet = grid.FindPath(new Cell(0, 0), new Cell(39, 29), new GridOptions { Algorithm = algorithm, HpaChunkSize = 8 });
+        GridPath quiet = grid.FindPath(new Cell(0, 0), new Cell(39, 29), new GridOptions { Algorithm = algorithm, HpaChunkSize = 8 }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Empty(quiet.ExpandedCells.ToArray()); // opt-in: the happy path records nothing
-        GridPath p = grid.FindPath(grid.CellCenter(new Cell(0, 0)), grid.CellCenter(new Cell(39, 29)), new GridOptions { Algorithm = algorithm, HpaChunkSize = 8, RecordExpansions = true });
+        GridPath p = grid.FindPath(grid.CellCenter(new Cell(0, 0)), grid.CellCenter(new Cell(39, 29)), new GridOptions { Algorithm = algorithm, HpaChunkSize = 8, RecordExpansions = true }, cancellationToken: TestContext.Current.CancellationToken);
         GridPathDebug d = GridDebug.Describe(p);
         Assert.Equal(p.ExpandedCount, d.ExpandedCount);
         Assert.Equal(p.ExpandedCount, d.ExpandedCells.Count);
@@ -370,7 +370,7 @@ public class StateTests
         Assert.Equal(hp.ExpandedCount, GridDebug.Describe(hp).ExpandedCells.Count);
 
         var vox = new VoxelGrid(10, 10, 10);
-        VoxelPath vp = vox.FindPath(new VoxelCell(0, 0, 0), new VoxelCell(9, 9, 9), new VoxelOptions { RecordExpansions = true });
+        VoxelPath vp = vox.FindPath(new VoxelCell(0, 0, 0), new VoxelCell(9, 9, 9), new VoxelOptions { RecordExpansions = true }, cancellationToken: TestContext.Current.CancellationToken);
         VoxelPathDebug vd = GridDebug.Describe(vp);
         Assert.Equal(vp.ExpandedCount, vd.ExpandedCells.Count);
         Assert.Equal(vp.Cells.Length, vd.Cells.Count);

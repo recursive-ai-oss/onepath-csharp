@@ -202,28 +202,28 @@ public class HpaTests
         }
         var a = new Cell(2, 20);
         var b = new Cell(37, 20);
-        GridPath p = g.FindPath(a, b, new GridOptions { Algorithm = GridAlgorithm.Hpa, HpaChunkSize = 8 });
+        GridPath p = g.FindPath(a, b, new GridOptions { Algorithm = GridAlgorithm.Hpa, HpaChunkSize = 8 }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(p.Found);
         Assert.Equal(GridAlgorithm.Hpa, p.Algorithm);
-        double optimal = g.FindPath(a, b).Cost;
+        double optimal = g.FindPath(a, b, cancellationToken: TestContext.Current.CancellationToken).Cost;
         Assert.InRange(p.Cost, optimal - 1e-9, optimal * 1.1);
 
         // An edit goes through the change listener: opening the wall shortens the path next query.
         g.SetWalkable(20, 20, true);
-        GridPath q = g.FindPath(a, b, new GridOptions { Algorithm = GridAlgorithm.Hpa, HpaChunkSize = 8 });
+        GridPath q = g.FindPath(a, b, new GridOptions { Algorithm = GridAlgorithm.Hpa, HpaChunkSize = 8 }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(q.Cost < p.Cost);
         Assert.InRange(q.Cost, 35.0 - 1e-9, 36.0);
 
-        Assert.Equal(GridAlgorithm.AStar, g.FindPath(a, b, new GridOptions { Algorithm = GridAlgorithm.Hpa, StepCost = (_, _, c) => c }).Algorithm);
-        Assert.Equal(GridAlgorithm.AStar, g.FindPath(a, b, new GridOptions { Algorithm = GridAlgorithm.Hpa, Diagonals = DiagonalRule.AllowAll }).Algorithm);
+        Assert.Equal(GridAlgorithm.AStar, g.FindPath(a, b, new GridOptions { Algorithm = GridAlgorithm.Hpa, StepCost = (_, _, c) => c }, cancellationToken: TestContext.Current.CancellationToken).Algorithm);
+        Assert.Equal(GridAlgorithm.AStar, g.FindPath(a, b, new GridOptions { Algorithm = GridAlgorithm.Hpa, Diagonals = DiagonalRule.AllowAll }, cancellationToken: TestContext.Current.CancellationToken).Algorithm);
 
-        GridPath w = g.FindPath(new WorldPoint(2.5, 20.5), new WorldPoint(37.5, 20.5), new GridOptions { Algorithm = GridAlgorithm.Hpa });
+        GridPath w = g.FindPath(new WorldPoint(2.5, 20.5), new WorldPoint(37.5, 20.5), new GridOptions { Algorithm = GridAlgorithm.Hpa }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(w.Found);
         Assert.Equal(w.Cells.Length, w.Points.Length);
 
-        GridPath s = g.FindPath(a, b, new GridOptions { Algorithm = GridAlgorithm.Hpa, IterationBudget = 1 });
+        GridPath s = g.FindPath(a, b, new GridOptions { Algorithm = GridAlgorithm.Hpa, IterationBudget = 1 }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.BudgetExhausted, s.Status);
-        GridPath none = g.FindPath(a, a, new GridOptions { Algorithm = GridAlgorithm.Hpa });
+        GridPath none = g.FindPath(a, a, new GridOptions { Algorithm = GridAlgorithm.Hpa }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(none.Found);
         Assert.Equal(0.0, none.Cost);
     }

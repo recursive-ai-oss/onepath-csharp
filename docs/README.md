@@ -67,6 +67,18 @@ The library has three tiers, each built on the one below:
 | [crowds.md](crowds.md) | Path corridors, path following, off-mesh links, `Crowd` and `Agent`, separation, priorities, avoidance quality, crowd snapshot bytes |
 | [orca.md](orca.md) | The ORCA solver: constraints, linear program, neighbour order, where the paper is silent |
 
+## Conventions across the tiers
+
+- **Options are immutable once constructed** (`GridOptions`, `VoxelOptions`, `PathOptions`, `NavSettings`, `CrowdOptions`,
+  `AgentOptions`, `GraphOptions`): properties are `init`-only and validated where they are set, so a shared preset cannot be
+  changed by one caller under another. Settings classes of the middle and raw tiers (stage settings of the 3D builder, for
+  example) stay mutable builders.
+- **Cancellation:** every tier-1 `FindPath` takes an optional `CancellationToken` and throws `OperationCanceledException`;
+  a token that is never cancelled changes no result. `NavMesh.FindPathAsync` and `Grid.FindPathAsync` return what the sync form returns.
+- **Listeners:** `AddListener(IGridChangeListener)` and `AddListener(IVoxelChangeListener)` on the tier-1 grids are observer
+  registration, not search hooks: a class implements the interface, never a struct, and nothing on the happy path needs one. They
+  are the only library interfaces the tier-1 surface test allows in the root namespace.
+
 ## Host hooks for deterministic hosts
 
 A lockstep or rollback host needs five things; each has its own tests and is documented where it lives.

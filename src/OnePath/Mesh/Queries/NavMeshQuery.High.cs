@@ -17,20 +17,36 @@ public sealed partial class NavMeshQuery
     /// cheapest corridor between them, and string-pulls it. If the end cannot be reached the path ends at the closest
     /// reachable point and <see cref="PathResult.Status"/> is Partial.
     /// </summary>
+    /// <param name="start">Start position (world, double).</param>
+    /// <param name="end">End position.</param>
+    /// <param name="options">Search options; null means the defaults.</param>
+    /// <param name="cancellationToken">Checked every 256 expansions. A token that is never cancelled changes nothing; cancelling throws and abandons the search, which the next call on this query object replaces (the mesh is not touched).</param>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
-    public PathResult FindPath(Vector3D start, Vector3D end, PathOptions? options = null)
+    /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
+    public PathResult FindPath(Vector3D start, Vector3D end, PathOptions? options = null, CancellationToken cancellationToken = default)
     {
         PathOptions o = options ?? s_defaultOptions;
         QueryStatus s = BeginHigh(start, end, o, out NearestPoly sn, out NearestPoly en);
         if (s == QueryStatus.InProgress)
         {
-            UpdatePath(int.MaxValue);
+            if (cancellationToken.CanBeCanceled)
+            {
+                while (s == QueryStatus.InProgress)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    s = UpdatePath(256);
+                }
+            }
+            else
+            {
+                UpdatePath(int.MaxValue);
+            }
         }
         return FinishHigh(s, start, end, o, sn, en);
     }
 
     /// <summary>
-    /// Same as <see cref="FindPath(Vector3D, Vector3D, PathOptions?)"/>, run in slices of <paramref name="iterationsPerSlice"/>
+    /// Same as <see cref="FindPath(Vector3D, Vector3D, PathOptions?, CancellationToken)"/>, run in slices of <paramref name="iterationsPerSlice"/>
     /// expansions with a yield between slices, so a host stays responsive. The result is identical to the synchronous one.
     /// Do not use the query object for anything else while the returned task runs.
     /// </summary>
@@ -114,12 +130,18 @@ public sealed partial class NavMeshQuery
 /// </summary>
 public static class TiledNavMeshQueryExtensions
 {
-    /// <summary>Finds the shortest walkable path between two world positions (see <see cref="NavMeshQuery.FindPath(Vector3D, Vector3D, PathOptions?)"/>).</summary>
+    /// <summary>Finds the shortest walkable path between two world positions (see <see cref="NavMeshQuery.FindPath(Vector3D, Vector3D, PathOptions?, CancellationToken)"/>).</summary>
+    /// <param name="mesh">The mesh.</param>
+    /// <param name="start">Start position (world, double).</param>
+    /// <param name="end">End position.</param>
+    /// <param name="options">Search options; null means the defaults.</param>
+    /// <param name="cancellationToken">Checked every 256 expansions; see <see cref="NavMeshQuery.FindPath(Vector3D, Vector3D, PathOptions?, CancellationToken)"/>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="mesh"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
-    public static PathResult FindPath(this TiledNavMesh mesh, Vector3D start, Vector3D end, PathOptions? options = null)
+    /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
+    public static PathResult FindPath(this TiledNavMesh mesh, Vector3D start, Vector3D end, PathOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(mesh);
-        return new NavMeshQuery(mesh).FindPath(start, end, options);
+        return new NavMeshQuery(mesh).FindPath(start, end, options, cancellationToken);
     }
 }

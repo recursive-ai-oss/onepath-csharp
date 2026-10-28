@@ -350,8 +350,7 @@ public class ReplanTests
                         found++;
                     }
                     // Compare with the library's own A* too.
-                    GridOptions plain = o.Clone();
-                    plain.Algorithm = GridAlgorithm.AStar;
+                    var plain = new GridOptions { Connectivity = o.Connectivity, Diagonals = o.Diagonals, AgentSize = o.AgentSize, Algorithm = GridAlgorithm.AStar };
                     GridPath fresh = g.FindPath(cs, cg, plain);
                     Assert.Equal(fresh.Status, p.Status);
                     if (fresh.Found)
@@ -504,7 +503,7 @@ public class ReplanTests
         }
         p = r.Replan();
         Assert.True(p.Found);
-        Assert.Equal(g.FindPath(new Cell(0, 0), new Cell(11, 0), o).Cost, p.Cost, 9);
+        Assert.Equal(g.FindPath(new Cell(0, 0), new Cell(11, 0), o, cancellationToken: TestContext.Current.CancellationToken).Cost, p.Cost, 9);
         Assert.True(p.Cost > 11.0);
         blocked.Add(new Cell(5, 11));
         r.Invalidate(new Cell(5, 11));
@@ -527,11 +526,11 @@ public class ReplanTests
         g.SetWalkable(9, 5, true);
         g.SetArea(9, 5, 1);
         using GridReplanner r = g.CreateReplanner(new Cell(0, 0), new Cell(0, 9));
-        Assert.Equal(g.FindPath(new Cell(0, 0), new Cell(0, 9)).Cost, r.Replan().Cost, 9);
+        Assert.Equal(g.FindPath(new Cell(0, 0), new Cell(0, 9), cancellationToken: TestContext.Current.CancellationToken).Cost, r.Replan().Cost, 9);
         g.Areas[1] = 4.0;
-        Assert.Equal(g.FindPath(new Cell(0, 0), new Cell(0, 9)).Cost, r.Replan().Cost, 9);
+        Assert.Equal(g.FindPath(new Cell(0, 0), new Cell(0, 9), cancellationToken: TestContext.Current.CancellationToken).Cost, r.Replan().Cost, 9);
         g.Areas[1] = 0.25;
-        Assert.Equal(g.FindPath(new Cell(0, 0), new Cell(0, 9)).Cost, r.Replan().Cost, 9);
+        Assert.Equal(g.FindPath(new Cell(0, 0), new Cell(0, 9), cancellationToken: TestContext.Current.CancellationToken).Cost, r.Replan().Cost, 9);
     }
 
     [Fact]
@@ -564,7 +563,7 @@ public class ReplanTests
             }
             p = r.Replan();
             replanned += p.ExpandedCount;
-            GridPath f = g.FindPath(a, b);
+            GridPath f = g.FindPath(a, b, cancellationToken: TestContext.Current.CancellationToken);
             fresh += f.ExpandedCount;
             Assert.Equal(f.Status, p.Status);
             if (f.Found)
@@ -590,7 +589,7 @@ public class ReplanTests
         r.Dispose();
         Assert.Throws<ObjectDisposedException>(() => r.Replan());
         // one-off queries with the replanning algorithms run A*
-        GridPath p = g.FindPath(new Cell(0, 0), new Cell(4, 4), new GridOptions { Algorithm = GridAlgorithm.DStarLite });
+        GridPath p = g.FindPath(new Cell(0, 0), new Cell(4, 4), new GridOptions { Algorithm = GridAlgorithm.DStarLite }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(p.Found);
         Assert.Equal(GridAlgorithm.AStar, p.Algorithm);
     }

@@ -132,19 +132,20 @@ public sealed class HeightfieldFrame
     /// <summary>Number of columns, <see cref="Width"/> times <see cref="Depth"/>.</summary>
     public int ColumnCount => Width * Depth;
 
-    /// <summary>Column index of cell (x, z): <c>x + z * Width</c>.</summary>
+    /// <summary>Column index of cell (x, z): <c>x + z * Width</c>. The coordinates are not range-checked; pass cells inside the grid.</summary>
     public int Column(int x, int z) => x + (z * Width);
 
-    /// <summary>World y of the bottom of voxel row <paramref name="y"/>.</summary>
+    /// <summary>World y of the bottom of voxel row <paramref name="y"/>, in double precision (not range-checked).</summary>
     public double WorldY(int y) => OriginY + (y * (double)CellHeight);
 
-    /// <summary>World x of the centre of cell column <paramref name="x"/>.</summary>
+    /// <summary>World x of the centre of cell column <paramref name="x"/>, in double precision (not range-checked).</summary>
     public double CenterX(int x) => OriginX + ((x + 0.5) * CellSize);
 
-    /// <summary>World z of the centre of cell row <paramref name="z"/>.</summary>
+    /// <summary>World z of the centre of cell row <paramref name="z"/>, in double precision (not range-checked).</summary>
     public double CenterZ(int z) => OriginZ + ((z + 0.5) * CellSize);
 
-    /// <summary>True when both frames describe the same grid.</summary>
+    /// <summary>True when both frames describe the same grid: equal origin, cell size, cell height and extent.</summary>
+    /// <exception cref="ArgumentNullException"><paramref name="other"/> is null.</exception>
     public bool SameGrid(HeightfieldFrame other)
     {
         ArgumentNullException.ThrowIfNull(other);

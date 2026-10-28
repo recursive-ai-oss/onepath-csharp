@@ -9,25 +9,25 @@ namespace RecursiveAI.OnePath.Mesh;
 /// </summary>
 public struct OffMeshLink : IEquatable<OffMeshLink>
 {
-    /// <summary>Start X (tile-local).</summary>
+    /// <summary>Start X, float32 world units from the owning tile's origin; must lie inside the tile.</summary>
     public float StartX { get; set; }
 
-    /// <summary>Start Y (tile-local, up).</summary>
+    /// <summary>Start height (Y is up), float32 world units above the tile's OriginY.</summary>
     public float StartY { get; set; }
 
-    /// <summary>Start Z (tile-local).</summary>
+    /// <summary>Start Z, float32 world units from the owning tile's origin; must lie inside the tile.</summary>
     public float StartZ { get; set; }
 
     /// <summary>End X (tile-local to the owning tile; may be outside it).</summary>
     public float EndX { get; set; }
 
-    /// <summary>End Y (tile-local).</summary>
+    /// <summary>End height (Y is up), float32 world units above the owning tile's OriginY.</summary>
     public float EndY { get; set; }
 
     /// <summary>End Z (tile-local to the owning tile; may be outside it).</summary>
     public float EndZ { get; set; }
 
-    /// <summary>How far from a polygon an endpoint may be and still attach to it; positive.</summary>
+    /// <summary>How far, in world units, from a polygon an endpoint may be and still connect to it. Positive, finite and at most the mesh's local extent.</summary>
     public float Radius { get; set; }
 
     /// <summary>Area id of the link, 0 to 63.</summary>
@@ -39,7 +39,7 @@ public struct OffMeshLink : IEquatable<OffMeshLink>
     /// <summary>True if the link can be crossed from the end to the start as well.</summary>
     public bool Bidirectional { get; set; }
 
-    /// <summary>Caller-defined id, carried through unchanged.</summary>
+    /// <summary>Caller-defined id, carried unchanged through serialization, snapshots and queries (0 is a valid id).</summary>
     public uint UserId { get; set; }
 
     /// <inheritdoc />

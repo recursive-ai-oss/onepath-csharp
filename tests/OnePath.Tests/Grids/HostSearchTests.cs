@@ -60,7 +60,7 @@ public class HostSearchTests
             GridSearch search = g.CreateSearch(o);
             foreach (var (s, t) in Queries(g, ref rng, o.AgentSize, 12))
             {
-                GridPath expected = g.FindPath(s, t, o);
+                GridPath expected = g.FindPath(s, t, o, cancellationToken: TestContext.Current.CancellationToken);
                 foreach (int slice in new[] { 1, 5, 64, int.MaxValue })
                 {
                     Assert.Equal(PathStatus.InProgress, search.TryBegin(s, t));
@@ -101,7 +101,7 @@ public class HostSearchTests
         var rng = new SeededRandom(3);
         foreach (var (s, t) in Queries(g, ref rng, 1, 20))
         {
-            GridPath p = g.FindPath(s, t, o);
+            GridPath p = g.FindPath(s, t, o, cancellationToken: TestContext.Current.CancellationToken);
             search.TryBegin(s, t);
             PathStatus st = search.Step(50);
             if (p.Status == PathStatus.BudgetExhausted)
@@ -136,7 +136,7 @@ public class HostSearchTests
                 int b = (t.Y * g.Width) + t.X;
                 astar.Begin(a, b);
                 SearchStatus st = astar.Run(TestContext.Current.CancellationToken);
-                GridPath p = g.FindPath(s, t, o);
+                GridPath p = g.FindPath(s, t, o, cancellationToken: TestContext.Current.CancellationToken);
                 if (st != SearchStatus.Found)
                 {
                     Assert.False(p.Found);
@@ -164,8 +164,8 @@ public class HostSearchTests
             var rng = new SeededRandom(seed);
             foreach (var (s, t) in Queries(g, ref rng, 1, 40))
             {
-                GridPath fast = g.FindPath(s, t);
-                GridPath slow = g.FindPath(s, t, new GridOptions { SpecializedEngines = false });
+                GridPath fast = g.FindPath(s, t, cancellationToken: TestContext.Current.CancellationToken);
+                GridPath slow = g.FindPath(s, t, new GridOptions { SpecializedEngines = false }, cancellationToken: TestContext.Current.CancellationToken);
                 Assert.Equal(fast.Found, slow.Found);
                 if (!fast.Found)
                 {
@@ -246,7 +246,7 @@ public class HostSearchTests
         GridSearch fresh = g.CreateSearch(o);
         foreach (var (s, t) in Queries(g, ref rng, o.AgentSize, 10))
         {
-            GridPath expected = g.FindPath(s, t, o);
+            GridPath expected = g.FindPath(s, t, o, cancellationToken: TestContext.Current.CancellationToken);
             a.TryBegin(s, t);
             int cut = 1 + rng.NextInt(200);
             PathStatus st = a.Step(cut);
@@ -340,7 +340,7 @@ public class HostSearchTests
         while ((st = search.Step(100)) == PathStatus.InProgress)
         {
         }
-        GridPath expected = g.FindPath(s, t);
+        GridPath expected = g.FindPath(s, t, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(expected.Status, st);
         if (expected.Found)
         {

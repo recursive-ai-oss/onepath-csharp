@@ -226,7 +226,7 @@ public class HostApiTests
                         // It is the test FindPath applies to its end cells.
                         if (g.Contains(x, y) && g.Contains(0, 0))
                         {
-                            GridPath p = g.FindPath(c, c, new GridOptions { AgentSize = size });
+                            GridPath p = g.FindPath(c, c, new GridOptions { AgentSize = size }, cancellationToken: TestContext.Current.CancellationToken);
                             Assert.Equal(expected, p.Status != PathStatus.StartInvalid);
                         }
                     }
@@ -250,7 +250,7 @@ public class HostApiTests
             List<Cell> ok = BruteForce.WalkableStarts(g, 1);
             for (int q = 0; q < 30 && ok.Count > 1; q++)
             {
-                GridPath p = g.FindPath(ok[rng.NextInt(ok.Count)], ok[rng.NextInt(ok.Count)]);
+                GridPath p = g.FindPath(ok[rng.NextInt(ok.Count)], ok[rng.NextInt(ok.Count)], cancellationToken: TestContext.Current.CancellationToken);
                 if (!p.Found)
                 {
                     continue;
@@ -275,7 +275,7 @@ public class HostApiTests
     public void FixedCostOfAUniformGridIsStepCountsTimesTheStepCosts()
     {
         var g = new Grid(30, 30);
-        GridPath p = g.FindPath(new Cell(0, 0), new Cell(20, 7));
+        GridPath p = g.FindPath(new Cell(0, 0), new Cell(20, 7), cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(p.TryGetStepCounts(out int s, out int d));
         Assert.Equal(13, s);
         Assert.Equal(7, d);
@@ -295,7 +295,7 @@ public class HostApiTests
         Assert.False(g.TryGetFixedCost([new Cell(0, 0), new Cell(0, 0)], out c)); // no move
         Assert.False(g.TryGetFixedCost([new Cell(1, 0), new Cell(2, 0)], out c)); // into a wall
         Assert.False(g.TryGetFixedCost([new Cell(0, 0), new Cell(-1, 0)], out c)); // outside
-        GridPath any = g.FindPath(new Cell(0, 0), new Cell(1, 2), new GridOptions { Algorithm = GridAlgorithm.ThetaStar });
+        GridPath any = g.FindPath(new Cell(0, 0), new Cell(1, 2), new GridOptions { Algorithm = GridAlgorithm.ThetaStar }, cancellationToken: TestContext.Current.CancellationToken);
         if (!any.TryGetStepCounts(out int s, out int dg))
         {
             Assert.Equal((0, 0), (s, dg));

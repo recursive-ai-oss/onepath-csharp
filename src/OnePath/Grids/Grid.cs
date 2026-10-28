@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 using RecursiveAI.OnePath.Grids;
 
 namespace RecursiveAI.OnePath;
@@ -393,16 +394,20 @@ public sealed partial class Grid
     /// <param name="start">Start cell.</param>
     /// <param name="goal">Goal cell.</param>
     /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
+    /// <param name="cancellationToken">Checked every 256 iterations; cancelling throws <see cref="OperationCanceledException"/> and leaves the grid unchanged. A token that is never cancelled changes nothing.</param>
     /// <returns>The result; check <see cref="GridPath.Status"/>. Cells outside the grid or not walkable for the agent give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
-    public GridPath FindPath(Cell start, Cell goal, GridOptions? options = null) => FindPathCore(start, goal, options ?? DefaultOptions, false);
+    /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
+    public GridPath FindPath(Cell start, Cell goal, GridOptions? options = null, CancellationToken cancellationToken = default) => FindPathCore(start, goal, options ?? DefaultOptions, false, cancellationToken);
 
     /// <summary>Finds a least-cost path between two world positions (their containing cells); the result carries world-space cell centres.</summary>
     /// <param name="start">Start position.</param>
     /// <param name="goal">Goal position.</param>
     /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
+    /// <param name="cancellationToken">Checked every 256 iterations; cancelling throws <see cref="OperationCanceledException"/> and leaves the grid unchanged. A token that is never cancelled changes nothing.</param>
     /// <returns>The result. Positions outside the grid give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN or beyond ±2^21.</exception>
-    public GridPath FindPath(WorldPoint start, WorldPoint goal, GridOptions? options = null)
+    /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
+    public GridPath FindPath(WorldPoint start, WorldPoint goal, GridOptions? options = null, CancellationToken cancellationToken = default)
     {
         bool s = TryGetCell(start, out Cell sc);
         bool g = TryGetCell(goal, out Cell gc);
@@ -414,7 +419,38 @@ public sealed partial class Grid
         {
             return new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
         }
-        return FindPathCore(sc, gc, options ?? DefaultOptions, true);
+        return FindPathCore(sc, gc, options ?? DefaultOptions, true, cancellationToken);
+    }
+
+    /// <summary>
+    /// Same as <see cref="FindPath(Cell, Cell, GridOptions?, CancellationToken)"/>, run on the thread pool so the calling thread
+    /// (a frame loop, a UI thread) is not blocked. The result equals the synchronous one for the same grid and options; nothing
+    /// depends on timing or on which thread runs it. Do not edit the grid until the task has completed.
+    /// </summary>
+    /// <param name="start">Start cell.</param>
+    /// <param name="goal">Goal cell.</param>
+    /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
+    /// <param name="cancellationToken">Checked every 256 iterations; the task then ends cancelled.</param>
+    /// <returns>A task for the result.</returns>
+    /// <exception cref="OperationCanceledException">Cancellation was requested (thrown through the task).</exception>
+    public Task<GridPath> FindPathAsync(Cell start, Cell goal, GridOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        GridOptions o = options ?? DefaultOptions;
+        // Task.Run only moves the work; the search is the synchronous one, so the result is the same.
+        return Task.Run(() => FindPathCore(start, goal, o, false, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>World-position form of <see cref="FindPathAsync(Cell, Cell, GridOptions?, CancellationToken)"/>; the result carries world-space cell centres.</summary>
+    /// <param name="start">Start position.</param>
+    /// <param name="goal">Goal position.</param>
+    /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
+    /// <param name="cancellationToken">Checked every 256 iterations; the task then ends cancelled.</param>
+    /// <returns>A task for the result.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN or beyond ±2^21 (thrown through the task).</exception>
+    /// <exception cref="OperationCanceledException">Cancellation was requested (thrown through the task).</exception>
+    public Task<GridPath> FindPathAsync(WorldPoint start, WorldPoint goal, GridOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        return Task.Run(() => FindPath(start, goal, options, cancellationToken), cancellationToken);
     }
 
     /// <summary>
@@ -430,7 +466,7 @@ public sealed partial class Grid
     /// <exception cref="ArgumentException">The heuristic weight is not 1.</exception>
     public GridReplanner CreateReplanner(Cell start, Cell goal, GridOptions? options = null) => new(this, start, goal, options ?? DefaultOptions);
 
-    private GridPath FindPathCore(Cell start, Cell goal, GridOptions o, bool world)
+    private GridPath FindPathCore(Cell start, Cell goal, GridOptions o, bool world, CancellationToken token)
     {
         EnsureClearance();
         int size = o.AgentSize;
@@ -448,7 +484,7 @@ public sealed partial class Grid
             any ??= new GridSearchBuffers(CellCount);
             try
             {
-                return AnyAngleRunner.Run(this, any, (start.Y * Width) + start.X, (goal.Y * Width) + goal.X, o, anyAngleCost, world ? CellCenter : null);
+                return AnyAngleRunner.Run(this, any, (start.Y * Width) + start.X, (goal.Y * Width) + goal.X, o, anyAngleCost, world ? CellCenter : null, token);
             }
             finally
             {
@@ -457,20 +493,20 @@ public sealed partial class Grid
         }
         if (o.Algorithm == GridAlgorithm.Hpa && o.StepCost is null && o.Blocked is null && !(o.Connectivity == Connectivity.Eight && o.Diagonals == DiagonalRule.AllowAll))
         {
-            return FindPathHpa(start, goal, o, world);
+            return FindPathHpa(start, goal, o, world, token);
         }
         if ((o.Algorithm == GridAlgorithm.Jps || o.Algorithm == GridAlgorithm.JpsPlus) && JumpSearchApplies(o, out double unitCost))
         {
             if (FastApplies(o, out _))
             {
                 bool plusFast = o.Algorithm == GridAlgorithm.JpsPlus && Width <= JpsPlusIndex.MaxSide && Height <= JpsPlusIndex.MaxSide;
-                return FindPathFastJump((start.Y * Width) + start.X, (goal.Y * Width) + goal.X, o, unitCost, world ? CellCenter : null, plusFast);
+                return FindPathFastJump((start.Y * Width) + start.X, (goal.Y * Width) + goal.X, o, unitCost, world ? CellCenter : null, plusFast, token);
             }
-            return FindPathJump(start, goal, o, unitCost, world);
+            return FindPathJump(start, goal, o, unitCost, world, token);
         }
         if (o.Algorithm == GridAlgorithm.AStar && FastApplies(o, out double fastUnit))
         {
-            return FindPathFastAStar((start.Y * Width) + start.X, (goal.Y * Width) + goal.X, o, fastUnit, world ? CellCenter : null);
+            return FindPathFastAStar((start.Y * Width) + start.X, (goal.Y * Width) + goal.X, o, fastUnit, world ? CellCenter : null, token);
         }
         SquareTopology topology = CreateTopology(size, o.Connectivity, o.Diagonals);
         GridHeuristic h = o.Heuristic;
@@ -492,10 +528,10 @@ public sealed partial class Grid
                 var cost = default(DefaultStepCost);
                 return h switch
                 {
-                    GridHeuristic.Zero => SearchRunner.Run(topology, cost, default(ZeroHeuristic), buffers, Width, a, b, o, centre),
-                    GridHeuristic.Manhattan => SearchRunner.Run(topology, cost, new ManhattanHeuristic(Width, scale), buffers, Width, a, b, o, centre),
-                    GridHeuristic.Euclidean => SearchRunner.Run(topology, cost, new EuclideanHeuristic(Width, scale), buffers, Width, a, b, o, centre),
-                    _ => SearchRunner.Run(topology, cost, new OctileHeuristic(Width, scale), buffers, Width, a, b, o, centre),
+                    GridHeuristic.Zero => SearchRunner.Run(topology, cost, default(ZeroHeuristic), buffers, Width, a, b, o, centre, token),
+                    GridHeuristic.Manhattan => SearchRunner.Run(topology, cost, new ManhattanHeuristic(Width, scale), buffers, Width, a, b, o, centre, token),
+                    GridHeuristic.Euclidean => SearchRunner.Run(topology, cost, new EuclideanHeuristic(Width, scale), buffers, Width, a, b, o, centre, token),
+                    _ => SearchRunner.Run(topology, cost, new OctileHeuristic(Width, scale), buffers, Width, a, b, o, centre, token),
                 };
             }
             else
@@ -503,10 +539,10 @@ public sealed partial class Grid
                 var cost = new SearchRunner.DelegateStepCost { Width = Width, Step = o.StepCost, Blocked = o.Blocked };
                 return h switch
                 {
-                    GridHeuristic.Zero => SearchRunner.Run(topology, cost, default(ZeroHeuristic), buffers, Width, a, b, o, centre),
-                    GridHeuristic.Manhattan => SearchRunner.Run(topology, cost, new ManhattanHeuristic(Width, scale), buffers, Width, a, b, o, centre),
-                    GridHeuristic.Euclidean => SearchRunner.Run(topology, cost, new EuclideanHeuristic(Width, scale), buffers, Width, a, b, o, centre),
-                    _ => SearchRunner.Run(topology, cost, new OctileHeuristic(Width, scale), buffers, Width, a, b, o, centre),
+                    GridHeuristic.Zero => SearchRunner.Run(topology, cost, default(ZeroHeuristic), buffers, Width, a, b, o, centre, token),
+                    GridHeuristic.Manhattan => SearchRunner.Run(topology, cost, new ManhattanHeuristic(Width, scale), buffers, Width, a, b, o, centre, token),
+                    GridHeuristic.Euclidean => SearchRunner.Run(topology, cost, new EuclideanHeuristic(Width, scale), buffers, Width, a, b, o, centre, token),
+                    _ => SearchRunner.Run(topology, cost, new OctileHeuristic(Width, scale), buffers, Width, a, b, o, centre, token),
                 };
             }
         }
@@ -531,7 +567,7 @@ public sealed partial class Grid
             && Areas.TryGetUniform(out unitCost);
     }
 
-    private GridPath FindPathJump(Cell start, Cell goal, GridOptions o, double unitCost, bool world)
+    private GridPath FindPathJump(Cell start, Cell goal, GridOptions o, double unitCost, bool world, CancellationToken token)
     {
         int a = (start.Y * Width) + start.X;
         int b = (goal.Y * Width) + goal.X;
@@ -562,12 +598,12 @@ public sealed partial class Grid
             if (plus)
             {
                 return zero
-                    ? SearchRunner.RunJump(table, default(ZeroHeuristic), unitCost, buffers, a, b, o, centre, used)
-                    : SearchRunner.RunJump(table, new OctileHeuristic(Width, unitCost), unitCost, buffers, a, b, o, centre, used);
+                    ? SearchRunner.RunJump(table, default(ZeroHeuristic), unitCost, buffers, a, b, o, centre, used, token)
+                    : SearchRunner.RunJump(table, new OctileHeuristic(Width, unitCost), unitCost, buffers, a, b, o, centre, used, token);
             }
             return zero
-                ? SearchRunner.RunJump(block, default(ZeroHeuristic), unitCost, buffers, a, b, o, centre, used)
-                : SearchRunner.RunJump(block, new OctileHeuristic(Width, unitCost), unitCost, buffers, a, b, o, centre, used);
+                ? SearchRunner.RunJump(block, default(ZeroHeuristic), unitCost, buffers, a, b, o, centre, used, token)
+                : SearchRunner.RunJump(block, new OctileHeuristic(Width, unitCost), unitCost, buffers, a, b, o, centre, used, token);
         }
         finally
         {
@@ -575,7 +611,7 @@ public sealed partial class Grid
         }
     }
 
-    private GridPath FindPathHpa(Cell start, Cell goal, GridOptions o, bool world)
+    private GridPath FindPathHpa(Cell start, Cell goal, GridOptions o, bool world, CancellationToken token)
     {
         HpaHierarchy hierarchy;
         lock (_sync)
@@ -590,7 +626,7 @@ public sealed partial class Grid
         {
             search.Smoothing = o.HpaSmoothing;
             search.Buffers.RecordExpansions = o.RecordExpansions;
-            return HpaRunner.Run(search, a, b, o, world ? CellCenter : null);
+            return HpaRunner.Run(search, a, b, o, world ? CellCenter : null, token);
         }
         finally
         {

@@ -107,7 +107,7 @@ public class SearchAgainstBruteForce
                 Cell a = cells[rng.NextInt(cells.Count)];
                 Cell b = cells[rng.NextInt(cells.Count)];
                 double expect = BruteForce.HexDijkstra(hex, a, b);
-                GridPath p = hex.FindPath(a, b, i % 3 == 0 ? new GridOptions { Heuristic = GridHeuristic.Zero } : null);
+                GridPath p = hex.FindPath(a, b, i % 3 == 0 ? new GridOptions { Heuristic = GridHeuristic.Zero } : null, cancellationToken: TestContext.Current.CancellationToken);
                 if (double.IsPositiveInfinity(expect))
                 {
                     Assert.Equal(PathStatus.NoPath, p.Status);
@@ -186,7 +186,7 @@ public class SearchAgainstBruteForce
             var r2 = new SeededRandom(5);
             for (int i = 0; i < 50; i++)
             {
-                GridPath p = g.FindPath(starts[r2.NextInt(starts.Count)], starts[r2.NextInt(starts.Count)]);
+                GridPath p = g.FindPath(starts[r2.NextInt(starts.Count)], starts[r2.NextInt(starts.Count)], cancellationToken: TestContext.Current.CancellationToken);
                 if (round == 0)
                 {
                     first.Add(p.Cost);
@@ -203,7 +203,7 @@ public class SearchAgainstBruteForce
     public void IterationBudgetOnTier1()
     {
         var g = new Grid(30, 30);
-        GridPath p = g.FindPath(new Cell(0, 0), new Cell(29, 29), new GridOptions { IterationBudget = 3, Heuristic = GridHeuristic.Zero });
+        GridPath p = g.FindPath(new Cell(0, 0), new Cell(29, 29), new GridOptions { IterationBudget = 3, Heuristic = GridHeuristic.Zero }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.BudgetExhausted, p.Status);
         Assert.Equal(3, p.ExpandedCount);
     }
@@ -222,8 +222,8 @@ public class SearchAgainstBruteForce
             }
             Cell a = starts[rng.NextInt(starts.Count)];
             Cell b = starts[rng.NextInt(starts.Count)];
-            GridPath opt = g.FindPath(a, b);
-            GridPath w = g.FindPath(a, b, new GridOptions { HeuristicWeight = 3.0 });
+            GridPath opt = g.FindPath(a, b, cancellationToken: TestContext.Current.CancellationToken);
+            GridPath w = g.FindPath(a, b, new GridOptions { HeuristicWeight = 3.0 }, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(opt.Found, w.Found);
             if (opt.Found)
             {

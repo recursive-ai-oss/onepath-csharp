@@ -1,15 +1,16 @@
 using System;
+using System.Threading;
 
 namespace RecursiveAI.OnePath.Grids;
 
 // Glue between the one-line query and HpaSearch: runs with the option budget and builds the result.
 internal static class HpaRunner
 {
-    internal static GridPath Run(HpaSearch search, int start, int goal, GridOptions options, Func<Cell, WorldPoint>? centre)
+    internal static GridPath Run(HpaSearch search, int start, int goal, GridOptions options, Func<Cell, WorldPoint>? centre, CancellationToken token)
     {
         int width = search.Hierarchy.Grid.Width;
         search.Begin(start, goal);
-        SearchStatus status = search.Step(options.IterationBudget);
+        SearchStatus status = token.CanBeCanceled ? SearchDrive.Run(options.IterationBudget, search.Step, token) : search.Step(options.IterationBudget);
         Cell[]? expanded = null;
         if (options.RecordExpansions)
         {

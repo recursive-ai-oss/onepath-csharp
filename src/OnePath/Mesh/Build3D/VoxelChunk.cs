@@ -27,10 +27,10 @@ public sealed class VoxelChunk
         _runs = runs;
     }
 
-    /// <summary>Columns along x.</summary>
+    /// <summary>Number of cell columns along x (at least 1).</summary>
     public int Width { get; }
 
-    /// <summary>Columns along z.</summary>
+    /// <summary>Number of cell columns along z (at least 1).</summary>
     public int Depth { get; }
 
     /// <summary>Rows along y; every run ends at or below this.</summary>

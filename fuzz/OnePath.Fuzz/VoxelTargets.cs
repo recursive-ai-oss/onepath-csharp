@@ -82,8 +82,7 @@ internal static class VoxelTargets
         }
 
         VoxelPath fast = g.FindPath(start, goal, options);
-        VoxelOptions dij = options.Clone();
-        dij.Heuristic = GridHeuristic.Zero;
+        var dij = new VoxelOptions { Connectivity = options.Connectivity, Corners = options.Corners, Heuristic = GridHeuristic.Zero };
         VoxelPath slow = g.FindPath(start, goal, dij);
         if (fast.Status != slow.Status)
         {

@@ -4,8 +4,16 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Breaking
+
+- **Options are immutable after construction.** `GridOptions`, `VoxelOptions` and `PathOptions` properties are `init`-only like `NavSettings`, `CrowdOptions` and `GraphOptions` already were, so a shared preset (`GridOptions.Default`, the defaults used when you pass `null`) cannot be changed by one caller under another. Code that assigned a property after construction (`o.Algorithm = GridAlgorithm.Jps;`) must set it in an object initializer (`new GridOptions { Algorithm = GridAlgorithm.Jps }`). Binary-incompatible with 0.4.0-preview.3 (setters are replaced by init accessors); recompiling is enough. `Clone()` is kept.
+- **`FindPath` gains a trailing `CancellationToken cancellationToken = default`** on `Grid`, `HexGrid`, `VoxelGrid`, `NavMesh`, `NavWorld`, `NavMeshQuery` and the `TiledNavMesh` extension, so existing source compiles unchanged but already-built callers must be recompiled (the old signatures are gone).
+
 ### Added
 
+- **Cancellation on every tier-1 `FindPath`:** the token is checked every 256 iterations; cancelling throws `OperationCanceledException` and leaves the grid or mesh untouched. A token that is never cancelled returns exactly the result of no token (slicing never changes a search).
+- **`NavMesh.FindPathAsync` and `Grid.FindPathAsync`** (cells and world points): same results as the synchronous forms. The mesh form is `NavMeshQuery.FindPathAsync` (slices of expansions with a yield between them); the grid form runs the synchronous search on the thread pool.
+- Documentation of the cross-tier conventions (immutable options, cancellation, observer-style listeners) in `docs/README.md`; the 3D builder and mesh format public members got a documentation pass.
 - **`GridSearch` runs JPS and JPS+:** `Grid.CreateSearch` accepts `GridAlgorithm.Jps` and `GridAlgorithm.JpsPlus` on the engines `FindPath` uses (the specialised octile jump point search, the generic block-map and JPS+ table searches, or plain A\* where `FindPath` falls back to it), so a budgeted jump point search resumes with `Step(budget)`, returns cell for cell the path and cost bits `FindPath` returns for every slicing, and saves and restores byte-exactly. One iteration is one pop of a jump point. State kind 12 gains mode 3 (specialised jump point engine), documented in `docs/grids-state.md`; existing states are unchanged.
 
 ### Changed

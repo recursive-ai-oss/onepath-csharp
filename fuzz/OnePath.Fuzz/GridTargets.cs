@@ -58,6 +58,14 @@ internal static class GridTargets
         int h = 1 + (data[1] % 20);
         byte flags = data[2];
         bool hex = (flags & 1) != 0;
+        static GridOptions DijkstraOf(GridOptions o) => new()
+        {
+            Connectivity = o.Connectivity,
+            Diagonals = o.Diagonals,
+            AgentSize = o.AgentSize,
+            HeuristicWeight = o.HeuristicWeight,
+            Heuristic = GridHeuristic.Zero,
+        };
         var options = new GridOptions
         {
             Connectivity = (flags & 2) != 0 ? Connectivity.Four : Connectivity.Eight,
@@ -81,16 +89,14 @@ internal static class GridTargets
             var g = HexGrid.From(areas, w, h, (HexLayout)((flags >> 4) & 3));
             g.Areas[1] = 2.5;
             fast = g.FindPath(start, goal, options);
-            options.Heuristic = GridHeuristic.Zero;
-            slow = g.FindPath(start, goal, options);
+            slow = g.FindPath(start, goal, DijkstraOf(options));
         }
         else
         {
             var g = Grid.From(areas, w, h);
             g.Areas[1] = 2.5;
             fast = g.FindPath(start, goal, options);
-            options.Heuristic = GridHeuristic.Zero;
-            slow = g.FindPath(start, goal, options);
+            slow = g.FindPath(start, goal, DijkstraOf(options));
             CheckWorld(g, data);
         }
         if (fast.Status != slow.Status)
@@ -209,8 +215,7 @@ internal static class GridTargets
         using GridReplanner r = g.CreateReplanner(a, b, options);
         using GridReplanner sliced = g.CreateReplanner(a, b, options);
         using GridReplanner viaTry = g.CreateReplanner(a, b, options);
-        GridOptions plain = options.Clone();
-        plain.Algorithm = GridAlgorithm.AStar;
+        var plain = new GridOptions { Connectivity = options.Connectivity, AgentSize = options.AgentSize, Algorithm = GridAlgorithm.AStar };
         for (int round = 0; round < 8; round++)
         {
             int edits = 1 + (Next(data, ref pos) % 4);

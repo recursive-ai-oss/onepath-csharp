@@ -33,15 +33,15 @@ public class PathResultVocabularyTests
     public void GridPathMembers()
     {
         var grid = Grid.FromText("....\n....");
-        GridPath cells = grid.FindPath(new Cell(0, 0), new Cell(3, 0));
+        GridPath cells = grid.FindPath(new Cell(0, 0), new Cell(3, 0), cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(cells.Found && cells.HasPath && !cells.IsPartial);
         Assert.True(double.IsNaN(cells.Length));
-        GridPath none = grid.FindPath(new Cell(0, 0), new Cell(9, 9));
+        GridPath none = grid.FindPath(new Cell(0, 0), new Cell(9, 9), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.GoalInvalid, none.Status);
         Assert.False(none.HasPath);
         Assert.Equal(0, none.Length);
         grid.Space = new GridSpace(0, 0, 2);
-        GridPath world = grid.FindPath(new WorldPoint(1, 1), new WorldPoint(7, 1));
+        GridPath world = grid.FindPath(new WorldPoint(1, 1), new WorldPoint(7, 1), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(6.0, world.Length);
     }
 }

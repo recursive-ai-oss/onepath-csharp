@@ -20,6 +20,16 @@ catch (ArgumentOutOfRangeException)
 }
 bool nav = NavMeshSmoke.Run();
 Console.WriteLine($"Navmesh format: {(nav ? "ok" : "FAILED")}");
+// Async forms (not in the browser smoke: a blocking wait on the single thread would never return).
+var asyncGrid = Grid.FromText("....\n.##.\n....");
+GridPath asyncPath = asyncGrid.FindPathAsync(new Cell(0, 0), new Cell(3, 2)).GetAwaiter().GetResult();
+ok &= asyncPath.Found && asyncPath.Cost == asyncGrid.FindPath(new Cell(0, 0), new Cell(3, 2)).Cost;
+var openCells = new bool[16 * 16];
+Array.Fill(openCells, true);
+NavMesh asyncMesh = NavMesh.Build2D(openCells, 16, 16, 1.0, new Vector2D(0, 0));
+PathResult meshAsync = asyncMesh.FindPathAsync(new Vector3D(2, 0, 2), new Vector3D(13, 0, 13), null, 4).GetAwaiter().GetResult();
+ok &= meshAsync.Found && meshAsync.Length == asyncMesh.FindPath(new Vector3D(2, 0, 2), new Vector3D(13, 0, 13)).Length;
+Console.WriteLine($"Async forms: {(ok ? "ok" : "FAILED")}");
 bool orca = OrcaSmoke.Run();
 Console.WriteLine($"ORCA run: {(orca ? "ok" : "FAILED")}");
 

@@ -96,7 +96,7 @@ public class HostJumpSearchTests
             GridSearch search = g.CreateSearch(o);
             foreach (var (s, t) in Queries(g, ref rng, o.AgentSize, 12))
             {
-                GridPath expected = g.FindPath(s, t, o);
+                GridPath expected = g.FindPath(s, t, o, cancellationToken: TestContext.Current.CancellationToken);
                 foreach (int slice in new[] { 1, 3, 64, int.MaxValue })
                 {
                     Assert.Equal(PathStatus.InProgress, search.TryBegin(s, t));
@@ -157,7 +157,7 @@ public class HostJumpSearchTests
         GridSearch fresh = g.CreateSearch(o);
         foreach (var (s, t) in Queries(g, ref rng, o.AgentSize, 10))
         {
-            GridPath expected = g.FindPath(s, t, o);
+            GridPath expected = g.FindPath(s, t, o, cancellationToken: TestContext.Current.CancellationToken);
             a.TryBegin(s, t);
             int cut = 1 + rng.NextInt(60);
             PathStatus st = a.Step(cut);
@@ -289,14 +289,14 @@ public class HostJumpSearchTests
             {
                 g.SetArea(i % g.Width, i / g.Width, AreaCosts.Wall);
             }
-            _ = g.FindPath(s, t, o);
+            _ = g.FindPath(s, t, o, cancellationToken: TestContext.Current.CancellationToken);
             g.RestoreState(gridBytes);
             search.RestoreState(bytes);
             PathStatus st = Finish(search, 9);
-            AssertSame(g.FindPath(s, t, o), search, st, $"variant {v}");
+            AssertSame(g.FindPath(s, t, o, cancellationToken: TestContext.Current.CancellationToken), search, st, $"variant {v}");
             // A new search after the rollback follows the restored grid too.
             search.TryBegin(s, t);
-            AssertSame(g.FindPath(s, t, o), search, Finish(search, 100), $"variant {v} again");
+            AssertSame(g.FindPath(s, t, o, cancellationToken: TestContext.Current.CancellationToken), search, Finish(search, 100), $"variant {v} again");
         }
     }
 
@@ -315,7 +315,7 @@ public class HostJumpSearchTests
                 foreach (var (s, t) in Queries(g, ref rng, 1, 4))
                 {
                     search.TryBegin(s, t);
-                    AssertSame(g.FindPath(s, t, o), search, Finish(search, 13), $"variant {v} round {round}");
+                    AssertSame(g.FindPath(s, t, o, cancellationToken: TestContext.Current.CancellationToken), search, Finish(search, 13), $"variant {v} round {round}");
                 }
             }
         }

@@ -110,7 +110,7 @@ public class OctileSearchTests
                 double expected = BruteForce.Dijkstra(g, 1, Connectivity.Eight, DiagonalRule.NoCornerCutting, s, t);
                 foreach (GridAlgorithm alg in new[] { GridAlgorithm.AStar, GridAlgorithm.Jps, GridAlgorithm.JpsPlus })
                 {
-                    GridPath p = g.FindPath(s, t, new GridOptions { Algorithm = alg });
+                    GridPath p = g.FindPath(s, t, new GridOptions { Algorithm = alg }, cancellationToken: TestContext.Current.CancellationToken);
                     if (double.IsPositiveInfinity(expected))
                     {
                         Assert.Equal(PathStatus.NoPath, p.Status);
@@ -165,9 +165,9 @@ public class OctileSearchTests
     public void SlicedBudgetStopsAndFullBudgetFinishes()
     {
         var g = Grid.FromText(string.Join('\n', new string('.', 40), new string('.', 40), new string('.', 40)));
-        GridPath cut = g.FindPath(new Cell(0, 0), new Cell(39, 2), new GridOptions { IterationBudget = 3 });
+        GridPath cut = g.FindPath(new Cell(0, 0), new Cell(39, 2), new GridOptions { IterationBudget = 3 }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.BudgetExhausted, cut.Status);
-        GridPath full = g.FindPath(new Cell(0, 0), new Cell(39, 2));
+        GridPath full = g.FindPath(new Cell(0, 0), new Cell(39, 2), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.Found, full.Status);
     }
 
@@ -182,9 +182,9 @@ public class OctileSearchTests
         var row = new Grid(9, 1);
         row.SetWalkable(6, 0, false);
         var o = new GridOptions { Algorithm = alg };
-        Assert.Equal(5.0, column.FindPath(new Cell(0, 0), new Cell(0, 5), o).Cost, 9);
-        Assert.Equal(PathStatus.NoPath, column.FindPath(new Cell(0, 0), new Cell(0, 8), o).Status);
-        Assert.Equal(5.0, row.FindPath(new Cell(0, 0), new Cell(5, 0), o).Cost, 9);
-        Assert.Equal(PathStatus.NoPath, row.FindPath(new Cell(0, 0), new Cell(8, 0), o).Status);
+        Assert.Equal(5.0, column.FindPath(new Cell(0, 0), new Cell(0, 5), o, cancellationToken: TestContext.Current.CancellationToken).Cost, 9);
+        Assert.Equal(PathStatus.NoPath, column.FindPath(new Cell(0, 0), new Cell(0, 8), o, cancellationToken: TestContext.Current.CancellationToken).Status);
+        Assert.Equal(5.0, row.FindPath(new Cell(0, 0), new Cell(5, 0), o, cancellationToken: TestContext.Current.CancellationToken).Cost, 9);
+        Assert.Equal(PathStatus.NoPath, row.FindPath(new Cell(0, 0), new Cell(8, 0), o, cancellationToken: TestContext.Current.CancellationToken).Status);
     }
 }

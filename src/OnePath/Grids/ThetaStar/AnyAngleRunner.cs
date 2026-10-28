@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 
 namespace RecursiveAI.OnePath.Grids;
 
@@ -19,23 +20,23 @@ internal static class AnyAngleRunner
             && grid.Areas.TryGetUniform(out unitCost);
     }
 
-    internal static GridPath Run(Grid grid, GridSearchBuffers buffers, int start, int goal, GridOptions options, double unitCost, Func<Cell, WorldPoint>? centre)
+    internal static GridPath Run(Grid grid, GridSearchBuffers buffers, int start, int goal, GridOptions options, double unitCost, Func<Cell, WorldPoint>? centre, CancellationToken token)
     {
         GridAlgorithm used = options.Algorithm;
         ThetaVariant variant = used == GridAlgorithm.LazyThetaStar ? ThetaVariant.LazyRequeue : ThetaVariant.Theta;
         buffers.RecordExpansions = options.RecordExpansions;
         int width = grid.Width;
         return options.Heuristic == GridHeuristic.Zero
-            ? Finish(new ThetaSearch<ZeroHeuristic>(grid, default, variant, unitCost, buffers), width, start, goal, options, centre, used)
-            : Finish(new ThetaSearch<EuclideanHeuristic>(grid, new EuclideanHeuristic(width, unitCost), variant, unitCost, buffers), width, start, goal, options, centre, used);
+            ? Finish(new ThetaSearch<ZeroHeuristic>(grid, default, variant, unitCost, buffers), width, start, goal, options, centre, used, token)
+            : Finish(new ThetaSearch<EuclideanHeuristic>(grid, new EuclideanHeuristic(width, unitCost), variant, unitCost, buffers), width, start, goal, options, centre, used, token);
     }
 
-    private static GridPath Finish<THeuristic>(ThetaSearch<THeuristic> search, int width, int start, int goal, GridOptions options, Func<Cell, WorldPoint>? centre, GridAlgorithm used)
+    private static GridPath Finish<THeuristic>(ThetaSearch<THeuristic> search, int width, int start, int goal, GridOptions options, Func<Cell, WorldPoint>? centre, GridAlgorithm used, CancellationToken token)
         where THeuristic : struct, IHeuristic
     {
         search.HeuristicWeight = options.HeuristicWeight;
         search.Begin(start, goal);
-        SearchStatus status = search.Step(options.IterationBudget);
+        SearchStatus status = token.CanBeCanceled ? SearchDrive.Run(options.IterationBudget, search.Step, token) : search.Step(options.IterationBudget);
         Cell[]? expanded = null;
         if (options.RecordExpansions)
         {

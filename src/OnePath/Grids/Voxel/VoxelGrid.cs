@@ -342,16 +342,20 @@ public sealed partial class VoxelGrid
     /// <param name="start">Start voxel.</param>
     /// <param name="goal">Goal voxel.</param>
     /// <param name="options">Query options; null means <see cref="VoxelOptions.Default"/>.</param>
+    /// <param name="cancellationToken">Checked every 256 iterations; cancelling throws <see cref="OperationCanceledException"/>. A token that is never cancelled changes nothing.</param>
     /// <returns>The result; check <see cref="VoxelPath.Status"/>. Voxels outside the grid or solid give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
-    public VoxelPath FindPath(VoxelCell start, VoxelCell goal, VoxelOptions? options = null) => FindPathCore(start, goal, options ?? DefaultOptions, false);
+    /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
+    public VoxelPath FindPath(VoxelCell start, VoxelCell goal, VoxelOptions? options = null, CancellationToken cancellationToken = default) => FindPathCore(start, goal, options ?? DefaultOptions, false, cancellationToken);
 
     /// <summary>Finds a least-cost path between two world positions (their containing voxels); the result carries world-space voxel centres.</summary>
     /// <param name="start">Start position; each coordinate within ±2^21.</param>
     /// <param name="goal">Goal position; each coordinate within ±2^21.</param>
     /// <param name="options">Query options; null means <see cref="VoxelOptions.Default"/>.</param>
+    /// <param name="cancellationToken">Checked every 256 iterations; cancelling throws <see cref="OperationCanceledException"/>. A token that is never cancelled changes nothing.</param>
     /// <returns>The result. A position outside the grid gives <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN or beyond ±2^21.</exception>
-    public VoxelPath FindPath(VoxelPoint start, VoxelPoint goal, VoxelOptions? options = null)
+    /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
+    public VoxelPath FindPath(VoxelPoint start, VoxelPoint goal, VoxelOptions? options = null, CancellationToken cancellationToken = default)
     {
         bool a = TryGetCell(start, out VoxelCell s);
         bool b = TryGetCell(goal, out VoxelCell g);
@@ -363,10 +367,10 @@ public sealed partial class VoxelGrid
         {
             return VoxelPath.Invalid(PathStatus.GoalInvalid);
         }
-        return FindPathCore(s, g, options ?? DefaultOptions, true);
+        return FindPathCore(s, g, options ?? DefaultOptions, true, cancellationToken);
     }
 
-    private VoxelPath FindPathCore(VoxelCell start, VoxelCell goal, VoxelOptions o, bool world)
+    private VoxelPath FindPathCore(VoxelCell start, VoxelCell goal, VoxelOptions o, bool world, CancellationToken token)
     {
         if (!Contains(start.X, start.Y, start.Z) || Read(_chunks, ChunksX, ChunksY, _fill, start.X, start.Y, start.Z) == AreaCosts.Wall)
         {
@@ -400,10 +404,10 @@ public sealed partial class VoxelGrid
             };
             if (o.StepCost is null && o.Blocked is null)
             {
-                return VoxelSearchRunner.Run(topology, default(DefaultStepCost), heuristic, state, start, goal, o, centre);
+                return VoxelSearchRunner.Run(topology, default(DefaultStepCost), heuristic, state, start, goal, o, centre, token);
             }
             var cost = new VoxelSearchRunner.DelegateStepCost { SizeX = SizeX, SizeY = SizeY, Step = o.StepCost, Blocked = o.Blocked };
-            return VoxelSearchRunner.Run(topology, cost, heuristic, state, start, goal, o, centre);
+            return VoxelSearchRunner.Run(topology, cost, heuristic, state, start, goal, o, centre, token);
         }
         finally
         {

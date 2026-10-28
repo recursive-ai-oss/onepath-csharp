@@ -130,7 +130,7 @@ internal sealed partial class OctileJump<TFinder> : IOctileJumpEngine
         return Loop(budget, record);
     }
 
-    /// <summary>Starts a search that <see cref="Step"/> then advances; <see cref="Run"/> is both in one call.</summary>
+    /// <summary>Starts a search that <see cref="Step(int)"/> then advances; <see cref="Run"/> is both in one call.</summary>
     public void Begin(int start, int goal, bool zeroEstimate)
     {
         JumpCore core = _core;
@@ -154,6 +154,9 @@ internal sealed partial class OctileJump<TFinder> : IOctileJumpEngine
 
     /// <summary>Continues by at most <paramref name="budget"/> pops of live nodes; a finished search stays as it is.</summary>
     public SearchStatus Step(int budget) => _status == SearchStatus.Running ? Loop(budget, false) : _status;
+
+    /// <summary>Continues by at most <paramref name="budget"/> pops, recording expanded cells when <paramref name="record"/> is set.</summary>
+    public SearchStatus Step(int budget, bool record) => _status == SearchStatus.Running ? Loop(budget, record) : _status;
 
     // A new generation makes every node record of the earlier search stale without clearing the array.
     private void NextGeneration()
