@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.0.0]
+
+The first stable release. The public API is the one frozen in 1.0.0-rc.1 plus the additions below; results and saved formats from here on are covered by the 1.x promises in the README (bit-identical results within a major version, every 1.x release reads every earlier 1.x format).
+
 ### Added
 
 - **`NavMesh.Build2D(Grid, NavSettings?)`** builds a navigation mesh from a square grid: non-wall cells are walkable, cell size and origin come from `Grid.Space`, and the result equals the tile-map overload on the same walkability. Area ids and costs are not carried into the mesh (the 2D builder has one area per mesh); the agent radius comes from `NavSettings`.
@@ -121,7 +125,8 @@ These types carry `[Experimental]` and may change or move in any preview:
 - Peak memory is higher than the native references'.
 - Path queries on one large single-tile city mesh ran 1.6-1.8x slower than Detour in the last locked run (a later change to the mesh contours is not yet re-measured), and the tile cache is 4-6x slower than DetourTileCache; the README table lists the rows.
 
-[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v1.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v1.0.0-rc.1...v1.0.0
 [1.0.0-rc.1]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.5.0-preview.1...v1.0.0-rc.1
 [0.5.0-preview.1]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.3...v0.5.0-preview.1
 [0.4.0-preview.3]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.2...v0.4.0-preview.3

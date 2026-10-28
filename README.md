@@ -6,7 +6,7 @@
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4)](#install)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#licence)
 
-**Status: release candidate** (`1.0.0-rc.1`). Every part meets its speed target on x64 and arm64 (see [the table](#speed-against-the-references)), and the public API is frozen for 1.0 unless a release candidate finds a defect. See [CHANGELOG.md](CHANGELOG.md).
+**Status: 1.0.0.** Every part meets its speed target on x64 and arm64 (see [the table](#speed-against-the-references)). The public API follows semantic versioning, and results and saved formats are stable across every 1.x release (see [Determinism](#determinism)). See [CHANGELOG.md](CHANGELOG.md).
 
 ## Packages
 
@@ -18,7 +18,7 @@
 ## Install
 
 ```
-dotnet add package RecursiveAI.OnePath --prerelease
+dotnet add package RecursiveAI.OnePath
 ```
 
 The library targets `net10.0` on Windows, Linux and macOS (x64 and arm64), is NativeAOT- and trim-compatible, runs in browser WASM, and uses only the .NET base class library and `RecursiveAI.OneMath` at runtime. It never reads files or the network: glTF files, saved meshes and snapshots come in as bytes you supply.

@@ -3,7 +3,7 @@
 Pathfinding and navigation for .NET, written from first principles: grids, graphs, navigation meshes and crowds in
 one package. Results are bit-identical on every platform, so it is safe inside a lockstep or rollback game simulation.
 
-**Release candidate.** The public API is frozen for 1.0; only defects found in a release candidate change it.
+**Stable.** The public API follows semantic versioning; results are bit-identical and saved formats stay readable across every 1.x release.
 
 - **Grids and graphs:** square (4- and 8-connected), hex and 3D voxel grids; A\*, JPS, JPS+, Theta\*, Lazy Theta\*, HPA\*,
   LPA\* and D\* Lite replanning, flow fields, area costs, agent sizes; weighted and point graphs with bidirectional
