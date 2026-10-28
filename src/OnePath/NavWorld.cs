@@ -12,7 +12,7 @@ namespace RecursiveAI.OnePath;
 /// <c>NavMesh.Build(geometry, classes[i])</c> returns on its own; the world adds the choice of class for an agent and a crowd front
 /// that sends every agent to the crowd of its class.
 /// </summary>
-public sealed class NavWorld
+public sealed partial class NavWorld
 {
     private readonly NavMesh[] _meshes;
 

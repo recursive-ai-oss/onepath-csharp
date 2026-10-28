@@ -4,6 +4,11 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- **`NavMesh.Save`/`TrySave`/`GetSaveSize` and `NavMesh.Load`, `NavWorld.Save`/`TrySave`/`GetSaveSize` and `NavWorld.Load`:** a baked tier-1 mesh (or a world of agent classes) saves to bytes and loads back as a tier-1 `NavMesh`/`NavWorld`, with `Settings`, `CreateCrowd`, `CreateStreamer`, `FindPathAsync` and the query members working, and the same bits from every query. The bytes are a small envelope (`ONNM`, `ONNW`) around the unchanged version 2 mesh bytes and carry the `NavSettings`; `Load(bytes, settings)` also takes bare `NavMeshSerializer.WriteMesh` bytes, checking the settings against the mesh's build fingerprint (`NavMeshFingerprintException` on a mismatch). Layout in `docs/navmesh-format.md`; new fixtures under `Fixtures/1.1.0`; a fuzz target `navmesh-load`.
+- **`Crowd.TryAdd`:** like `Add`, but returns `false` instead of throwing when no walkable polygon is near the position or the crowd is full. `Add` is unchanged. The one policy for positions off the mesh is written down in `docs/path-results.md`.
+
 ## [1.0.0]
 
 The first stable release. The public API is the one frozen in 1.0.0-rc.1 plus the additions below; results and saved formats from here on are covered by the 1.x promises in the README (bit-identical results within a major version, every 1.x release reads every earlier 1.x format).

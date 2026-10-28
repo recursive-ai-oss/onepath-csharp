@@ -43,6 +43,7 @@ public static class Program
         if (args.Length == 2 && args[0] == "--seeds")
         {
             NavMeshFuzz.WriteSeeds(args[1]);
+            NavMeshFuzz.WriteLoadSeeds(System.IO.Path.Combine(args[1], "navmesh-load"));
             NavMeshSnapshotFuzz.WriteSeeds(System.IO.Path.Combine(args[1], "snapshot"));
             GraphTargets.WriteSeeds(System.IO.Path.Combine(args[1], "graph-landmarks"));
             CorridorFuzz.WriteSeeds(System.IO.Path.Combine(args[1], "corridor"));
@@ -101,6 +102,7 @@ public static class Targets
         ["build2d-describe"] = Build2DFuzz.Describe,
         ["navmesh-mesh"] = NavMeshFuzz.Mesh,
         ["navmesh-tile"] = NavMeshFuzz.Tile,
+        ["navmesh-load"] = NavMeshFuzz.Load,
         ["movingai-map"] = GridTargets.MapParser,
         ["movingai-scen"] = GridTargets.ScenarioParser,
         ["grid-query"] = GridTargets.Query,

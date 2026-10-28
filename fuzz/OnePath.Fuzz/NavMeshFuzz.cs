@@ -32,6 +32,49 @@ internal static class NavMeshFuzz
         _ = RecursiveAI.OnePath.Debug.NavMeshDebug.Collect(mesh);
     }
 
+    // The tier-1 loaders: a saved mesh or world either throws a typed format error or loads, passes the mesh validator,
+    // and saves back to exactly the same bytes.
+    public static void Load(byte[] data)
+    {
+        try
+        {
+            NavMesh nav = NavMesh.Load(data);
+            if (NavMeshValidator.Validate(nav.Tiles).Count != 0 || !nav.Save().AsSpan().SequenceEqual(data))
+            {
+                throw new InvalidOperationException("accepted mesh is inconsistent or does not round-trip");
+            }
+            return;
+        }
+        catch (OnePathFormatException)
+        {
+        }
+        try
+        {
+            NavWorld world = NavWorld.Load(data);
+            if (!world.Save().AsSpan().SequenceEqual(data))
+            {
+                throw new InvalidOperationException("accepted world does not round-trip");
+            }
+        }
+        catch (OnePathFormatException)
+        {
+        }
+    }
+
+    public static void WriteLoadSeeds(string dir)
+    {
+        Directory.CreateDirectory(dir);
+        var cells = new bool[8 * 8];
+        Array.Fill(cells, true);
+        cells[27] = false;
+        NavSettings s = NavSettings.Humanoid with { CellSize = 0.5, TileSize = 4, OffMeshLinks = [OffMeshLinkDefinition.Create(new RecursiveAI.OneMath.Vector3D(1.5, 0, 1.5), new RecursiveAI.OneMath.Vector3D(6.5, 0, 6.5), 3)] };
+        NavMesh nav = NavMesh.Build2D(cells, 8, 8, 1.0, new RecursiveAI.OneMath.Vector2D(0, 0), s);
+        File.WriteAllBytes(Path.Combine(dir, "mesh.bin"), nav.Save());
+        File.WriteAllBytes(Path.Combine(dir, "mesh-plain.bin"), NavMesh.Build2D(cells, 8, 8, 1.0, new RecursiveAI.OneMath.Vector2D(0, 0), NavSettings.Humanoid with { CellSize = 0.5, TileSize = 4 }).Save());
+        var ring = new RecursiveAI.OneMath.Vector2D[] { new(0, 0), new(8, 0), new(8, 8), new(0, 8) };
+        File.WriteAllBytes(Path.Combine(dir, "world.bin"), NavWorld.Build2D([new RecursiveAI.OnePath.Mesh.Build2D.Outline(ring)], NavSettings.Humanoid with { CellSize = 0.5, TileSize = 4 }, NavSettings.Small with { CellSize = 0.5, TileSize = 4 }).Save());
+    }
+
     public static void Tile(byte[] data)
     {
         NavTile tile;

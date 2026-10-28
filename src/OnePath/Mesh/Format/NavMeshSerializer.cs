@@ -13,7 +13,7 @@ namespace RecursiveAI.OnePath.Mesh;
 public static class NavMeshSerializer
 {
     private const uint TileMagic = 0x5450_4E4F; // "ONPT" little-endian
-    private const uint MeshMagic = 0x4D50_4E4F; // "ONPM"
+    internal const uint MeshMagic = 0x4D50_4E4F; // "ONPM"
     internal const int ParamsSize = 68;
     private const int TileFixedHeader = 4 + 2 + 2 + NavMeshFingerprint.Size + 12 + 24 + (6 * 4);
     private const int PolyRecordSize = 16;
