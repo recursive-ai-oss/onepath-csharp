@@ -6,7 +6,7 @@ A level built once can change while the game runs: a barricade appears, a door's
 the whole level is too slow, and rebuilding a tile from the triangles repeats work that did not change. A **tile cache** keeps, for
 each tile, the part of the build that depends only on the geometry, and redoes the rest.
 
-**Preview.** `TileCache`, `TileObstacle`, `ObstacleShape`, the `Build*Cached` methods and `Mesh3DPipeline.Obstacles` carry `[Experimental("ONEPATH0002")]`: one tile rebuild costs several times what a comparable native tile cache spends, and the API may change while that is reduced.
+**Preview.** `TileCache`, `TileObstacle`, `ObstacleShape`, the `Build*Cached` methods and `Mesh3DPipeline.Obstacles` carry `[Experimental("ONEPATH0002")]`: one rebuild still costs more than a comparable native tile cache spends (see "Cost" below), and the API may change while that is reduced.
 
 ## What is cached
 
@@ -38,6 +38,35 @@ plain build produces; the pipeline runs the same code on a copy. With `Partition
 The rebuild's cost is the partition and contour stages of `NavSettings.Partition`. `PartitionType.Layers` (monotone regions on height layers)
 with `DetailSampleDistance = 0` is the cheapest setting, and is what a host that adds and removes obstacles often should choose; watershed
 with detail sampling gives smoother regions at about twice the rebuild cost.
+
+## Layer-first tiles
+
+With `PartitionType.Layers`, the default contour, polygon and detail steps, and no height sampling in the detail stage (`DetailSampleDistance` at most 0.9 cells; this is the cheap setting a host that adds and
+removes obstacles often should choose), a tile is built **one layer at a time**. The general path (every other setting) builds all layers of a tile together and keeps the compact heightfield of the whole tile.
+
+**Splitting.** At the first build the tile's layers are decided as in `build3d-regions.md` §4 (layer partition, then overlapping regions on different layers). A span that is not walkable after erosion goes with the layer of
+its first walkable neighbour (direction order −x, +z, +x, −z), else layer 0. Each layer keeps its own spans in compact-heightfield order (column by column), their floor rows, column coordinates, base areas and the links between
+spans **of that layer** (a link to a span of another layer is dropped, so a layer's contours see the other layer as a wall and its corner heights ignore it). Every rebuild starts from the layer's *first-build areas*
+(the areas after erosion, the pipeline's own area volumes and the pipeline's own `Obstacles`).
+
+**Per layer, for the areas in force:**
+
+1. *Marking.* The cache's obstacles, then its volumes, in the order they were added, on a copy of the first-build areas (rules below). Nothing is marked, and nothing is rebuilt, for a layer whose walkable cells' box (x and z)
+   the obstacle's box grown by the agent radius plus one cell (volumes: not grown) does not touch.
+2. *Regions.* Connected components of spans of one non-zero area under the −x and −z links, numbered in order of first span; a component smaller than `MinRegionArea` spans with no walkable span of another area linked to it is
+   dropped (the island removal of `build3d-regions.md` §5). Spans in the border ring that belong to a region become one border region.
+3. *Contours.* Every region with a span inside the tile's own cells is traced and simplified exactly as in `build3d-regions.md` §6, with the border region as the tile border; corner heights use the layer's links.
+4. *Polygons, detail, tile.* As in `build3d-polys.md` §3–§5 with this layer's polygons only: the vertex welding is per layer, the tile's vertical origin is this layer's lowest vertex, the layer number is the tile's layer.
+   A layer with no polygon has no tile.
+
+For a tile with one layer the result equals the general path's byte for byte (tested). Where a tile has several layers the two differ in welding across layers, corner heights next to another layer's floor, and the vertical
+origin of each layer's tile; the walkable area is the same within 1 % (tested).
+
+**Rebuilding.** `Update` marks every layer of a queued tile and compares its areas with those the mesh's tile for that layer was last built from; only a layer that differs is built again, and a layer whose areas equal
+the first build's takes the first build's tile data without building. A rebuilt layer whose tile data equals what the mesh holds keeps its tile. With authored off-mesh links, links go to the layer that fits them best,
+so a tile in which any layer changed is rebuilt in full, all layers. Pipeline `Obstacles` added or removed after the first build are not seen by rebuilds of a cache (its first-build areas are fixed).
+
+**Cost.** See "Cost of a rebuild" at the end.
 
 ## Obstacles (step 4)
 
@@ -101,6 +130,13 @@ and are never reused. Layout: `navmesh-snapshot.md`, "Tile cache snapshot".
 
 Tiles rebuild one at a time in queue order; a host may run rebuilds in parallel by tile only if it applies the results in queue order. Off-mesh
 links, several agent sizes per world and streaming are separate parts.
+
+## Cost of a rebuild
+
+Measured on the generated `city` level (tile 64 cells, layers, no detail sampling, 16 cylinder obstacles added and removed one at a time, each followed by `UpdateAll`; about 26 layer builds per cycle, 5400 spans each).
+One cycle takes 1.8 ms on a loaded x64 desktop and 2.95 ms on an Apple M2 (the native tile cache it is compared with takes 1.29 ms there; before the layer-by-layer build the figures were 3.85 and 7.7 ms).
+Per layer build, in µs on the desktop: labelling regions 10, numbering them and cutting the border 7, tracing 13, simplifying 7, polygonizing 15, making the tile 5, creating and stitching it 7, marking and comparing areas of queued layers
+that turn out unchanged 5. Every stage is a pass over the layer or over its contour; what is left to remove is the whole-layer work (labelling, tracing) for an obstacle that touches a small part of a large region.
 
 ## Hash-matrix scenario
 

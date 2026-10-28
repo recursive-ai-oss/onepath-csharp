@@ -12,6 +12,7 @@ internal static class Build3DRuntimeScenarios
     internal static void Init()
     {
         Scenarios.Register("build3d/tilecache", TileCacheRun);
+        Scenarios.Register("build3d/tilecache-layers", TileCacheLayersRun);
     }
 
     private static void Mesh(ScenarioContext ctx, TileCache c)
@@ -58,6 +59,47 @@ internal static class Build3DRuntimeScenarios
         byte[] again = c.Snapshot(SnapshotMode.Referenced);
         ctx.Write(again.Length);
         ctx.Write(again);
+        c.UpdateAll();
+        Mesh(ctx, c);
+        c.RemoveObstacle(a1);
+        c.RemoveObstacle(a3);
+        c.RemoveVolume(vol);
+        c.UpdateAll();
+        Mesh(ctx, c);
+        ctx.Write(a1 + a2 + a3);
+    }
+
+    private static void Floor(List<double> v, List<int> ix, double x0, double z0, double x1, double z1, double y)
+    {
+        int a = v.Count / 3;
+        v.AddRange(new[] { x0, y, z0, x1, y, z0, x1, y, z1, x0, y, z1 });
+        ix.AddRange(new[] { a, a + 3, a + 2, a, a + 2, a + 1 });
+    }
+
+    // The layer-by-layer tile build and rebuilds: a floor with a bridge over it (two layers in a tile), a ramp-like step, no detail sampling.
+    private static void TileCacheLayersRun(ScenarioContext ctx)
+    {
+        var v = new List<double>();
+        var ix = new List<int>();
+        Floor(v, ix, 0, 0, 40, 30, 0);
+        Floor(v, ix, 4, 4, 28, 20, 4);
+        Floor(v, ix, 33, 3, 39, 9, 0.3);
+        var settings = new NavSettings { Partition = PartitionType.Layers, CellSize = 0.25, CellHeight = 0.1, TileSize = 16, AgentRadius = 0.5f, AgentHeight = 1.8f, WalkableClimb = 0.4f, DetailSampleDistance = 0 };
+        TileCache c = new Mesh3DPipeline(settings).BuildSoupCached(v.ToArray(), ix.ToArray());
+        Mesh(ctx, c);
+        int a1 = c.AddObstacle(TileObstacle.Cylinder(15.9, 0, 14, 2.2, 2));
+        int a2 = c.AddObstacle(TileObstacle.Box(30, 0, 5, 33, 2, 12));
+        int a3 = c.AddObstacle(TileObstacle.OrientedBox(8, 4, 12, 3, 1, 0.6, 0.7));
+        int vol = c.AddVolume(new ConvexVolume(new double[] { 3, 3, 14, 3, 14, 14, 3, 14 }, -1, 5, 7));
+        ctx.Write(c.PendingCount);
+        ctx.Write(c.Update(2));
+        byte[] snap = c.Snapshot();
+        ctx.Write(snap.Length);
+        ctx.Write(snap);
+        c.RemoveObstacle(a2);
+        ctx.Write(c.UpdateAll());
+        Mesh(ctx, c);
+        c.Restore(snap);
         c.UpdateAll();
         Mesh(ctx, c);
         c.RemoveObstacle(a1);

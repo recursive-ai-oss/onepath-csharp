@@ -212,7 +212,7 @@ public sealed class TileObstacle
     }
 
     // The footprint test with the shape grown by `grow` on every side (a round shape grows round, a box square).
-    private bool ContainsGrown(double x, double z, double grow)
+    internal bool ContainsGrown(double x, double z, double grow)
     {
         switch (Shape)
         {
