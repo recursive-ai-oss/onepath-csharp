@@ -47,7 +47,6 @@ public sealed partial class NavMeshQuery
     /// <summary>The mesh being queried.</summary>
     public TiledNavMesh Mesh => _mesh;
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     internal static void CheckPos(Vector3D v, string name)
     {
         if (!(Math.Abs(v.X) < NavMeshParams.MaxWorld && Math.Abs(v.Y) < NavMeshParams.MaxWorld && Math.Abs(v.Z) < NavMeshParams.MaxWorld))
@@ -65,7 +64,6 @@ public sealed partial class NavMeshQuery
     /// </summary>
     /// <returns>The result; <see cref="NearestPoly.Poly"/> is <see cref="PolyRef.Invalid"/> if nothing qualifies.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21, or an extent is negative or non-finite.</exception>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public NearestPoly FindNearestPoly<TFilter>(Vector3D center, Vector3D halfExtents, in TFilter filter)
         where TFilter : struct, IQueryFilter
     {
@@ -116,7 +114,6 @@ public sealed partial class NavMeshQuery
     }
 
     /// <summary>Nearest polygon with the plain filter (null accepts every polygon).</summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public NearestPoly FindNearestPoly(Vector3D center, Vector3D halfExtents, QueryFilter? filter = null)
     {
         var f = new PlainFilter(filter ?? s_defaultFilter);
@@ -155,7 +152,6 @@ public sealed partial class NavMeshQuery
 
         public int Index { get; }
 
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
         public bool BeatenBy(double d2, int tx, int tz, int layer, int index)
         {
             if (d2 != D2)
@@ -174,7 +170,6 @@ public sealed partial class NavMeshQuery
         }
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private void ScanTile<TFilter>(TileRef tr, Vector3D center, Vector3D ext, in TFilter filter, ref Candidate best)
         where TFilter : struct, IQueryFilter
     {
@@ -219,7 +214,6 @@ public sealed partial class NavMeshQuery
     /// </summary>
     /// <returns>False if the polygon reference is invalid or stale.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The position is non-finite or beyond ±2^21.</exception>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public bool ClosestPointOnPoly(PolyRef poly, Vector3D position, out Vector3D closest, out bool overPolygon)
     {
         CheckPos(position, nameof(position));

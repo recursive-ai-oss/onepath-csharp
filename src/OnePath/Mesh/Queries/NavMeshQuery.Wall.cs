@@ -18,7 +18,6 @@ public sealed partial class NavMeshQuery
     /// <param name="filter">Which polygons count as walkable.</param>
     /// <param name="status">Success, or InvalidStartPoly.</param>
     /// <exception cref="ArgumentOutOfRangeException">The centre is non-finite or beyond ±2^21, or the radius is out of range.</exception>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public WallHit DistanceToWall<TFilter>(PolyRef startPoly, Vector3D center, double radius, in TFilter filter, out AreaQueryStatus status)
         where TFilter : struct, IQueryFilter
     {
@@ -33,7 +32,6 @@ public sealed partial class NavMeshQuery
     }
 
     /// <summary>Distance to the nearest wall with the plain filter (null accepts everything).</summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public WallHit DistanceToWall(PolyRef startPoly, Vector3D center, double radius, QueryFilter? filter, out AreaQueryStatus status)
     {
         var f = new PlainFilter(filter ?? s_defaultFilter);
@@ -45,7 +43,6 @@ public sealed partial class NavMeshQuery
     /// polygons expanded so far. Pass the filter the search used.
     /// </summary>
     /// <exception cref="InvalidOperationException">No circle search has begun.</exception>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public WallHit FinishDistanceToWall<TFilter>(in TFilter filter)
         where TFilter : struct, IQueryFilter
     {
@@ -163,7 +160,6 @@ public sealed partial class NavMeshQuery
 
     /// <summary>Ends a sliced circle search begun with a plain filter by finding the nearest wall.</summary>
     /// <exception cref="InvalidOperationException">No circle search has begun, or it was started with a struct filter.</exception>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public WallHit FinishDistanceToWall()
     {
         if (!_aPlainStored)
@@ -175,7 +171,6 @@ public sealed partial class NavMeshQuery
     }
 
     // A tile-border link on this edge to a polygon the filter accepts.
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private bool LinkCovers<TFilter>(NavLink l, int edge, in TFilter filter)
         where TFilter : struct, IQueryFilter =>
         l.Kind == NavLinkKind.Portal && l.Index == edge

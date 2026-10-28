@@ -62,7 +62,6 @@ public sealed partial class NavMeshQuery
     private bool _plainStored;
     private int[] _chain = new int[256];
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private void InitPathBuffers()
     {
         int n = _maxNodes + 2;
@@ -88,7 +87,6 @@ public sealed partial class NavMeshQuery
     /// </summary>
     /// <returns><see cref="PathStatus.InProgress"/> when the search can run; otherwise the reason it cannot.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public PathStatus BeginPath(PolyRef startPoly, PolyRef endPoly, Vector3D startPos, Vector3D endPos, QueryFilter? filter = null)
     {
         _plain = new PlainFilter(filter ?? s_defaultFilter);
@@ -97,7 +95,6 @@ public sealed partial class NavMeshQuery
     }
 
     /// <summary>Starts a path search with a struct filter. Pass the same filter to every <see cref="UpdatePath{TFilter}"/> call.</summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public PathStatus BeginPath<TFilter>(PolyRef startPoly, PolyRef endPoly, Vector3D startPos, Vector3D endPos, in TFilter filter)
         where TFilter : struct, IQueryFilter
     {
@@ -150,7 +147,6 @@ public sealed partial class NavMeshQuery
     /// <summary>Runs up to <paramref name="maxIterations"/> expansions of the search started with the plain-filter <see cref="BeginPath(PolyRef, PolyRef, Vector3D, Vector3D, QueryFilter?)"/>.</summary>
     /// <returns>InProgress while unfinished, then Success or Partial; or the failure from Begin.</returns>
     /// <exception cref="InvalidOperationException">The search was started with a struct filter; use the generic overload.</exception>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public PathStatus UpdatePath(int maxIterations)
     {
         if (!_plainStored)
@@ -165,7 +161,6 @@ public sealed partial class NavMeshQuery
     /// Runs up to <paramref name="maxIterations"/> expansions (one pop of the open list is one iteration). The result
     /// after any sequence of calls adding up to the same work equals the result of one unlimited call.
     /// </summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public PathStatus UpdatePath<TFilter>(int maxIterations, in TFilter filter)
         where TFilter : struct, IQueryFilter
     {
@@ -214,7 +209,6 @@ public sealed partial class NavMeshQuery
     /// <param name="count">Number of polygons written.</param>
     /// <param name="truncated">True if the corridor was longer than <paramref name="path"/>.</param>
     /// <param name="cost">The search cost of the full route.</param>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public PathStatus FinishPath(Span<PolyRef> path, out int count, out bool truncated, out double cost)
     {
         count = 0;
@@ -276,7 +270,6 @@ public sealed partial class NavMeshQuery
 
     private ulong[] _tmp = new ulong[256];
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private int FindInTmp(ulong poly, int w)
     {
         for (int j = 0; j < w; j++)
@@ -289,7 +282,6 @@ public sealed partial class NavMeshQuery
         return -1;
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private void SetTmp(int i, ulong v)
     {
         if (i == _tmp.Length)
@@ -300,7 +292,6 @@ public sealed partial class NavMeshQuery
     }
 
     /// <summary>Polygons expanded by the current or last search, in expansion order (debug geometry; allocates).</summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public PolyRef[] GetExpandedPolygons()
     {
         var list = new System.Collections.Generic.List<PolyRef>();
@@ -317,7 +308,6 @@ public sealed partial class NavMeshQuery
     /// <summary>
     /// Finds the cheapest corridor between two polygons in one call (begin, run to completion, finish).
     /// </summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public PathStatus FindPath<TFilter>(PolyRef startPoly, PolyRef endPoly, Vector3D startPos, Vector3D endPos, in TFilter filter, Span<PolyRef> path, out int count)
         where TFilter : struct, IQueryFilter
     {
@@ -333,7 +323,6 @@ public sealed partial class NavMeshQuery
 
     // --- search internals ---
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private static ulong Mix(ulong x)
     {
         x ^= x >> 33;
@@ -343,7 +332,6 @@ public sealed partial class NavMeshQuery
         return x ^ (x >> 33);
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private double EndDistance(double x, double y, double z)
     {
         double dx = x - _endPos.X, dy = y - _endPos.Y, dz = z - _endPos.Z;
@@ -352,7 +340,6 @@ public sealed partial class NavMeshQuery
 
     // False when the node a move would reach already costs no more than the cost before the move (a leg never costs less than
     // zero), so the move cannot improve it and its position, leg and heuristic need not be computed.
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private bool MayImprove(ulong from, int exit, ulong arrival, double g)
     {
         HashSlot[] hash = _hash;
@@ -371,7 +358,6 @@ public sealed partial class NavMeshQuery
     }
 
     // Finds the node for (from, exit) or creates it; returns -1 when the node limit stops creation.
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private int FindOrAdd(ulong from, int exit, ulong arrival, out bool created)
     {
         HashSlot[] hash = _hash;
@@ -398,7 +384,6 @@ public sealed partial class NavMeshQuery
     }
 
     // Relax the crossing (from, exit) -> arrival reached with cost g at (x, y, z) from `parent`.
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private void Relax<TFilter>(int parent, ulong from, int exit, ulong arrival, double g, double x, double y, double z, in TFilter filter)
         where TFilter : struct, IQueryFilter
     {
@@ -437,7 +422,6 @@ public sealed partial class NavMeshQuery
         Push(g + (filter.MinAreaCost * h), n);
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private void Expand<TFilter>(int node, in TFilter filter)
         where TFilter : struct, IQueryFilter
     {
@@ -576,7 +560,6 @@ public sealed partial class NavMeshQuery
         }
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private static double Dist(double x0, double y0, double z0, double x1, double y1, double z1)
     {
         double dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
@@ -585,7 +568,6 @@ public sealed partial class NavMeshQuery
 
     // --- open list: binary min-heap on (f, insertion sequence) ---
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private void Push(double f, int node)
     {
         if (_heapCount == _heap.Length)
@@ -608,7 +590,6 @@ public sealed partial class NavMeshQuery
         heap[i] = new HeapEntry { F = f, Seq = seq, Node = node };
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private int PopMin()
     {
         HeapEntry[] heap = _heap;

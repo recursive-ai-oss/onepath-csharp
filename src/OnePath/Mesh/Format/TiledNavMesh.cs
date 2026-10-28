@@ -153,7 +153,6 @@ public sealed class TiledNavMesh
 
     /// <summary>Resolves a polygon reference.</summary>
     /// <returns>False for a stale, forged or invalid reference.</returns>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public bool TryGetPoly(PolyRef poly, out NavTile tile, out int polyIndex)
     {
         int slot = poly.TileSlot;
@@ -169,7 +168,6 @@ public sealed class TiledNavMesh
     }
 
     /// <summary>The stitched links leaving <paramref name="poly"/> through tile portals and off-mesh links (empty for an invalid reference). In-tile neighbours are in <see cref="NavTile.EdgeNeighbors"/>.</summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public ReadOnlySpan<NavLink> GetLinks(PolyRef poly)
     {
         if (!TryGetPoly(poly, out _, out int pi))
@@ -183,7 +181,6 @@ public sealed class TiledNavMesh
     }
 
     // Links of a polygon already resolved by TryGetPoly (slot and index known valid), skipping the second validation.
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     internal ReadOnlySpan<NavLink> LinksOfResolved(int slot, int polyIndex)
     {
         TileLinks tl = _links[slot];

@@ -10,7 +10,6 @@ internal static class PolyGeometry
     /// the fan of triangles (v0, vi, vi+1). A point outside every triangle (boundary rounding) takes the plane of the
     /// triangle it violates least.
     /// </summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public static double HeightAt(NavTile t, int p, double x, double z)
     {
         ReadOnlySpan<float> v = t.Vertices;
@@ -71,7 +70,6 @@ internal static class PolyGeometry
     }
 
     // Vertex i of a polygon's detail mesh: the polygon's own vertices first, then its extra detail vertices.
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private static void Corner(NavTile t, int p, int i, out double px, out double py, out double pz)
     {
         int n = t.PolyVertexCounts[p];
@@ -93,7 +91,6 @@ internal static class PolyGeometry
 
     // Barycentric test in X/Z. Returns true (with y) if the point is inside within a tiny tolerance; otherwise keeps the
     // least-violating triangle's plane height in bestY.
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     internal static bool Tri(double ax, double ay, double az, double bx, double by, double bz, double cx, double cy, double cz, double x, double z, ref double bestMin, ref double bestY)
     {
         double d = ((bz - cz) * (ax - cx)) + ((cx - bx) * (az - cz));
@@ -120,7 +117,6 @@ internal static class PolyGeometry
     }
 
     /// <summary>True if (x, z) is inside or within <paramref name="tol"/> (distance) of the polygon outline.</summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public static bool Contains(NavTile t, int p, double x, double z, double tol)
     {
         ReadOnlySpan<float> v = t.Vertices;
@@ -144,7 +140,6 @@ internal static class PolyGeometry
     /// Closest point of the polygon to a position: inside the outline seen from above, the surface point under/over it;
     /// otherwise the nearest point of the outline in X/Z (ties to the lower edge) with height interpolated along that edge.
     /// </summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public static void Closest(NavTile t, int p, double px, double py, double pz, out double cx, out double cy, out double cz, out bool over)
     {
         _ = py;
@@ -207,7 +202,6 @@ internal sealed class TileBvh
         _order = new int[polys];
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public static TileBvh Build(NavTile t)
     {
         int n = t.PolyCount;
@@ -248,7 +242,6 @@ internal sealed class TileBvh
         return bvh;
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private int BuildNode(float[] pb, int lo, int hi)
     {
         int node = _count++;
@@ -307,7 +300,6 @@ internal sealed class TileBvh
             _axis = axis;
         }
 
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
         public int Compare(int x, int y)
         {
             float cx = _pb[(6 * x) + _axis] + _pb[(6 * x) + 3 + _axis];
@@ -321,7 +313,6 @@ internal sealed class TileBvh
     /// Collects polygons whose box overlaps the tile-local box into <paramref name="results"/>, advancing
     /// <paramref name="count"/> past what was written (stops writing when full but keeps counting).
     /// </summary>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public void Query(double minX, double minY, double minZ, double maxX, double maxY, double maxZ, int[] results, ref int count, int[] stack)
     {
         if (_count == 0)
@@ -391,7 +382,6 @@ internal sealed class DetailHeightGrid
         _box = new double[4 * polys];
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public static void Corners(ReadOnlySpan<float> v, ReadOnlySpan<float> dv, ReadOnlySpan<ushort> idx, int b, int n, int vb, ReadOnlySpan<byte> dt, int o,
         out double ax, out double ay, out double az, out double bx, out double by, out double bz, out double cx, out double cy, out double cz)
     {
@@ -400,7 +390,6 @@ internal sealed class DetailHeightGrid
         Corner(v, dv, idx, b, n, vb, dt[o + 2], out cx, out cy, out cz);
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private static void Corner(ReadOnlySpan<float> v, ReadOnlySpan<float> dv, ReadOnlySpan<ushort> idx, int b, int n, int vb, int i, out double x, out double y, out double z)
     {
         if (i < n)
@@ -419,7 +408,6 @@ internal sealed class DetailHeightGrid
         }
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public ReadOnlySpan<int> Candidates(int p, double x, double z)
     {
         int cb = _cellBase[p];
@@ -434,10 +422,8 @@ internal sealed class DetailHeightGrid
         return _items.AsSpan(_cellStart[cell], _cellStart[cell + 1] - _cellStart[cell]);
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private static int ClampCell(double f, int d) => !(f > 0) ? 0 : (f >= d ? d - 1 : (int)f);
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public static DetailHeightGrid Build(NavTile t)
     {
         int polys = t.PolyCount;

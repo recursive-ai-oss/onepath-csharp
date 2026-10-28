@@ -18,7 +18,6 @@ public sealed partial class NavMeshQuery
     /// reachable point and <see cref="PathResult.Status"/> is Partial.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public PathResult FindPath(Vector3D start, Vector3D end, PathOptions? options = null)
     {
         PathOptions o = options ?? s_defaultOptions;
@@ -36,7 +35,6 @@ public sealed partial class NavMeshQuery
     /// Do not use the query object for anything else while the returned task runs.
     /// </summary>
     /// <exception cref="OperationCanceledException">The token was cancelled between slices.</exception>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public async Task<PathResult> FindPathAsync(Vector3D start, Vector3D end, PathOptions? options = null, int iterationsPerSlice = 256, CancellationToken cancellationToken = default)
     {
         if (iterationsPerSlice < 1)
@@ -57,7 +55,6 @@ public sealed partial class NavMeshQuery
         return FinishHigh(s, start, end, o, sn, en);
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private PathStatus BeginHigh(Vector3D start, Vector3D end, PathOptions o, out NearestPoly sn, out NearestPoly en)
     {
         CheckPos(start, nameof(start));
@@ -76,7 +73,6 @@ public sealed partial class NavMeshQuery
         return BeginPath(sn.Poly, en.Poly, sn.Point, en.Point, f);
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private PathResult FinishHigh(PathStatus s, Vector3D start, Vector3D end, PathOptions o, NearestPoly sn, NearestPoly en)
     {
         _ = start;
@@ -121,7 +117,6 @@ public static class TiledNavMeshQueryExtensions
     /// <summary>Finds the shortest walkable path between two world positions (see <see cref="NavMeshQuery.FindPath(Vector3D, Vector3D, PathOptions?)"/>).</summary>
     /// <exception cref="ArgumentNullException"><paramref name="mesh"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public static PathResult FindPath(this TiledNavMesh mesh, Vector3D start, Vector3D end, PathOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(mesh);

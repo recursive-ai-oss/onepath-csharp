@@ -24,7 +24,6 @@ public sealed partial class NavMeshQuery
     /// <param name="truncated">True if <paramref name="result"/> was too small; the points written are a prefix.</param>
     /// <returns>Success, or <see cref="PathStatus.InvalidCorridor"/> (nothing written).</returns>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public PathStatus FindStraightPath(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, out int count, out bool truncated) =>
         StraightCore(start, end, corridor, result, int.MaxValue, out count, out truncated);
 
@@ -43,14 +42,12 @@ public sealed partial class NavMeshQuery
     /// <returns>Success, or <see cref="PathStatus.InvalidCorridor"/> (nothing written).</returns>
     /// <param name="maxCorners">Most points to find, at least 1; also limited by the length of <paramref name="result"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21, or <paramref name="maxCorners"/> is below 1.</exception>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public PathStatus FindStraightPath(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, int maxCorners, out int count, out bool truncated)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxCorners, 1);
         return StraightCore(start, end, corridor, result, maxCorners, out count, out truncated);
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private PathStatus StraightCore(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, int limit, out int count, out bool truncated)
     {
         CheckPos(start, nameof(start));
@@ -129,7 +126,6 @@ public sealed partial class NavMeshQuery
 
         public bool Truncated { get; private set; }
 
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
         public void Add(StraightPathPoint p)
         {
             if (Count < _r.Length)
@@ -143,7 +139,6 @@ public sealed partial class NavMeshQuery
         }
 
         // Skips a point at the same position as the last one (keeps the earlier point's flags unless the new one is End or off-mesh).
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
         public void AddDistinct(StraightPathPoint p)
         {
             if (Count > 0 && Count <= _r.Length && _r[Count - 1].Position == p.Position)
@@ -157,13 +152,11 @@ public sealed partial class NavMeshQuery
     }
 
     // Twice the signed area of (a, b, c) in X/Z: positive when c lies to the left of a->b (X right, Z up).
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private static double Cross(double ax, double az, double bx, double bz, double cx, double cz) =>
         ((bx - ax) * (cz - az)) - ((bz - az) * (cx - ax));
 
     // Simple stupid funnel over the portals in _portals[0..pc): appends the corners between `from` and `to`.
     // A corner on portal k is entered when the path passes from corridor[polyBase + k] to corridor[polyBase + k + 1].
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private void Funnel(Vector3D from, Vector3D to, int pc, ReadOnlySpan<PolyRef> corridor, int polyBase, ref Writer w)
     {
         double ax = from.X, ay = from.Y, az = from.Z; // apex
@@ -252,7 +245,6 @@ public sealed partial class NavMeshQuery
 
     // Finds how corridor polygon a connects to b. For an edge: the shared part as a (left, right) pair seen when walking
     // from a to b. For an off-mesh link: its entry and exit points.
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private Connection Connect(PolyRef a, PolyRef b, out Vector3D left, out Vector3D right, out Vector3D offStart, out Vector3D offEnd)
     {
         left = right = offStart = offEnd = default;
