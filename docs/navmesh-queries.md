@@ -92,6 +92,8 @@ Reaching the end polygon adds a terminal node (cost of the final leg); the searc
   change). Moves back into the polygon the node was reached from are not generated. The cost is a real walk's length but not the least one
   of the polygon-to-polygon cost model, so corridors can differ from `Crossing`'s; it expands about half the nodes. On generated test levels the mean string-pulled
   path length differs from `Crossing`'s by -0.5% to +1.4%.
+  *Implementation note (no effect on results):* the `Polygon` model finds a polygon's node through a table indexed by tile slot and
+  polygon index (8 bytes per polygon of the mesh, resized when the mesh is edited) and not through a hash; the table is a speed device only.
 
 **Partial paths.** If the open list empties, or the node limit (`maxNodes` of the query object, default 65536; new nodes beyond it
 are dropped) stops the search from finding the end, the result is `Partial`: the corridor leads to the expanded node closest (3D) to the
