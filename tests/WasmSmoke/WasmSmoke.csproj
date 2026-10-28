@@ -13,5 +13,6 @@
     <Compile Include="../AotSmoke/NavMeshSmoke.cs" Link="NavMeshSmoke.cs" />
     <Compile Include="../AotSmoke/CorridorSmoke.cs" Link="CorridorSmoke.cs" />
     <Compile Include="../AotSmoke/CrowdSmoke.cs" Link="CrowdSmoke.cs" />
+    <Compile Include="../AotSmoke/TileCacheSmoke.cs" Link="TileCacheSmoke.cs" />
   </ItemGroup>
 </Project>

@@ -86,6 +86,8 @@ NavMesh level = NavMesh.Build(levelTris, NavSettings.Humanoid with { TileSize = 
 PathResult levelPath = level.FindPath(new Vector3D(3, 0, 3), new Vector3D(37, 0, 37));
 Console.WriteLine($"NavMesh.Build (3D): {level.Tiles.TileCount} tiles, path {levelPath.Status}");
 ok = ok && level.Tiles.TileCount == 9 && levelPath.Status == PathStatus.Success && RecursiveAI.OnePath.Mesh.NavMeshValidator.Validate(level.Tiles).Count == 0;
+bool tileCache = TileCacheSmoke.Run();
+Console.WriteLine($"Tile cache (obstacles, volumes, state): {(tileCache ? "ok" : "FAILED")}");
 bool grids = GridSmoke.Run();
 Console.WriteLine($"Grids run: {(grids ? "ok" : "FAILED")}");
 bool flow = FlowSmoke.Run();
@@ -98,4 +100,4 @@ bool state = StateSmoke.Run();
 Console.WriteLine($"Grid state run: {(state ? "ok" : "FAILED")}");
 bool crowds = CrowdSmoke.Run();
 Console.WriteLine($"Crowd run: {(crowds ? "ok" : "FAILED")}");
-return ok && orca && nav && grids && flow && graphs && corridors && state && crowds && OnePathInfo.Version.Major >= 0 ? 0 : 1;
+return ok && tileCache && orca && nav && grids && flow && graphs && corridors && state && crowds && OnePathInfo.Version.Major >= 0 ? 0 : 1;

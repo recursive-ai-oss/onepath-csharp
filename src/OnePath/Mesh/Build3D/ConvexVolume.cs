@@ -59,6 +59,15 @@ public sealed class ConvexVolume
             }
         }
         _xz = xz.ToArray();
+        MinX = MaxX = xz[0];
+        MinZ = MaxZ = xz[1];
+        for (int i = 1; i < n; i++)
+        {
+            MinX = Math.Min(MinX, xz[2 * i]);
+            MaxX = Math.Max(MaxX, xz[2 * i]);
+            MinZ = Math.Min(MinZ, xz[(2 * i) + 1]);
+            MaxZ = Math.Max(MaxZ, xz[(2 * i) + 1]);
+        }
         MinY = minY;
         MaxY = maxY;
         Area = area;
@@ -69,6 +78,21 @@ public sealed class ConvexVolume
 
     /// <summary>Highest world y included.</summary>
     public double MaxY { get; }
+
+    /// <summary>Smallest x of the polygon.</summary>
+    public double MinX { get; }
+
+    /// <summary>Largest x of the polygon.</summary>
+    public double MaxX { get; }
+
+    /// <summary>Smallest z of the polygon.</summary>
+    public double MinZ { get; }
+
+    /// <summary>Largest z of the polygon.</summary>
+    public double MaxZ { get; }
+
+    /// <summary>The corners as x, z pairs, in the order given.</summary>
+    public ReadOnlySpan<double> Corners => _xz;
 
     /// <summary>The area id assigned.</summary>
     public byte Area { get; }

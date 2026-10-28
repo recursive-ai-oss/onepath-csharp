@@ -41,14 +41,24 @@ public sealed class SpanPipeline
 
     /// <summary>Runs steps 1 to 6 on an already rasterized heightfield (which the filters modify).</summary>
     /// <exception cref="InvalidOperationException">Compact is null or returns null.</exception>
-    public CompactHeightfield Run(SolidHeightfield solid)
+    public CompactHeightfield Run(SolidHeightfield solid) => Finish(Prepare(solid));
+
+    /// <summary>Runs steps 1 to 4 (filters and compaction): the part of the pipeline that depends only on the geometry, which a tile cache keeps.</summary>
+    /// <exception cref="InvalidOperationException">Compact is null or returns null.</exception>
+    public CompactHeightfield Prepare(SolidHeightfield solid)
     {
         ArgumentNullException.ThrowIfNull(solid);
         Settings.Validate();
         LowObstacleFilter?.Invoke(solid, Settings);
         LedgeFilter?.Invoke(solid, Settings);
         LowHeightFilter?.Invoke(solid, Settings);
-        CompactHeightfield chf = Compact?.Invoke(solid, Settings) ?? throw new InvalidOperationException("The Compact step is missing or returned null.");
+        return Compact?.Invoke(solid, Settings) ?? throw new InvalidOperationException("The Compact step is missing or returns null.");
+    }
+
+    /// <summary>Runs steps 5 and 6 (erosion and area volumes) on a compact heightfield, in place, and returns it.</summary>
+    public CompactHeightfield Finish(CompactHeightfield chf)
+    {
+        ArgumentNullException.ThrowIfNull(chf);
         Erode?.Invoke(chf, Settings);
         foreach (ConvexVolume v in Volumes)
         {

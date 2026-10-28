@@ -27,7 +27,8 @@ the run: they are stored in full (`Full`) or named by content id (`Referenced`).
 Not state: the mesh parameters (stored only to check that a snapshot belongs to the mesh it is restored into), query
 objects and their buffers.
 
-Runtime obstacles and tile rebuilds are added later as new sections (see "Sections").
+Temporary obstacles, run-time area volumes and the rebuild queue of a 3D-built mesh are state of the tile cache; they wrap this snapshot
+rather than extending it (see "Tile cache snapshot"), so this format is unchanged by them.
 
 ## Tile content id
 
@@ -123,3 +124,27 @@ Errors are `NavMeshFormatException` with a message naming the slot or field. Oth
 
 `NavMeshSerializer.WriteMesh` stores a mesh as a file: tiles with their *current* areas and flags, and no link switches.
 It is for content, not for rollback. Reading it back makes the current values the as-built ones.
+
+## Tile cache snapshot
+
+`TileCache.Snapshot` (`build3d-runtime.md`) captures the state of a mesh built by the 3D builder with run-time changes: obstacles, area volumes, the
+rebuild queue, and a complete mesh snapshot as above. Little-endian; the same state gives the same bytes in every mode.
+
+| Field | Size |
+|---|---|
+| magic `4F 4E 54 4B` ("ONTK") | 4 |
+| version (1) | u16 |
+| flags (as the mesh format) | u16 |
+| next obstacle id, next volume id (each 1 to 2^31 - 1) | u32, u32 |
+| obstacle count *O* (at most 2^20 and the remaining bytes / 13) | u32 |
+| per obstacle, ascending id (below the next id): id u32, shape u8 (1 cylinder, 2 box, 3 oriented box), then 5, 6 or 7 float64 as in `build3d-runtime.md` | |
+| volume count *V* (at most 2^20 and the remaining bytes / 41) | u32 |
+| per volume, ascending id (below the next id): id u32, area u8 (0 to 63), min y f64, max y f64, corner count *K* u32 (3 to 256), 2*K* f64 | |
+| queue length *Q* (at most the number of cached tiles) | u32 |
+| per queued tile, front first: tile column i32, tile row i32 (each distinct, each a cached tile) | |
+| mesh snapshot length, then the mesh snapshot bytes (`Full` or `Referenced`) | u32 + bytes |
+
+The obstacle and volume values go through their constructors again on restore, so every rule of the shape applies to hostile bytes. Restore
+parses everything first, then restores the mesh (itself all or nothing), then swaps in the lists; an error leaves the cache untouched.
+Trailing bytes are an error. A snapshot is restorable into a cache built from the same geometry and settings; a queued tile the cache has no data for
+is rejected.

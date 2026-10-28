@@ -118,7 +118,23 @@ public sealed class Mesh3DPipeline
     /// <param name="indices">Three vertex indices per triangle, counter-clockwise seen from the side they face (a floor seen from above).</param>
     /// <exception cref="ArgumentException">A length is not a multiple of three, or a referenced coordinate is NaN or infinite.</exception>
     /// <exception cref="ArgumentOutOfRangeException">An index is out of range, a referenced coordinate is beyond ±2^21, or the geometry needs more than 2^20 tiles.</exception>
-    public TiledNavMesh BuildSoup(ReadOnlySpan<double> vertices, ReadOnlySpan<int> indices)
+    public TiledNavMesh BuildSoup(ReadOnlySpan<double> vertices, ReadOnlySpan<int> indices) => BuildSoupCore(vertices, indices, null);
+
+    /// <summary>
+    /// Builds the mesh of a triangle soup like <see cref="BuildSoup"/> and keeps each tile's intermediate data in a <see cref="TileCache"/>, so that
+    /// temporary obstacles and area volumes can be added and removed later and only the tiles they touch rebuilt. The cache's mesh is the same
+    /// mesh <see cref="BuildSoup"/> returns (tile for tile, byte for byte).
+    /// </summary>
+    /// <exception cref="ArgumentException">As for <see cref="BuildSoup"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">As for <see cref="BuildSoup"/>.</exception>
+    public TileCache BuildSoupCached(ReadOnlySpan<double> vertices, ReadOnlySpan<int> indices)
+    {
+        var cache = new TileCache(this);
+        cache.SetMesh(BuildSoupCore(vertices, indices, cache));
+        return cache;
+    }
+
+    private TiledNavMesh BuildSoupCore(ReadOnlySpan<double> vertices, ReadOnlySpan<int> indices, TileCache? cache)
     {
         if (vertices.Length % 3 != 0 || indices.Length % 3 != 0)
         {
@@ -230,7 +246,7 @@ public sealed class Mesh3DPipeline
                     var areas = new byte[list.Count];
                     Voxelizer.ClassifyTriangles(frame, vertices, sub, SpanOptions.WalkableSlopeCosine, areas);
                     Voxelizer.Rasterize(solid, vertices, sub, areas, SpanOptions.EffectiveMergeThreshold);
-                    BuildTile(solid, tx, tz, tiles);
+                    BuildTile(solid, tx, tz, tiles, cache);
                 }
             }
         }
@@ -258,7 +274,19 @@ public sealed class Mesh3DPipeline
     /// <param name="materialAreas">Area id per material id (256 entries), or empty for "every material is walkable".</param>
     /// <exception cref="ArgumentNullException"><paramref name="chunk"/> is null.</exception>
     /// <exception cref="ArgumentException">materialAreas has a length other than 0 or 256.</exception>
-    public TiledNavMesh BuildChunk(VoxelChunk chunk, ReadOnlySpan<byte> materialAreas = default)
+    public TiledNavMesh BuildChunk(VoxelChunk chunk, ReadOnlySpan<byte> materialAreas = default) => BuildChunkCore(chunk, materialAreas, null);
+
+    /// <summary>Builds the mesh of a voxel chunk like <see cref="BuildChunk"/> and keeps the per-tile intermediate data in a <see cref="TileCache"/>.</summary>
+    /// <exception cref="ArgumentNullException"><paramref name="chunk"/> is null.</exception>
+    /// <exception cref="ArgumentException">materialAreas has a length other than 0 or 256.</exception>
+    public TileCache BuildChunkCached(VoxelChunk chunk, ReadOnlySpan<byte> materialAreas = default)
+    {
+        var cache = new TileCache(this);
+        cache.SetMesh(BuildChunkCore(chunk, materialAreas, cache));
+        return cache;
+    }
+
+    private TiledNavMesh BuildChunkCore(VoxelChunk chunk, ReadOnlySpan<byte> materialAreas, TileCache? cache)
     {
         ArgumentNullException.ThrowIfNull(chunk);
         if (materialAreas.Length != 0 && materialAreas.Length != 256)
@@ -274,7 +302,7 @@ public sealed class Mesh3DPipeline
                 var frame = TileFrame(tx, tz, 0, chunk.Height + SpanOptions.WalkableHeight + 2);
                 var solid = new SolidHeightfield(frame);
                 Voxelizer.AddChunk(solid, chunk, Border - (tx * TileCells), 0, Border - (tz * TileCells), materialAreas);
-                BuildTile(solid, tx, tz, tiles);
+                BuildTile(solid, tx, tz, tiles, cache);
             }
         }
         return Assemble(tiles);
@@ -285,7 +313,18 @@ public sealed class Mesh3DPipeline
     /// one cell is <see cref="CellSize"/> wide and its rows are <see cref="NavSettings.CellHeight"/> high above the heightfield frame's Y origin; the frame's own cell sizes are ignored.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="heightfield"/> is null.</exception>
-    public TiledNavMesh BuildHeightfield(SolidHeightfield heightfield)
+    public TiledNavMesh BuildHeightfield(SolidHeightfield heightfield) => BuildHeightfieldCore(heightfield, null);
+
+    /// <summary>Builds the mesh of a solid heightfield like <see cref="BuildHeightfield"/> and keeps the per-tile intermediate data in a <see cref="TileCache"/>.</summary>
+    /// <exception cref="ArgumentNullException"><paramref name="heightfield"/> is null.</exception>
+    public TileCache BuildHeightfieldCached(SolidHeightfield heightfield)
+    {
+        var cache = new TileCache(this);
+        cache.SetMesh(BuildHeightfieldCore(heightfield, cache));
+        return cache;
+    }
+
+    private TiledNavMesh BuildHeightfieldCore(SolidHeightfield heightfield, TileCache? cache)
     {
         ArgumentNullException.ThrowIfNull(heightfield);
         HeightfieldFrame src = heightfield.Frame;
@@ -319,7 +358,7 @@ public sealed class Mesh3DPipeline
                         }
                     }
                 }
-                BuildTile(solid, tx, tz, tiles);
+                BuildTile(solid, tx, tz, tiles, cache);
             }
         }
         return Assemble(tiles);
@@ -363,12 +402,49 @@ public sealed class Mesh3DPipeline
 
     // ---------------------------------------------------------------- one tile
 
+    /// <summary>Temporary obstacles baked into every tile this pipeline builds (see <see cref="TileObstacle"/>); applied before erosion, in list order.</summary>
+    public IList<TileObstacle> Obstacles { get; } = new List<TileObstacle>();
+
     /// <summary>
     /// Runs the stages on one tile's rasterized heightfield (built on the tile's grid with border; see <see cref="TileFrame"/>) and appends the tile data of each layer.
+    /// The geometry-only part (filters, compaction) is kept in the cache when there is one; the rest is <see cref="FinishTile"/>.
     /// </summary>
-    private void BuildTile(SolidHeightfield solid, int tx, int tz, List<NavTileData> output)
+    private void BuildTile(SolidHeightfield solid, int tx, int tz, List<NavTileData> output, TileCache? cache)
     {
-        CompactHeightfield chf = Regions.Spans.Run(solid);
+        CompactHeightfield chf = Regions.Spans.Prepare(solid);
+        if (cache is not null)
+        {
+            cache.Store(tx, tz, chf);
+            chf = chf.Clone();
+        }
+        FinishTile(chf, tx, tz, null, null, output);
+    }
+
+    /// <summary>
+    /// The obstacle-dependent half of a tile build, from the cached compact heightfield (which it modifies, so pass a clone): obstacles (the pipeline's,
+    /// then <paramref name="extraObstacles"/>) → erosion and the pipeline's volumes → <paramref name="extraVolumes"/> → regions → contours → polygons → detail → tile data.
+    /// </summary>
+    internal void FinishTile(CompactHeightfield chf, int tx, int tz, IReadOnlyList<TileObstacle>? extraObstacles, IReadOnlyList<ConvexVolume>? extraVolumes, List<NavTileData> output)
+    {
+        foreach (TileObstacle o in Obstacles)
+        {
+            o.Mark(chf);
+        }
+        if (extraObstacles is not null)
+        {
+            foreach (TileObstacle o in extraObstacles)
+            {
+                o.Mark(chf);
+            }
+        }
+        Regions.Spans.Finish(chf);
+        if (extraVolumes is not null)
+        {
+            foreach (ConvexVolume v in extraVolumes)
+            {
+                v.Apply(chf);
+            }
+        }
         Regions.Partition(chf, Regions.RegionOptions);
         // Cut the border away: its spans become one extra region whose contours are ignored. The edges between it and the tile's
         // regions are then region-to-region edges, which contour simplification keeps straight between their end vertices, so they
