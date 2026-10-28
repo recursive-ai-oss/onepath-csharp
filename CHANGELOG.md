@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.0.0-rc.1]
+
+Release candidate for 1.0: the public API is frozen from here unless a release candidate finds a defect. Every part measures within its speed target against the native references on x64 and arm64 (see the README table); results are bit-identical across x64, arm64, WebAssembly, SIMD and scalar, and any thread count.
+
 ### Breaking
 
 Changes to names, numbers, namespaces and shapes that are cheap now and costly after 1.0. Compile errors guide most of the migration; the table lists each one.
@@ -24,6 +28,7 @@ Changes to names, numbers, namespaces and shapes that are cheap now and costly a
 | `Mesh3DPipeline.Obstacles` | mutable `IList<TileObstacle>`, silently ignored once a cache existed | read-only, set in an object initializer: `new Mesh3DPipeline(s) { Obstacles = [box] }`. Add obstacles at run time with `TileCache.AddObstacle` |
 | Replanner callbacks | `GridReplanner` and `HexReplanner` had public `OnCellChanged` and `OnRectChanged` | implemented explicitly; they are called by the grid, not by you |
 | Internal helpers | `GridSpace.CheckCoordinate` and `OnePathInfo.FixedToDouble` were public | removed from the surface; use OneMath's `FixedBridge.ToDouble` |
+| `QueryFilter` | `IncludeFlags`, `ExcludeFlags` and `Predicate` were settable; `SetAreaCost(area, cost)` mutated | `init`-only, and `WithAreaCost(area, cost)` returns a new filter and leaves the original alone, so a filter inside `PathOptions` or `CrowdOptions` can be shared by queries, crowds and threads. Migrate `f.SetAreaCost(3, x);` to `f = f.WithAreaCost(3, x);` |
 
 Saved data: no format changed (every fixture file of release 1.0.0 is byte-identical). The enum renumbering changes the numbers some
 hash-matrix scenarios write and the behaviour transcripts recorded beside the 1.0.0 fixtures; those transcripts were rewritten once, before any release.
@@ -33,26 +38,12 @@ hash-matrix scenarios write and the behaviour transcripts recorded beside the 1.
 - **Results are bit-identical across every release of a major version:** no 1.x minor or patch release changes an existing path, build, query, search or crowd result (README, "Determinism").
 - **Every 1.x release reads every format written by an earlier 1.x release** (navigation meshes, tile caches, saved states); backward reading only.
 
-### Changed
-
-- **`NavMesh.FindPath` and `FindPathAsync`, `NavWorld.FindPath` and the `TiledNavMesh.FindPath` extension no longer build a query object per call.** A fresh query allocated about 10 MB (a 65,536-node search table), which put a gen-2 collection into most hot loops. The mesh now keeps up to four spare query objects, borrowed per call with an atomic exchange, so concurrent calls never share one; a steady-state call allocates only the returned path (about 250 bytes for a short path, against 10.2 MB before). Results are bit-identical to a fresh query, also across mesh edits.
-
-### Added
-
 - **`NavMesh.TrySamplePosition`, `NavMesh.Raycast` and `NavMesh.TryGetRandomPoint`**, with the small `NavMeshHit` struct: snap a position to the mesh, trace a line along it, and draw a seeded random point, without a query object, polygon reference or callback.
 - **`Agent.SetOptions(AgentOptions)`** changes a live agent's settings in place (id, position, velocity and path are kept). A crowd snapshot already stored per-agent settings, so it carries the change, and restoring a snapshot taken before the change gives the agent its old settings again without invalidating the handle you hold. The snapshot format is unchanged.
 
-## [1.0.0-rc.1]
+### Changed
 
-Release candidate for 1.0: the public API is frozen from here unless a release candidate finds a defect. Every part measures within its speed target against the native references on x64 and arm64 (see the README table); results are bit-identical across x64, arm64, WebAssembly, SIMD and scalar, and any thread count.
-
-### Breaking
-
-- **`QueryFilter` is immutable after construction.** `IncludeFlags`, `ExcludeFlags` and `Predicate` are `init`-only (set them in an object initializer), and `SetAreaCost` is replaced by `WithAreaCost(area, cost)`, which returns a new filter and leaves the original alone. A filter inside `PathOptions` or `CrowdOptions` can therefore be shared by queries, crowds and threads without one caller changing it under another. Migrate `f.SetAreaCost(3, x);` to `f = f.WithAreaCost(3, x);`.
-
-### Added
-
-- `HexGrid.FindPathAsync` and `VoxelGrid.FindPathAsync` (cell and world-position forms), shaped like `Grid.FindPathAsync`: the result equals the synchronous one, cancellation and argument errors come through the task, and the grid must not be edited while the task runs. On single-threaded WebAssembly, await the task; never block on it.
+- **`NavMesh.FindPath` and `FindPathAsync`, `NavWorld.FindPath` and the `TiledNavMesh.FindPath` extension no longer build a query object per call.** A fresh query allocated about 10 MB (a 65,536-node search table), which put a gen-2 collection into most hot loops. The mesh now keeps up to four spare query objects, borrowed per call with an atomic exchange, so concurrent calls never share one; a steady-state call allocates only the returned path (about 250 bytes for a short path, against 10.2 MB before). Results are bit-identical to a fresh query, also across mesh edits.
 
 ## [0.5.0-preview.1]
 

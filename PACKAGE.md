@@ -3,7 +3,7 @@
 Pathfinding and navigation for .NET, written from first principles: grids, graphs, navigation meshes and crowds in
 one package. Results are bit-identical on every platform, so it is safe inside a lockstep or rollback game simulation.
 
-**Preview.** The API can still change between previews.
+**Release candidate.** The public API is frozen for 1.0; only defects found in a release candidate change it.
 
 - **Grids and graphs:** square (4- and 8-connected), hex and 3D voxel grids; A\*, JPS, JPS+, Theta\*, Lazy Theta\*, HPA\*,
   LPA\* and D\* Lite replanning, flow fields, area costs, agent sizes; weighted and point graphs with bidirectional
@@ -13,7 +13,7 @@ one package. Results are bit-identical on every platform, so it is safe inside a
   tile rebuild and obstacles, off-mesh links, several agent sizes and streaming.
 - **Crowds:** path corridors and navmesh-aware ORCA avoidance, fixed-step, with byte-exact snapshot and restore.
 - **Determinism:** only IEEE-exact `+ - * /` and `sqrt`, our own transcendental functions
-  ([`RecursiveAI.OneMath`](https://www.nuget.org/packages/RecursiveAI.OneMath), the only dependency), fixed reduction
+  ([`RecursiveAI.OneMath`](https://www.nuget.org/packages/RecursiveAI.OneMath), the only dependency, version 1.0 or later), fixed reduction
   orders and index-ordered parallel work. Time slicing counts iterations, never clock time.
 - **Platforms:** `net10.0` on Windows, Linux and macOS (x64 and arm64), NativeAOT and trimming (an app that only uses
   grids trims the navmesh builders away), browser WASM.

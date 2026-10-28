@@ -13,7 +13,7 @@
 | Package | What it is |
 |---|---|
 | `RecursiveAI.OnePath` | Grids (square, hex, voxel), graphs, the navmesh builders, the query layer, the run-time tile cache and crowds. Trimming drops the parts an app does not use: an app that only uses grids trims the navmesh builders away. |
-| [`RecursiveAI.OneMath`](https://www.nuget.org/packages/RecursiveAI.OneMath) | The only dependency: vectors, our own transcendental functions, exact geometric predicates and the fixed-point bridge. Installed automatically. |
+| [`RecursiveAI.OneMath`](https://www.nuget.org/packages/RecursiveAI.OneMath) | The only dependency (1.0 or later): vectors, our own transcendental functions, exact geometric predicates and the fixed-point bridge. Installed automatically. |
 
 ## Install
 
@@ -292,7 +292,7 @@ builds everything, including the WASM smoke app, which needs the `wasm-tools` wo
   `src/` the calls that could make results machine-dependent (platform maths functions, fused
   multiply-add, `Vector<T>`, clocks, `Random`, processor count).
 - **Math package:** `src/OnePath` depends on `RecursiveAI.OneMath` (version in `Directory.Packages.props`),
-  its only runtime dependency. Until it is published, set `ONEMATH_FEED` to a folder containing the
+  its only runtime dependency (1.0.0, restored from nuget.org). To use another build, set `ONEMATH_FEED` to a folder containing the
   `.nupkg` and restore picks it up; the `ci/` scripts default it to `~/onepath/feed` when that exists.
   On a machine that cannot see the folder, `tools/install-feed.sh <folder-with-nupkg>` copies the package
   into `~/onepath/feed`. (For a remote job runner that only syncs the git tree, ship the package with the
