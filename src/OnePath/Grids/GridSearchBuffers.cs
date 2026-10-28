@@ -7,7 +7,7 @@ namespace RecursiveAI.OnePath.Grids;
 /// grid size and reuse it for any number of searches; a search never clears the arrays (marks carry a
 /// generation number), so a query costs time proportional to what it touches. Not thread-safe: use one per thread.
 /// </summary>
-public sealed class GridSearchBuffers
+public sealed partial class GridSearchBuffers
 {
     private uint _base;
     private int[] _expanded = Array.Empty<int>();

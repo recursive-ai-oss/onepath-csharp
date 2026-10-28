@@ -91,7 +91,10 @@ public sealed class GridOptions
     /// <summary>Whether <see cref="GridAlgorithm.Hpa"/> smooths the refined path (see <see cref="HpaSearch"/>). Default true.</summary>
     public bool HpaSmoothing { get; set; } = true;
 
-    /// <summary>When true the result lists the expanded cells in order (debug data). Default false.</summary>
+    /// <summary>
+    /// When true the result lists the expanded cells in order (debug data; <see cref="GridPath.ExpandedCells"/> then has <see cref="GridPath.ExpandedCount"/> entries).
+    /// For a replanner it lists the nodes each <c>Replan</c> settled or reset. Default false, and then nothing is recorded.
+    /// </summary>
     public bool RecordExpansions { get; set; }
 
     /// <summary>

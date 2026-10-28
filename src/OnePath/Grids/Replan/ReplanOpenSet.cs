@@ -10,7 +10,7 @@ namespace RecursiveAI.OnePath.Grids;
 /// count as equal (see <c>Less</c>). The node index makes the order total in practice, so the pop order does not depend on insertion history.
 /// </para>
 /// </summary>
-public sealed class ReplanOpenSet
+public sealed partial class ReplanOpenSet
 {
     private readonly int[] _heap;
     private readonly int[] _position; // index into _heap, or -1 when the node is not queued

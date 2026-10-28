@@ -18,7 +18,7 @@ namespace RecursiveAI.OnePath;
 /// The heuristic weight must be 1 (incremental searches are exact only then). Not thread-safe; do not edit the grid while a replan runs.
 /// </para>
 /// </summary>
-public sealed class GridReplanner : IGridBatchListener, IDisposable
+public sealed partial class GridReplanner : IGridBatchListener, IDisposable
 {
     private readonly Grid _grid;
     private readonly GridOptions _options;
@@ -71,6 +71,13 @@ public sealed class GridReplanner : IGridBatchListener, IDisposable
     }
 
     private ReplanSearch Build(Cell start, Cell goal)
+    {
+        ReplanSearch search = BuildCore(start, goal);
+        search.RecordExpansions = _options.RecordExpansions;
+        return search;
+    }
+
+    private ReplanSearch BuildCore(Cell start, Cell goal)
     {
         GridOptions o = _options;
         SquareTopology topology = _grid.CreateTopology(o.AgentSize, o.Connectivity, o.Diagonals);
@@ -172,9 +179,19 @@ public sealed class GridReplanner : IGridBatchListener, IDisposable
             status = _search.Replan(iterationBudget);
         }
         int expanded = _search.LastExpanded;
+        Cell[]? expandedCells = null;
+        if (_options.RecordExpansions)
+        {
+            ReadOnlySpan<int> e = _search.LastExpandedNodes;
+            expandedCells = new Cell[e.Length];
+            for (int i = 0; i < e.Length; i++)
+            {
+                expandedCells[i] = SearchRunner.ToCell(e[i], _grid.Width);
+            }
+        }
         if (status != PathOutcome.Found)
         {
-            return new GridPath(status, double.PositiveInfinity, null, expanded, null, null) { Algorithm = _algorithm };
+            return new GridPath(status, double.PositiveInfinity, null, expanded, expandedCells, null) { Algorithm = _algorithm };
         }
         int[]? nodes = _search.ExtractPath(out double cost);
         if (nodes is null)
@@ -186,7 +203,7 @@ public sealed class GridReplanner : IGridBatchListener, IDisposable
         {
             cells[i] = ToCell(nodes[i]);
         }
-        return new GridPath(PathOutcome.Found, cost, cells, expanded, null, null) { Algorithm = _algorithm };
+        return new GridPath(PathOutcome.Found, cost, cells, expanded, expandedCells, null) { Algorithm = _algorithm };
     }
 
     /// <inheritdoc/>

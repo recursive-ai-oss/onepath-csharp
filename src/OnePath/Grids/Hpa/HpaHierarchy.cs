@@ -23,7 +23,7 @@ namespace RecursiveAI.OnePath.Grids;
 /// </para>
 /// <para>Not thread-safe against edits; concurrent searches are fine while nobody edits the grid or calls <see cref="Refresh"/> after an edit.</para>
 /// </summary>
-public sealed class HpaHierarchy : IGridChangeListener, IDisposable
+public sealed class HpaHierarchy : IGridChangeListener, IGridRestoreListener, IDisposable
 {
     private readonly Grid _grid;
     private readonly SquareTopology _topology;
@@ -194,6 +194,9 @@ public sealed class HpaHierarchy : IGridChangeListener, IDisposable
             }
         }
     }
+
+    // A grid rolled back with RestoreState: edit counts can repeat, so nothing built earlier is trusted.
+    void IGridRestoreListener.OnGridRestored() => InvalidateAll();
 
     /// <summary>Rebuilds the chunks marked by edits since the last call (cheap when nothing changed). Searches call this themselves.</summary>
     public void Refresh()

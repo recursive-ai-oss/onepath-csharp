@@ -7,7 +7,7 @@ namespace RecursiveAI.OnePath;
 /// impassable. Moving between two cells costs the step length times the mean of the two cells' multipliers
 /// (see docs/grids.md). All multipliers start at 1.
 /// </summary>
-public sealed class AreaCosts
+public sealed partial class AreaCosts
 {
     /// <summary>The reserved area id of impassable cells.</summary>
     public const byte Wall = 255;

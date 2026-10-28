@@ -44,6 +44,16 @@ public abstract class ReplanSearch
     /// <summary>Nodes expanded by the most recent <see cref="Replan"/> call (all calls of one sliced replan add up).</summary>
     public abstract int LastExpanded { get; }
 
+    /// <summary>When true, each <see cref="Replan"/> records the nodes it settled or reopened, in order, in <see cref="LastExpandedNodes"/>. Off by default.</summary>
+    public abstract bool RecordExpansions { get; set; }
+
+    /// <summary>Debug data: the nodes the last <see cref="Replan"/> expanded, in order; empty unless <see cref="RecordExpansions"/> was set before it.</summary>
+    public abstract ReadOnlySpan<int> LastExpandedNodes { get; }
+
+    internal abstract void WriteState(StateWriter w);
+
+    internal abstract void ReadState(ref StateReader r);
+
     /// <summary>
     /// Records that the moves into and out of <paramref name="node"/> changed (it became a wall, changed area, was blocked...).
     /// With <paramref name="withNeighbors"/> the node's neighbours are re-examined too (needed when only the node itself is known to
@@ -109,7 +119,7 @@ public abstract class ReplanSearch
 /// <typeparam name="TTopology">The graph.</typeparam>
 /// <typeparam name="TCost">The cost hook.</typeparam>
 /// <typeparam name="THeuristic">The distance estimate; it must be symmetric (distance between two nodes, not only to the goal).</typeparam>
-public sealed class ReplanSearch<TTopology, TCost, THeuristic> : ReplanSearch
+public sealed partial class ReplanSearch<TTopology, TCost, THeuristic> : ReplanSearch
     where TTopology : struct, IGridTopology
     where TCost : struct, IStepCost
     where THeuristic : struct, IHeuristic
@@ -132,6 +142,9 @@ public sealed class ReplanSearch<TTopology, TCost, THeuristic> : ReplanSearch
     private long _expanded;
     private int _lastExpanded;
     private bool _found;
+    private bool _record;
+    private int[] _lastNodes = [];
+    private int _lastNodeCount;
 
     /// <summary>Creates the search; nothing is computed until <see cref="Replan"/>.</summary>
     /// <param name="topology">The graph.</param>
@@ -174,6 +187,25 @@ public sealed class ReplanSearch<TTopology, TCost, THeuristic> : ReplanSearch
 
     /// <inheritdoc/>
     public override int LastExpanded => _lastExpanded;
+
+    /// <inheritdoc/>
+    public override bool RecordExpansions
+    {
+        get => _record;
+        set => _record = value;
+    }
+
+    /// <inheritdoc/>
+    public override ReadOnlySpan<int> LastExpandedNodes => new(_lastNodes, 0, _lastNodeCount);
+
+    private void RecordNode(int node)
+    {
+        if (_lastNodeCount == _lastNodes.Length)
+        {
+            Array.Resize(ref _lastNodes, Math.Max(64, _lastNodes.Length * 2));
+        }
+        _lastNodes[_lastNodeCount++] = node;
+    }
 
     /// <summary>The cost from the root found so far for a node (+∞ if unknown). Exact for settled nodes.</summary>
     /// <param name="node">Node index.</param>
@@ -396,6 +428,7 @@ public sealed class ReplanSearch<TTopology, TCost, THeuristic> : ReplanSearch
     private PathOutcome ReplanCore(int budget)
     {
         _lastExpanded = 0;
+        _lastNodeCount = 0;
         if (!_initialized || _pendingOverflow)
         {
             Initialize();
@@ -446,6 +479,10 @@ public sealed class ReplanSearch<TTopology, TCost, THeuristic> : ReplanSearch
                 _queue.Remove(u);
                 _expanded++;
                 _lastExpanded++;
+                if (_record)
+                {
+                    RecordNode(u);
+                }
                 UpdateNeighbors(u);
             }
             else
@@ -455,6 +492,10 @@ public sealed class ReplanSearch<TTopology, TCost, THeuristic> : ReplanSearch
                 UpdateVertex(u);
                 _expanded++;
                 _lastExpanded++;
+                if (_record)
+                {
+                    RecordNode(u);
+                }
                 UpdateNeighbors(u);
             }
         }

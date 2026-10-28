@@ -124,7 +124,7 @@ public sealed class GraphPath
 /// <see cref="Compile"/>) rebuilds it in O(nodes + edges), so batch edits before querying. Edits must not overlap queries;
 /// concurrent queries on an unedited graph are safe.
 /// </summary>
-public sealed class Graph
+public sealed partial class Graph
 {
     private readonly List<GraphEdge> _edges = [];
     private readonly List<bool> _alive = [];

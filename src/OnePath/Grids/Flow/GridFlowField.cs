@@ -48,6 +48,10 @@ internal interface IFlowDriver
     FlowFieldStatus Run(CancellationToken token);
 
     void BeginRepair(ReadOnlySpan<int> dirty);
+
+    void WriteState(StateWriter w);
+
+    void ReadState(ref StateReader r);
 }
 
 internal sealed class FlowDriver<TTopology> : IFlowDriver
@@ -72,6 +76,10 @@ internal sealed class FlowDriver<TTopology> : IFlowDriver
     public FlowFieldStatus Run(CancellationToken token) => _field.Run(token);
 
     public void BeginRepair(ReadOnlySpan<int> dirty) => _field.BeginRepair(dirty);
+
+    public void WriteState(StateWriter w) => _field.WriteState(w);
+
+    public void ReadState(ref StateReader r) => _field.ReadState(ref r);
 }
 
 /// <summary>
@@ -91,7 +99,7 @@ internal sealed class FlowDriver<TTopology> : IFlowDriver
 /// cost delegates giving different answers) need <see cref="Recompute"/>. Dispose the field to stop watching.
 /// </para>
 /// </summary>
-public sealed class GridFlowField : IGridChangeListener, IDisposable
+public sealed partial class GridFlowField : IGridChangeListener, IDisposable
 {
     private readonly Grid? _square;
     private readonly HexGrid? _hex;

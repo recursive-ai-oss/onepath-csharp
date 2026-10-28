@@ -27,7 +27,7 @@ namespace RecursiveAI.OnePath;
 /// </para>
 /// <para>Reading is safe from several threads once no thread edits the grid. Edits must not overlap queries.</para>
 /// </summary>
-public sealed class VoxelGrid
+public sealed partial class VoxelGrid
 {
     /// <summary>The largest number of voxels a grid may have (2^30).</summary>
     public const int MaxVoxels = 1 << 30;
