@@ -250,6 +250,7 @@ public static class Regions
             }
             // Round 1: every span of this level that touches a region. Later rounds: the level's spans next to one assigned in the round before.
             ReadOnlySpan<int> current = order.AsSpan(lo, hi - lo);
+            int remaining = hi - lo;
             while (current.Length > 0)
             {
                 // Rounds are synchronous: every choice is made before any is applied, so the order inside the frontier does not matter.
@@ -342,6 +343,12 @@ public static class Regions
                 {
                     region[assignSpan[k]] = assignRegion[k];
                 }
+                remaining -= ac;
+                if (remaining == 0)
+                {
+                    // Every span of the level has a region: nothing to grow into and no basin to start.
+                    break;
+                }
                 // Next round: unassigned spans of this level next to a span assigned just now.
                 stamp++;
                 int nc = 0;
@@ -361,7 +368,7 @@ public static class Regions
                 current = frontier.AsSpan(0, nc);
             }
             // New basins: what is left of this level.
-            for (int k = lo; k < hi; k++)
+            for (int k = lo; remaining > 0 && k < hi; k++)
             {
                 int s0 = order[k];
                 if (region[s0] != 0)
