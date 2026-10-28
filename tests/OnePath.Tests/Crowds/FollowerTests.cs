@@ -653,21 +653,41 @@ public class FollowerTests
                 f.Step(q, Dt);
             }
         }
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        // A window counts only if it did real work, or an idle window would pass trivially.
         int steps = 0;
-        for (int i = 0; i < 200; i++)
+        long allocated = AllocationProbe.SteadyState(() =>
         {
-            foreach (PathFollower f in agents)
+            int n = 0;
+            for (int i = 0; i < 200; i++)
             {
-                if (f.State == FollowerState.Moving)
+                foreach (PathFollower f in agents)
                 {
-                    f.Step(q, Dt);
-                    steps++;
+                    if (f.State == FollowerState.Moving)
+                    {
+                        f.Step(q, Dt);
+                        n++;
+                    }
                 }
             }
-        }
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.True(steps > 1000, $"{steps} steps");
-        Assert.True(allocated == 0, $"{allocated} bytes allocated in {steps} steps");
+
+            steps = n;
+            return n > 1000;
+        }, prepare: () =>
+        {
+            // Agents arrive over a window: send them somewhere new and let their buffers settle again.
+            foreach (PathFollower f in agents)
+            {
+                _ = f.SetDestination(q, CorridorWorlds.RandomFieldPoint(48, rng));
+            }
+
+            for (int i = 0; i < 150; i++)
+            {
+                foreach (PathFollower f in agents)
+                {
+                    f.Step(q, Dt);
+                }
+            }
+        });
+        Assert.True(allocated == 0, allocated == long.MaxValue ? $"no window did enough work (last: {steps} steps)" : $"{allocated} bytes allocated in {steps} steps");
     }
 }

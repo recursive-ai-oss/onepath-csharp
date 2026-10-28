@@ -451,7 +451,8 @@ public sealed partial class Crowd
         {
             return;
         }
-        double radius = (ObstacleHorizon(o) * o.MaxSpeed) + o.WallClearance + refresh;
+        // Settings can be huge but valid (a restored state may hold any); the wall query takes at most 2^22.
+        double radius = Math.Min((ObstacleHorizon(o) * o.MaxSpeed) + o.WallClearance + refresh, 4_000_000.0);
         Span<WallSegment> span = _walls.AsSpan(i * _wallCap, _wallCap);
         AreaQueryStatus s = w.Query.FindWalls(f.Corridor.FirstPoly, p, radius, _opt.Filter, span, out int count, out _);
         if (s != AreaQueryStatus.Success)

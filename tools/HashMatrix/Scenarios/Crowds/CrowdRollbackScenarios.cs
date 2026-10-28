@@ -15,6 +15,54 @@ internal static class CrowdRollbackScenarios
     {
         Scenarios.Register("crowds/rollback-two-floors-edits", ctx => Run(ctx, true));
         Scenarios.Register("crowds/rollback-two-floors", ctx => Run(ctx, false));
+        Scenarios.Register("crowds/state-hash", StateHash);
+    }
+
+    // The state hash after every step of a scripted run (written as a long), checked in the scenario against the hash of the
+    // span-saved bytes and, after a restore, against the hash of the step it was taken at; also writes the final span snapshot.
+    private static void StateHash(ScenarioContext ctx)
+    {
+        CrowdSim sim = CrowdRollback.Populated(ctx.Threads);
+        byte[] buf = Array.Empty<byte>();
+        byte[]? snap = null;
+        ulong snapHash = 0;
+        CrowdRollback.Run(sim, 0, 160, false, s =>
+        {
+            ulong h = sim.Crowd.StateHash();
+            ctx.Write((long)h);
+            if (s % 40 == 39)
+            {
+                if (buf.Length < sim.Crowd.GetStateSize())
+                {
+                    buf = new byte[sim.Crowd.GetStateSize() + 64];
+                }
+                if (!sim.Crowd.TrySaveState(buf, out int n) || !buf.AsSpan(0, n).SequenceEqual(sim.Crowd.SaveState()))
+                {
+                    throw new InvalidOperationException($"span snapshot differs from SaveState after step {s}");
+                }
+                ulong f = 0xCBF29CE484222325UL;
+                for (int i = 0; i < n; i++)
+                {
+                    f = (f ^ buf[i]) * 0x100000001B3UL;
+                }
+                if (f != h)
+                {
+                    throw new InvalidOperationException($"state hash is not FNV-1a of the snapshot bytes after step {s}");
+                }
+                if (s == 79)
+                {
+                    snap = buf.AsSpan(0, n).ToArray();
+                    snapHash = h;
+                }
+            }
+        });
+        sim.Crowd.RestoreState(snap);
+        if (sim.Crowd.StateHash() != snapHash)
+        {
+            throw new InvalidOperationException("restored state hash differs from the hash at the snapshot");
+        }
+        ctx.Write((long)sim.Crowd.StateHash());
+        ctx.Write(snap);
     }
 
     private static void Run(ScenarioContext ctx, bool meshEdits)

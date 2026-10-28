@@ -104,6 +104,9 @@ internal ref struct StateReader
         return b;
     }
 
+    // True when the next bytes equal `expected` (nothing is consumed).
+    public readonly bool PeekEquals(ReadOnlySpan<byte> expected) => _s.Length - Position >= expected.Length && _s.Slice(Position, expected.Length).SequenceEqual(expected);
+
     public readonly int Remaining => _s.Length - Position;
 
     public int I32()
