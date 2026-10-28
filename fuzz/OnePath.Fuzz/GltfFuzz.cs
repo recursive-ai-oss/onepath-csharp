@@ -202,13 +202,13 @@ internal static class GltfFuzz
             st.QueueAdd(h.Value);
         }
         st.UpdateAll();
-        foreach (KeyValuePair<int, byte[]> o in originals)
+        // Each held column came back exactly as it left (a held tile may itself be a damaged-but-valid variant the script streamed in earlier).
+        foreach (KeyValuePair<int, byte[]> h in held)
         {
-            TileRef r = m.Tiles.GetTileRef(o.Key, 0, 0);
-            // A column removed by the script and never held is gone; one that is present must be the original or a damaged-but-valid variant.
-            if (r.IsSet && held.ContainsKey(o.Key) && !NavMeshSerializer.WriteTile(m.Tiles.GetTile(r)!).AsSpan().SequenceEqual(o.Value))
+            TileRef r = m.Tiles.GetTileRef(h.Key, 0, 0);
+            if (!r.IsSet || !NavMeshSerializer.WriteTile(m.Tiles.GetTile(r)!).AsSpan().SequenceEqual(h.Value))
             {
-                throw new InvalidOperationException($"streamed tile {o.Key} came back different");
+                throw new InvalidOperationException($"streamed tile {h.Key} came back different");
             }
         }
         Check(m.Tiles);
