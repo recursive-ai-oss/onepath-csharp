@@ -80,7 +80,7 @@ intended change (say so in the commit) or a bug.
 ## Cost
 
 With the placeholder scenarios a full local run of every column takes about a minute. Once real
-scenarios exist, the full matrix is a heavy job: run it on the build worker. A focused
+scenarios exist, the full matrix is a heavy job: run it on a dedicated build machine. A focused
 `--filter` run of a single column is light.
 
 ## Placeholder scenarios
