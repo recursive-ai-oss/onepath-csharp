@@ -113,11 +113,27 @@ Recast's.
 
 ## Inputs
 
-- **Levels:** `tools/geom/gen_levels.py` writes terraces, ramps, stairs, overlapping floors, slivers and a city (OBJ
-  plus a point file) from a seed; `tools/bench/prepare.sh` generates the size-96 and size-256 sets under
+- **Levels:** `tools/geom/gen_levels.py` writes terraces, ramps, stairs, overlapping floors, slivers, a city and a
+  tile map (OBJ plus a point file) from a seed; `tools/bench/prepare.sh` generates the size-96 and size-256 sets under
   `$ONEPATH_HOME/geom` with a `SHA256SUMS` file. Nothing third-party.
 - **Maps:** `tools/maps/maps.sh` fetches the Moving AI Lab 2D and voxel sets at pinned SHA-256 into
   `$ONEPATH_HOME/maps/<set>/` (about 665 MB unpacked). Never committed; see `THIRD-PARTY-NOTICES.md`.
+
+## The 2D builder row
+
+`tilemap` is a square of size/2 by size/2 tiles of 2 world units (128 x 128 at size 256), each tile floor with
+probability 0.6 from a 64-bit linear congruential generator (`Lcg(seed * 1000003 + 77)`, row-major, the generator's
+own `next() < 0.6`), extruded to two flat up-facing triangles per floor tile at height 0. The bounds are always the whole
+square. The reference builds it from the triangles (`--cell 0.25 --agent-radius 0.5`, tiled rows with `--tile-size 128`
+cells = 32 units, a solo row without); ours is `NavMesh.Build2D` from the tiles, which `bench/Shared/TileMapWorld.cs`
+recovers from the OBJ (each triangle belongs to the tile its centroid is in; `OnePath.Micro --check-tilemap` checks
+this against its own generator) and times from tiles to mesh (best of `--reps` builds in one process). Ours takes
+`agent radius + cell size` as its radius: on this level the reference's coverage matches ours at that radius (16407
+against 16431 world units^2 tiled, 0.15% apart) and ours at the nominal radius would be 45% above it, so the extra cell is
+part of what the reference's radius means; the `settings` row says so. Quality rows to read beside the times:
+`coverage_area` (sum of polygon areas on the ground plane), `polys`, `verts`, and the query row
+`query/tilemap-tiled/recast` (`path_mean_length` over the level's own points; each side snaps the points itself, so
+the pairs it answers differ slightly).
 
 ## Running the full reference rows
 

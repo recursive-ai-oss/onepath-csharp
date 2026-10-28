@@ -176,4 +176,20 @@ public class DegenerateTests
         Assert.True(a.Difference(a).IsEmpty);
         Assert.True(Region.Empty().Offset(1).IsEmpty);
     }
+
+    [Fact]
+    public void Tiny_shapes_at_both_ends_of_the_coordinate_range_node_without_overflow()
+    {
+        // A bounding box 2^38 grid units wide around squares 32 grid units across: a dense grid of the squares' size over
+        // the box would have more cells than a 64-bit count can hold, so the search structures must size themselves by division.
+        const double Side = 1.0 / 2048;
+        Region far = R(RegionTests.Rect(2097000, -2097000, 2097000 + Side, -2097000 + Side));
+        Region near = R(RegionTests.Rect(0, 0, Side, Side));
+        Region both = near.Union(far);
+        Assert.Equal(2, both.RingCount);
+        Assert.Equal(2 * Side * Side, both.Area, 15);
+        Assert.Equal(4, both.Triangulate().TriangleCount);
+        Assert.True(near.Intersection(far).IsEmpty);
+        Assert.Equal(2, both.Offset(Side, JoinStyle.Square).RingCount);
+    }
 }

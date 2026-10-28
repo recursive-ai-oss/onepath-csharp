@@ -39,57 +39,112 @@ internal static class Labeling
     };
 
     /// <summary>
-    /// Triangulates the arrangement's constraints, derives each face's winding by flooding from the unbounded
-    /// face, and returns the segments separating inside from outside, directed with the inside on their left.
+    /// Returns the segments separating inside from outside, directed with the inside on their left. The winding
+    /// numbers come from a plane sweep over the non-crossing segments (de Berg et al., "Computational Geometry", ch. 2,
+    /// without the intersection events, which noding already removed): the status is the segments cut by the sweep line,
+    /// bottom to top, and the winding just above a segment is the winding just below it plus its net delta. The unbounded
+    /// face has winding zero. The sweep visits vertices in (x, y) order, which treats vertical segments as if the line were
+    /// tilted by an infinitesimal angle; every decision is an exact orientation test.
     /// </summary>
     public static List<(P A, P B)> Boundary(Arrangement arr, BoolOp op)
     {
         var result = new List<(P, P)>();
-        if (arr.SegA.Length == 0)
+        int m = arr.SegA.Length;
+        if (m == 0)
         {
             return result;
         }
-        var constraints = new List<(int, int)>(arr.SegA.Length);
-        var index = new Dictionary<long, int>(arr.SegA.Length);
-        for (int i = 0; i < arr.SegA.Length; i++)
+        P[] verts = arr.Verts;
+        int[] segA = arr.SegA, segB = arr.SegB;
+        // Segments are sorted by (A, B); first[v] .. first[v + 1] are those starting at vertex v.
+        var first = new int[verts.Length + 1];
+        for (int s = 0; s < m; s++)
         {
-            constraints.Add((arr.SegA[i], arr.SegB[i]));
-            index[((long)arr.SegA[i] << 32) | (uint)arr.SegB[i]] = i;
+            first[segA[s] + 1]++;
         }
-        var cdt = new Cdt(arr.Verts, constraints);
-        (int, int)[] w = cdt.Winding((u, v) =>
+        for (int v = 0; v < verts.Length; v++)
         {
-            if (u < v)
+            first[v + 1] += first[v];
+        }
+        var status = new List<int>();
+        var up0 = new int[m];
+        var up1 = new int[m];
+        var starting = new List<int>();
+        for (int vi = 0; vi < verts.Length; vi++)
+        {
+            P v = verts[vi];
+            // Segments ending at v are consecutive in the status: below them v is above the segment, on them v is its
+            // end, above them v is below the segment.
+            int lo = Partition(status, arr, verts, v, strict: false);
+            int hi = Partition(status, arr, verts, v, strict: true);
+            for (int k = lo; k < hi; k++)
             {
-                int s = index[((long)u << 32) | (uint)v];
-                return (arr.D0[s], arr.D1[s]);
+                if (segB[status[k]] != vi)
+                {
+                    throw new GeometryException("Segment passes through a vertex: the arrangement is not noded.");
+                }
             }
-            int s2 = index[((long)v << 32) | (uint)u];
-            return (-arr.D0[s2], -arr.D1[s2]);
-        });
-        for (int t = 0; t < cdt.TriangleCount; t++)
-        {
-            for (int e = 0; e < 3; e++)
+            int w0 = 0, w1 = 0;
+            if (lo > 0)
             {
-                if (!cdt.IsConstrained(t, e))
+                w0 = up0[status[lo - 1]];
+                w1 = up1[status[lo - 1]];
+            }
+            status.RemoveRange(lo, hi - lo);
+            starting.Clear();
+            for (int s = first[vi]; s < first[vi + 1]; s++)
+            {
+                starting.Add(s);
+            }
+            if (starting.Count > 1)
+            {
+                // Bottom to top: a segment whose direction is counter-clockwise of another's lies above it.
+                starting.Sort((x, y) =>
                 {
-                    continue;
-                }
-                int u = cdt.Vertex(t, e), v = cdt.Vertex(t, (e + 1) % 3);
-                if (u > v)
+                    Int128 c = Geo.Cross(v, verts[segB[x]], verts[segB[y]]);
+                    return c > 0 ? -1 : c < 0 ? 1 : x.CompareTo(y);
+                });
+            }
+            int pos = lo;
+            foreach (int s in starting)
+            {
+                bool leftInside = false;
+                int a0 = w0 + arr.D0[s], a1 = w1 + arr.D1[s];
+                up0[s] = a0;
+                up1[s] = a1;
+                leftInside = Inside(op, a0, a1);
+                if (leftInside != Inside(op, w0, w1))
                 {
-                    continue; // each constraint is seen from both sides; take the u < v view
+                    result.Add(leftInside ? (verts[segA[s]], verts[segB[s]]) : (verts[segB[s]], verts[segA[s]]));
                 }
-                int nb = cdt.Neighbor(t, e);
-                bool left = Inside(op, w[t].Item1, w[t].Item2);
-                bool right = Inside(op, w[nb].Item1, w[nb].Item2);
-                if (left != right)
-                {
-                    result.Add(left ? (arr.Verts[u], arr.Verts[v]) : (arr.Verts[v], arr.Verts[u]));
-                }
+                w0 = a0;
+                w1 = a1;
+                status.Insert(pos++, s);
             }
         }
         return result;
+    }
+
+    // First index of the status whose segment is not below v (strict: not below-or-ending at v), by binary search.
+    private static int Partition(List<int> status, Arrangement arr, P[] verts, P v, bool strict)
+    {
+        int lo = 0, hi = status.Count;
+        while (lo < hi)
+        {
+            int mid = (lo + hi) >> 1;
+            int s = status[mid];
+            int side = Geo.Orient(verts[arr.SegA[s]], verts[arr.SegB[s]], v);
+            bool below = strict ? side >= 0 : side > 0;
+            if (below)
+            {
+                lo = mid + 1;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+        return lo;
     }
 
     /// <summary>

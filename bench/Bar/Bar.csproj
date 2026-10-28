@@ -8,5 +8,6 @@
     <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
     <!-- The mesh the query rows run on until a builder can build the suite levels. -->
     <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshWorlds.cs" Link="Support/NavMeshWorlds.cs" />
+    <Compile Include="../Shared/TileMapWorld.cs" Link="Support/TileMapWorld.cs" />
   </ItemGroup>
 </Project>

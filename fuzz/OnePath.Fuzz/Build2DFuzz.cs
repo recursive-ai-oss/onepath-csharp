@@ -174,6 +174,8 @@ public static class Build2DFuzz
             Check(a.SymmetricDifference(b));
             double d = (r.Byte() - 128) / 16.0;
             Check(u.Offset(d, (r.Byte() & 1) == 0 ? JoinStyle.Round : JoinStyle.Square, (r.Byte() & 3) * 0.01));
+            // The build pipeline's shrink builds a different, smaller set of pieces.
+            Check(Mesh2DPipeline.Shrink(u, Math.Abs(d), (r.Byte() & 3) * 0.01));
         }
         catch (ArgumentException)
         {

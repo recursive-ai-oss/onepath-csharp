@@ -26,6 +26,13 @@ query/terraces-solo/recast	query	recast	path_per_sec	higher	1.15	query --obj {ge
 query/terraces-solo/dotrecast	query	dotrecast	path_per_sec	higher	1.15	query --obj {geom}/terraces.obj --points {geom}/terraces.points --reps 10
 query/overlapping-solo/recast	query	recast	path_per_sec	higher	1.15	query --obj {geom}/overlapping.obj --points {geom}/overlapping.points --reps 10
 query/overlapping-solo/dotrecast	query	dotrecast	path_per_sec	higher	1.15	query --obj {geom}/overlapping.obj --points {geom}/overlapping.points --reps 10
+build/tilemap-tiled/recast	build	recast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --mode tiled --tile-size 128 --cell 0.25 --agent-radius 0.5 --reps 5
+build/tilemap-solo/recast	build	recast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --cell 0.25 --agent-radius 0.5 --reps 5
+build/tilemap-tiled-r0.75/recast	build	recast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --mode tiled --tile-size 128 --cell 0.25 --agent-radius 0.75 --reps 5
+build/tilemap-solo-r0.75/recast	build	recast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --cell 0.25 --agent-radius 0.75 --reps 5
+build/tilemap-tiled-r1.0/recast	build	recast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --mode tiled --tile-size 128 --cell 0.25 --agent-radius 1.0 --reps 5
+build/tilemap-solo-r1.0/recast	build	recast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --cell 0.25 --agent-radius 1.0 --reps 5
+query/tilemap-tiled/recast	query	recast	path_per_sec	higher	1.15	query --obj {geom}/tilemap.obj --points {geom}/tilemap-core.points --mode tiled --tile-size 128 --cell 0.25 --agent-radius 0.5 --reps 10
 crowd/city-100/recast	crowd	recast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 100 --steps 200 --warmup 50
 crowd/city-100/dotrecast	crowd	dotrecast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 100 --steps 200 --warmup 50
 crowd/city-500/recast	crowd	recast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 500 --steps 200 --warmup 50

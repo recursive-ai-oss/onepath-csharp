@@ -47,6 +47,10 @@ internal static class OursQueries
         var raw = new List<Vector3D>();
         foreach (string line in File.ReadLines(pointsFile))
         {
+            if (line.StartsWith('#'))
+            {
+                continue; // the generator's header comment
+            }
             string[] f = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (f.Length >= 3 && f[0][0] != (char)35)
             {
@@ -57,7 +61,17 @@ internal static class OursQueries
         TiledNavMesh mesh;
         List<Vector3D> pts;
         string meshSource;
-        if (objFile is not null && File.Exists(objFile))
+        int objIndex = Array.IndexOf(t, "--obj");
+        if (objIndex >= 0 && objIndex + 1 < t.Length && t[objIndex + 1].Contains("tilemap", StringComparison.Ordinal))
+        {
+            // The tile-map level: the mesh is ours built from the same tiles, the query points are the level's own.
+            bool[] cells = RecursiveAI.OnePath.Bench.TileMapWorld.FromObj(t[objIndex + 1], out int tiles, out _);
+            NavSettings settings = OursBuild2D.SettingsFor(t, tiles * RecursiveAI.OnePath.Bench.TileMapWorld.TileUnits);
+            mesh = NavMesh.Build2D(cells, tiles, tiles, RecursiveAI.OnePath.Bench.TileMapWorld.TileUnits, new Vector2D(0, 0), settings).Tiles;
+            pts = raw;
+            meshSource = "NavMesh.Build2D from the level's tiles; the level's own query points";
+        }
+        else if (objFile is not null && File.Exists(objFile))
         {
             // The level's own mesh, built with the reference settings, and the points as they are.
             (double[] ov, int[] oi) = OursBuild.LoadObj(objFile);

@@ -83,7 +83,7 @@ internal sealed class Arrangement
             hot.Add(c);
         }
         P[] hotSorted = SortUnique(hot);
-        frags = RerouteAll(frags, hotSorted);
+        frags = RerouteAll(frags, HotGrid.Build(hotSorted, MeanSpan(frags)));
 
         // Repair loop (normally a single verification pass that finds nothing).
         for (int round = 0; ; round++)
@@ -97,14 +97,15 @@ internal sealed class Arrangement
                 hotSorted = SortUnique(hot);
             }
             var next = new List<Frag>(frags.Count + 8);
+            HotGrid grid = HotGrid.Build(hotSorted, MeanSpan(frags));
             for (int i = 0; i < frags.Count; i++)
             {
                 Frag f = frags[i];
                 if (marked[i])
                 {
-                    Reroute(f, hotSorted, touching: true, next);
+                    Reroute(f, grid, touching: true, next);
                 }
-                else if (Reroute(f, hotSorted, touching: false, next))
+                else if (Reroute(f, grid, touching: false, next))
                 {
                     changed = true;
                 }
@@ -120,14 +121,14 @@ internal sealed class Arrangement
             }
         }
 
-        BuildSegments(frags, result);
+        BuildSegments(frags, hotSorted, result);
         return result;
     }
 
     private static P[] SortUnique(List<P> pts)
     {
         P[] a = pts.ToArray();
-        Array.Sort(a, static (x, y) => x.CompareTo(y));
+        Array.Sort(a);
         int n = 0;
         for (int i = 0; i < a.Length; i++)
         {
@@ -140,8 +141,147 @@ internal sealed class Arrangement
         return a;
     }
 
-    /// <summary>All rounded intersection points of proper crossings. Marks the fragments involved when <paramref name="marked"/> is given.</summary>
+    // Mean of max(|dx|, |dy|) over the fragments: the typical cell size for the bucket grids.
+    private static long MeanSpan(List<Frag> f)
+    {
+        if (f.Count == 0)
+        {
+            return 2;
+        }
+        Int128 sum = 0;
+        foreach (Frag s in f)
+        {
+            sum += Math.Max(Math.Abs(s.B.X - s.A.X), Math.Abs(s.B.Y - s.A.Y));
+        }
+        return (long)(sum / f.Count);
+    }
+
+    /// <summary>
+    /// All rounded intersection points of proper crossings. Marks the fragments involved when <paramref name="marked"/> is given.
+    /// Fragments are bucketed into a uniform grid and only fragments sharing a cell are tested; a pair sharing several
+    /// cells is tested more than once, which only repeats a point already in the result.
+    /// </summary>
     private static List<P> FindCrossings(List<Frag> f, bool[]? marked)
+    {
+        var result = new List<P>();
+        int n = f.Count;
+        if (n < 2)
+        {
+            return result;
+        }
+        var bx0 = new long[n];
+        var bx1 = new long[n];
+        var by0 = new long[n];
+        var by1 = new long[n];
+        long minX = long.MaxValue, minY = long.MaxValue, maxX = long.MinValue, maxY = long.MinValue;
+        for (int i = 0; i < n; i++)
+        {
+            Frag s = f[i];
+            bx0[i] = Math.Min(s.A.X, s.B.X);
+            bx1[i] = Math.Max(s.A.X, s.B.X);
+            by0[i] = Math.Min(s.A.Y, s.B.Y);
+            by1[i] = Math.Max(s.A.Y, s.B.Y);
+            minX = Math.Min(minX, bx0[i]);
+            maxX = Math.Max(maxX, bx1[i]);
+            minY = Math.Min(minY, by0[i]);
+            maxY = Math.Max(maxY, by1[i]);
+        }
+        CellGrid g = CellGrid.Create(minX, minY, maxX, maxY, MeanSpan(f), 2L * n);
+        var lo = new int[g.Cols + 1];
+        var hi = new int[g.Cols + 1];
+        var start = new int[g.CellCount + 1];
+        for (int pass = 0; pass < 2; pass++)
+        {
+            if (pass == 1)
+            {
+                // The pairs a cell tests grow with the square of its count. Clustered input (a few huge segments stretching
+                // the bounding box over many tiny ones) piles everything into a few cells; the sweep copes with that better.
+                long pairs = 0;
+                for (int c = 0; c < start.Length - 1; c++)
+                {
+                    pairs += (long)start[c] * start[c];
+                }
+                if (pairs > UniformLimit * n)
+                {
+                    return FindCrossingsSweep(f, marked);
+                }
+                // Prefix sums turn the counts into start offsets; the second pass fills each cell's list.
+                int sum = 0;
+                for (int c = 0; c < start.Length - 1; c++)
+                {
+                    int cnt = start[c];
+                    start[c] = sum;
+                    sum += cnt;
+                }
+                start[^1] = sum;
+            }
+            int[]? fill = pass == 1 ? (int[])start.Clone() : null;
+            int[]? ids = pass == 1 ? new int[start[^1]] : null;
+            for (int i = 0; i < n; i++)
+            {
+                g.Traverse(f[i].A, f[i].B, lo, hi, out int c0, out int c1);
+                for (int c = c0; c <= c1; c++)
+                {
+                    for (int r = lo[c - c0]; r <= hi[c - c0]; r++)
+                    {
+                        int cell = (r * g.Cols) + c;
+                        if (pass == 0)
+                        {
+                            start[cell]++;
+                        }
+                        else
+                        {
+                            ids![fill![cell]++] = i;
+                        }
+                    }
+                }
+            }
+            if (pass == 1)
+            {
+                for (int cell = 0; cell < g.CellCount; cell++)
+                {
+                    for (int a = start[cell]; a < start[cell + 1]; a++)
+                    {
+                        int i = ids![a];
+                        for (int b = a + 1; b < start[cell + 1]; b++)
+                        {
+                            int j = ids[b];
+                            if (bx1[j] < bx0[i] || bx0[j] > bx1[i] || by1[j] < by0[i] || by0[j] > by1[i])
+                            {
+                                continue;
+                            }
+                            Frag s = f[i], t = f[j];
+                            if (s.A == t.A || s.A == t.B || s.B == t.A || s.B == t.B)
+                            {
+                                continue; // segments sharing an endpoint cannot cross in their interiors
+                            }
+                            if (Geo.ProperCrossing(s.A, s.B, t.A, t.B))
+                            {
+                                P? x = Geo.RoundedIntersection(s.A, s.B, t.A, t.B);
+                                if (x is P px)
+                                {
+                                    result.Add(px);
+                                    if (marked != null)
+                                    {
+                                        marked[i] = true;
+                                        marked[j] = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    // Largest mean number of same-cell partners per item for which the bucket grids are used.
+    private const long UniformLimit = 32;
+
+    // Sweep in increasing min-x with an active list; a stable key (min x, then index) fixes the order. Quadratic in the
+    // worst case but indifferent to how the input is spread over the plane.
+    private static List<P> FindCrossingsSweep(List<Frag> f, bool[]? marked)
     {
         var result = new List<P>();
         int n = f.Count;
@@ -150,7 +290,6 @@ internal sealed class Arrangement
         {
             order[i] = i;
         }
-        // Sweep in increasing min-x with an active list; a stable key (min x, then index) fixes the order.
         Array.Sort(order, (i, j) =>
         {
             long a = Math.Min(f[i].A.X, f[i].B.X), b = Math.Min(f[j].A.X, f[j].B.X);
@@ -160,7 +299,7 @@ internal sealed class Arrangement
         foreach (int i in order)
         {
             Frag s = f[i];
-            long minX = Math.Min(s.A.X, s.B.X), maxX = Math.Max(s.A.X, s.B.X);
+            long minX = Math.Min(s.A.X, s.B.X);
             long minY = Math.Min(s.A.Y, s.B.Y), maxY = Math.Max(s.A.Y, s.B.Y);
             int keep = 0;
             for (int k = 0; k < active.Count; k++)
@@ -192,12 +331,11 @@ internal sealed class Arrangement
             }
             active.RemoveRange(keep, active.Count - keep);
             active.Add(i);
-            _ = maxX;
         }
         return result;
     }
 
-    private static List<Frag> RerouteAll(List<Frag> frags, P[] hot)
+    private static List<Frag> RerouteAll(List<Frag> frags, HotGrid hot)
     {
         var next = new List<Frag>(frags.Count + 16);
         foreach (Frag f in frags)
@@ -205,6 +343,70 @@ internal sealed class Arrangement
             Reroute(f, hot, touching: true, next);
         }
         return next;
+    }
+
+    /// <summary>The hot pixels bucketed by cell, for finding those near a segment.</summary>
+    private sealed class HotGrid
+    {
+        public CellGrid Grid = null!;
+        public int[] Start = Array.Empty<int>();
+        public P[] Pts = Array.Empty<P>();
+        public int[] Lo = Array.Empty<int>();
+        public int[] Hi = Array.Empty<int>();
+
+        /// <summary>The hot pixels in (x, y) order, for the fallback search.</summary>
+        public P[] Sorted = Array.Empty<P>();
+
+        /// <summary>False when the points crowd into a few cells, so searching by x range is the better way.</summary>
+        public bool Usable;
+
+        public static HotGrid Build(P[] hot, long meanSpan)
+        {
+            var h = new HotGrid { Sorted = hot };
+            long minX = long.MaxValue, minY = long.MaxValue, maxX = long.MinValue, maxY = long.MinValue;
+            foreach (P p in hot)
+            {
+                minX = Math.Min(minX, p.X);
+                maxX = Math.Max(maxX, p.X);
+                minY = Math.Min(minY, p.Y);
+                maxY = Math.Max(maxY, p.Y);
+            }
+            h.Grid = CellGrid.Create(minX, minY, maxX, maxY, meanSpan, 2L * hot.Length);
+            h.Lo = new int[h.Grid.Cols + 1];
+            h.Hi = new int[h.Grid.Cols + 1];
+            h.Start = new int[h.Grid.CellCount + 1];
+            foreach (P p in hot)
+            {
+                h.Start[Cell(h.Grid, p)]++;
+            }
+            long pairs = 0;
+            for (int c = 0; c < h.Start.Length - 1; c++)
+            {
+                pairs += (long)h.Start[c] * h.Start[c];
+            }
+            h.Usable = pairs <= UniformLimit * hot.Length;
+            if (!h.Usable)
+            {
+                return h;
+            }
+            int sum = 0;
+            for (int c = 0; c < h.Start.Length - 1; c++)
+            {
+                int cnt = h.Start[c];
+                h.Start[c] = sum;
+                sum += cnt;
+            }
+            h.Start[^1] = sum;
+            var fill = (int[])h.Start.Clone();
+            h.Pts = new P[hot.Length];
+            foreach (P p in hot)
+            {
+                h.Pts[fill[Cell(h.Grid, p)]++] = p;
+            }
+            return h;
+        }
+
+        private static int Cell(CellGrid g, P p) => (g.RowOf(p.Y) * g.Cols) + g.ColOf(p.X);
     }
 
     // Index range [lo, hi) of hot pixels whose x lies in [minX, maxX].
@@ -231,29 +433,63 @@ internal sealed class Arrangement
     /// the path visits every hot pixel whose closed square the segment meets (snap rounding); otherwise only hot
     /// vertices lying exactly inside the segment (a pure split, geometry unchanged). Returns true if it was split.
     /// </summary>
-    private static bool Reroute(Frag f, P[] hot, bool touching, List<Frag> output)
+    private static bool Reroute(Frag f, HotGrid hg, bool touching, List<Frag> output)
     {
         long minX = Math.Min(f.A.X, f.B.X), maxX = Math.Max(f.A.X, f.B.X);
         long minY = Math.Min(f.A.Y, f.B.Y), maxY = Math.Max(f.A.Y, f.B.Y);
         int pad = touching ? 1 : 0;
-        XRange(hot, minX - pad, maxX + pad, out int lo, out int hi);
         List<(P Pt, Int128 T, Int128 Raw)>? via = null;
         Int128 len2 = Geo.LengthSquared(f.A, f.B);
-        for (int k = lo; k < hi; k++)
+
+        void Consider(P h)
         {
-            P c = hot[k];
-            if (c.Y < minY - pad || c.Y > maxY + pad || c == f.A || c == f.B)
+            if (h.X < minX - pad || h.X > maxX + pad || h.Y < minY - pad || h.Y > maxY + pad || h == f.A || h == f.B)
             {
-                continue;
+                return;
             }
-            bool hit = touching ? Geo.SegmentTouchesPixel(f.A, f.B, c) : Geo.StrictlyInside(f.A, f.B, c);
+            bool hit = touching ? Geo.SegmentTouchesPixel(f.A, f.B, h) : Geo.StrictlyInside(f.A, f.B, h);
             if (!hit)
             {
-                continue;
+                return;
             }
-            Int128 raw = Geo.Dot(f.A, c, f.B);
+            Int128 raw = Geo.Dot(f.A, h, f.B);
             Int128 t = raw <= 0 ? 0 : raw >= len2 ? len2 : raw;
-            (via ??= new List<(P, Int128, Int128)>()).Add((c, t, raw));
+            (via ??= new List<(P, Int128, Int128)>()).Add((h, t, raw));
+        }
+
+        if (!hg.Usable)
+        {
+            XRange(hg.Sorted, minX - pad, maxX + pad, out int lo, out int hi);
+            for (int k = lo; k < hi; k++)
+            {
+                Consider(hg.Sorted[k]);
+            }
+        }
+        else
+        {
+            CellGrid g = hg.Grid;
+            g.Traverse(f.A, f.B, hg.Lo, hg.Hi, out int c0, out int c1);
+            // Candidate cells: the cells the segment visits and their neighbours (a hot pixel within one unit of the
+            // segment lies in a neighbouring cell because cells are at least two units wide).
+            for (int c = Math.Max(0, c0 - 1); c <= Math.Min(g.Cols - 1, c1 + 1); c++)
+            {
+                int rlo = int.MaxValue, rhi = int.MinValue;
+                for (int k = Math.Max(c0, c - 1); k <= Math.Min(c1, c + 1); k++)
+                {
+                    rlo = Math.Min(rlo, hg.Lo[k - c0]);
+                    rhi = Math.Max(rhi, hg.Hi[k - c0]);
+                }
+                rlo = Math.Max(0, rlo - 1);
+                rhi = Math.Min(g.Rows - 1, rhi + 1);
+                for (int r = rlo; r <= rhi; r++)
+                {
+                    int cell = (r * g.Cols) + c;
+                    for (int k = hg.Start[cell]; k < hg.Start[cell + 1]; k++)
+                    {
+                        Consider(hg.Pts[k]);
+                    }
+                }
+            }
         }
         if (via == null)
         {
@@ -286,43 +522,45 @@ internal sealed class Arrangement
         return true;
     }
 
-    private static void BuildSegments(List<Frag> frags, Arrangement r)
+    // Every fragment end is a hot pixel, so the sorted hot pixels serve as the vertex list; those no segment uses are
+    // dropped by the renumbering below.
+    private static void BuildSegments(List<Frag> frags, P[] verts, Arrangement r)
     {
-        var pts = new List<P>(frags.Count * 2);
-        foreach (Frag f in frags)
-        {
-            pts.Add(f.A);
-            pts.Add(f.B);
-        }
-        P[] verts = SortUnique(pts);
         int n = frags.Count;
-        var keys = new (long Key, int D0, int D1)[n];
+        var keys = new long[n];
+        var order = new int[n];
+        var dd0 = new int[n];
+        var dd1 = new int[n];
         for (int i = 0; i < n; i++)
         {
             Frag f = frags[i];
-            int a = Array.BinarySearch(verts, f.A, Comparer<P>.Create(static (x, y) => x.CompareTo(y)));
-            int b = Array.BinarySearch(verts, f.B, Comparer<P>.Create(static (x, y) => x.CompareTo(y)));
+            int a = Array.BinarySearch(verts, f.A);
+            int b = Array.BinarySearch(verts, f.B);
             int sign = 1;
             if (a > b)
             {
                 (a, b) = (b, a);
                 sign = -1;
             }
-            keys[i] = (((long)a << 32) | (uint)b, f.Op == 0 ? sign : 0, f.Op == 1 ? sign : 0);
+            keys[i] = ((long)a << 32) | (uint)b;
+            order[i] = i;
+            dd0[i] = f.Op == 0 ? sign : 0;
+            dd1[i] = f.Op == 1 ? sign : 0;
         }
-        Array.Sort(keys, static (x, y) => x.Key.CompareTo(y.Key));
+        // Equal keys are summed, so their relative order does not matter.
+        Array.Sort(keys, order);
         var a2 = new List<int>();
         var b2 = new List<int>();
         var d0 = new List<int>();
         var d1 = new List<int>();
         for (int i = 0; i < n;)
         {
-            long key = keys[i].Key;
+            long key = keys[i];
             int s0 = 0, s1 = 0;
-            while (i < n && keys[i].Key == key)
+            while (i < n && keys[i] == key)
             {
-                s0 += keys[i].D0;
-                s1 += keys[i].D1;
+                s0 += dd0[order[i]];
+                s1 += dd1[order[i]];
                 i++;
             }
             if (s0 != 0 || s1 != 0)

@@ -3,7 +3,7 @@
 
     tools/geom/gen_levels.py <out_dir> [--size 128] [--seed 1] [--points 2000] [level ...]
 
-Levels: terraces, ramps, stairs, overlapping, slivers, city. Each writes <name>.obj and <name>.points
+Levels: terraces, ramps, stairs, overlapping, slivers, city, tilemap. Each writes <name>.obj and <name>.points
 (one "x y z" per line: random points on upward-facing surfaces, to be paired up as path queries).
 Output depends only on the arguments (own LCG, no platform randomness); the sine terrain in some levels
 can differ in the last printed digit between C libraries, so benchmark rows record the generated file's SHA-256.
@@ -216,7 +216,64 @@ def level_city(size, seed):
     return m
 
 
+TILEMAP_CELL = 2.0     # world units per tile
+TILEMAP_SOLID = 0.6    # fraction of tiles that are floor
+
+
+def tilemap_cells(size, seed):
+    """Row-major (z, then x) solidity of the noisy tile map; bench/Shared/TileMapWorld.cs repeats this exactly."""
+    n = int(size / TILEMAP_CELL)
+    r = Lcg(seed * 1000003 + 77)
+    return n, [[r.next() < TILEMAP_SOLID for _ in range(n)] for _ in range(n)]
+
+
+def level_tilemap(size, seed):
+    """A square of size/2 by size/2 tiles (2 units each), about 60% flat floor in noise: the footprint of a tile map
+    extruded to flat triangles. Every grid vertex is written so the bounds are the whole square."""
+    m = Mesh()
+    n, solid = tilemap_cells(size, seed)
+    idx = {}
+    for i in range(n + 1):
+        for j in range(n + 1):
+            idx[(i, j)] = m.vert(i * TILEMAP_CELL, 0.0, j * TILEMAP_CELL)
+    for j in range(n):
+        for i in range(n):
+            if solid[j][i]:
+                a, b, c, d = idx[(i, j)], idx[(i + 1, j)], idx[(i + 1, j + 1)], idx[(i, j + 1)]
+                m.tri(a, d, c)
+                m.tri(a, c, b)
+    return m
+
+
+TILEMAP_CLEARANCE = 1.5  # query points of the tile-map "core" set keep this far from every wall
+
+
+def tilemap_core_points(size, seed, count):
+    """Query points on tile-map floor at least TILEMAP_CLEARANCE from any wall or the map edge, so every builder's mesh covers
+    them at agent radii up to 1 and both sides of a query row can use the identical pair set."""
+    n, floor = tilemap_cells(size, seed)
+    m = level_tilemap(size, seed)
+    cand = m.sample_points(Lcg(seed * 1000003 + 991), count * 8)
+    out = []
+    for x, y, z in cand:
+        ok = True
+        for j in range(max(0, int((z - TILEMAP_CLEARANCE) // TILEMAP_CELL) - 1), min(n, int((z + TILEMAP_CLEARANCE) // TILEMAP_CELL) + 2)):
+            for i in range(max(0, int((x - TILEMAP_CLEARANCE) // TILEMAP_CELL) - 1), min(n, int((x + TILEMAP_CLEARANCE) // TILEMAP_CELL) + 2)):
+                if floor[j][i]:
+                    continue
+                dx = max(i * TILEMAP_CELL - x, 0.0, x - (i + 1) * TILEMAP_CELL)
+                dz = max(j * TILEMAP_CELL - z, 0.0, z - (j + 1) * TILEMAP_CELL)
+                if dx * dx + dz * dz < TILEMAP_CLEARANCE ** 2:
+                    ok = False
+        if ok and x >= TILEMAP_CLEARANCE and z >= TILEMAP_CLEARANCE and x <= n * TILEMAP_CELL - TILEMAP_CLEARANCE and z <= n * TILEMAP_CELL - TILEMAP_CLEARANCE:
+            out.append((x, y, z))
+        if len(out) == count:
+            break
+    return out
+
+
 LEVELS = {
+    "tilemap": level_tilemap,
     "terraces": level_terraces, "ramps": level_ramps, "stairs": level_stairs,
     "overlapping": level_overlapping, "slivers": level_slivers, "city": level_city,
 }
@@ -248,6 +305,13 @@ def main(argv):
         pts = m.sample_points(Lcg(seed * 1000003 + len(name)), npts)
         m.write(os.path.join(out, name), pts)
         print("%s: %d verts, %d tris, %d points" % (name, len(m.v), len(m.t), len(pts)))
+        if name == "tilemap":
+            core = tilemap_core_points(size, seed, npts)
+            with open(os.path.join(out, "tilemap-core.points"), "w", newline="\n") as f:
+                f.write("# x y z\n")
+                for x, y, z in core:
+                    f.write("%.5f %.5f %.5f\n" % (x, y, z))
+            print("tilemap-core: %d points (clearance %.1f)" % (len(core), TILEMAP_CLEARANCE))
     return 0
 
 

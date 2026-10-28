@@ -306,7 +306,12 @@ internal sealed class Cdt
             t = _nb[(3 * t) + Prev(ip)]; // across edge (prev, p): next triangle around p
         }
         while (t >= 0 && t != start);
-        // The edge may sit on the other side of a border (only for bounding-triangle vertices).
+        // The edge may sit on the other side of a border, which only the bounding triangle's vertices have: the triangles
+        // around a real vertex form a closed fan, so the rotation above has seen them all.
+        if (p < _n)
+        {
+            return (-1, -1);
+        }
         for (int s = 0; s < _tc; s++)
         {
             int i = EdgeIndex(s, p, q);

@@ -27,9 +27,11 @@ internal static class Cli
         var opts = new Dictionary<string, string>();
         for (var i = 1; i < args.Length; i++)
         {
-            if (args[i].StartsWith("--", StringComparison.Ordinal) && i + 1 < args.Length)
+            if (args[i].StartsWith("--", StringComparison.Ordinal))
             {
-                opts[args[i][2..]] = args[++i];
+                // A flag with no value (last argument, or followed by another option) is switched on with "1".
+                bool hasValue = i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal);
+                opts[args[i][2..]] = hasValue ? args[++i] : "1";
             }
         }
 
@@ -108,7 +110,7 @@ internal static class Cli
                 }
             }
 
-            if (refRuns.Count == 0)
+            if (refRuns.Count == 0 && !oursOnly)
             {
                 failures++;
             }

@@ -116,7 +116,7 @@ public sealed class Triangulation
             return r != 0 ? r : x.C.CompareTo(y.C);
         });
         var indices = new int[tris.Count * 3];
-        var edge = new Dictionary<long, int>(tris.Count * 3);
+        var edge = new Dictionary<long, int>(tris.Count * 3, EdgeKeyComparer.Instance);
         for (int t = 0; t < tris.Count; t++)
         {
             indices[3 * t] = tris[t].A;
@@ -228,7 +228,7 @@ public sealed class ConvexPartition
             return x;
         }
         // Edge → the triangle on its left, to locate both polygons of a diagonal.
-        var leftOf = new Dictionary<long, int>(nt * 3);
+        var leftOf = new Dictionary<long, int>(nt * 3, EdgeKeyComparer.Instance);
         for (int t = 0; t < nt; t++)
         {
             for (int i = 0; i < 3; i++)
@@ -318,7 +318,7 @@ public sealed class ConvexPartition
             indices.AddRange(list[i]);
         }
         start[list.Count] = indices.Count;
-        var edgeOwner = new Dictionary<long, int>(indices.Count);
+        var edgeOwner = new Dictionary<long, int>(indices.Count, EdgeKeyComparer.Instance);
         for (int i = 0; i < list.Count; i++)
         {
             int[] r = list[i];

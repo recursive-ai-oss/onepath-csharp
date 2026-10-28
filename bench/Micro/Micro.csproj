@@ -12,5 +12,6 @@
     <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshWorlds.cs" Link="NavMeshWorlds.cs" />
     <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshMutations.cs" Link="NavMeshMutations.cs" />
     <Compile Include="../../tools/HashMatrix/Scenarios/Crowds/CorridorWorlds.cs" Link="CorridorWorlds.cs" />
+    <Compile Include="../Shared/TileMapWorld.cs" Link="TileMapWorld.cs" />
   </ItemGroup>
 </Project>
