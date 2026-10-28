@@ -14,37 +14,43 @@ internal sealed class SpanGraph
     private int[]? _col;
 
     public SpanGraph(CompactHeightfield chf)
-        : this(chf, SpanLinks.Rent(chf))
-    {
-    }
-
-    /// <summary>Builds the graph from the raw links of <paramref name="chf"/> (see <see cref="SpanLinks.Build"/>). The graph takes ownership of the (pooled, at least <c>4 * SpanCount</c> long) array and rewrites it in place; <see cref="Release"/> gives it back.</summary>
-    public SpanGraph(CompactHeightfield chf, int[] rawLinks)
     {
         _chf = chf;
+        Init(chf);
+        Nbr = SpanLinks.Rent(chf, out List<int>? oneWay);
+        Drop(oneWay);
+    }
+
+    /// <summary>
+    /// Builds the graph from the raw links of <paramref name="chf"/> (see <see cref="SpanLinks.Rent(CompactHeightfield, out List{int})"/>) and the one-way entries found
+    /// with them. The graph takes ownership of the (pooled, at least <c>4 * SpanCount</c> long) array and rewrites it in place; <see cref="Release"/> gives it back.
+    /// </summary>
+    public SpanGraph(CompactHeightfield chf, int[] rawLinks, List<int>? oneWay)
+    {
+        _chf = chf;
+        Init(chf);
+        Nbr = rawLinks;
+        Drop(oneWay);
+    }
+
+    private void Init(CompactHeightfield chf)
+    {
         HeightfieldFrame f = chf.Frame;
         Width = f.Width;
         Depth = f.Depth;
         Count = chf.SpanCount;
-        int[] nbr = rawLinks;
-        Nbr = nbr;
-        for (int i = 0; i < Count; i++)
+    }
+
+    // A link is kept only when the target links back: boundary tracing needs a symmetric relation to close its loops.
+    private void Drop(List<int>? oneWay)
+    {
+        if (oneWay is null)
         {
-            for (int d = 0; d < 4; d++)
-            {
-                int t = nbr[(4 * i) + d];
-                if (t >= 0 && nbr[(4 * t) + ((d + 2) & 3)] != i)
-                {
-                    nbr[(4 * i) + d] = -2; // one-way: dropped after all pairs are examined
-                }
-            }
+            return;
         }
-        for (int k = 0; k < 4 * Count; k++)
+        foreach (int k in oneWay)
         {
-            if (nbr[k] == -2)
-            {
-                nbr[k] = -1;
-            }
+            Nbr[k] = -1;
         }
     }
 
@@ -58,11 +64,11 @@ internal sealed class SpanGraph
         }
     }
 
-    public int Width { get; }
+    public int Width { get; private set; }
 
-    public int Depth { get; }
+    public int Depth { get; private set; }
 
-    public int Count { get; }
+    public int Count { get; private set; }
 
     public int[] Nbr { get; }
 
@@ -166,10 +172,10 @@ public static class Regions
         ArgumentNullException.ThrowIfNull(settings);
         settings.Validate();
         int n = chf.SpanCount;
-        int[] links = SpanLinks.Rent(chf);
+        int[] links = SpanLinks.Rent(chf, out List<int>? oneWay);
         int[] dist = Scratch.Rent<int>(n);
         Erosion.DistanceInto(chf, links, dist, 1 << 28);
-        var g = new SpanGraph(chf, links);
+        var g = new SpanGraph(chf, links, oneWay);
         Span<CompactSpan> spans = chf.Spans;
         int maxDist = 0;
         for (int i = 0; i < n; i++)

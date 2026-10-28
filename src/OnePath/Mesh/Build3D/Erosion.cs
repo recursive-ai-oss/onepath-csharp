@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace RecursiveAI.OnePath.Mesh.Build3D;
 
@@ -114,7 +115,7 @@ public static class Erosion
         return dist;
     }
 
-    /// <summary>The distance field from the raw links (<see cref="SpanLinks.Rent"/>) into the first <c>SpanCount</c> entries of <paramref name="dist"/>, so a caller that needs both can build them once.</summary>
+    /// <summary>The distance field from the raw links (<see cref="SpanLinks.Rent(CompactHeightfield)"/>) into the first <c>SpanCount</c> entries of <paramref name="dist"/>, so a caller that needs both can build them once.</summary>
     internal static void DistanceInto(CompactHeightfield chf, int[] link, int[] dist, int cap)
     {
         Span<CompactSpan> spans = chf.Spans;
@@ -268,7 +269,7 @@ internal static class SpanLinks
     public static int[] Build(CompactHeightfield chf)
     {
         int[] link = new int[4 * chf.SpanCount];
-        Fill(chf, link);
+        Fill(chf, link, null);
         return link;
     }
 
@@ -276,11 +277,24 @@ internal static class SpanLinks
     public static int[] Rent(CompactHeightfield chf)
     {
         int[] link = Scratch.Rent<int>(4 * chf.SpanCount);
-        Fill(chf, link);
+        Fill(chf, link, null);
         return link;
     }
 
-    private static void Fill(CompactHeightfield chf, int[] link)
+    /// <summary>
+    /// As <see cref="Rent(CompactHeightfield)"/>, and also lists in <paramref name="oneWay"/> (created on first use) the entries <c>4 * span + direction</c>
+    /// whose target does not link back; <see cref="SpanGraph"/> drops exactly those. Found while filling, so no separate pass is needed.
+    /// </summary>
+    public static int[] Rent(CompactHeightfield chf, out List<int>? oneWay)
+    {
+        int[] link = Scratch.Rent<int>(4 * chf.SpanCount);
+        var drops = new List<int>();
+        Fill(chf, link, drops);
+        oneWay = drops;
+        return link;
+    }
+
+    private static void Fill(CompactHeightfield chf, int[] link, List<int>? drops)
     {
         HeightfieldFrame f = chf.Frame;
         ReadOnlySpan<int> first = chf.CellFirst;
@@ -303,6 +317,35 @@ internal static class SpanLinks
                 link[b + 2] = con == CompactHeightfield.NotConnected ? -1 : first[c + 1] + con;
                 con = (conn >> 18) & 0x3f;
                 link[b + 3] = con == CompactHeightfield.NotConnected ? -1 : first[c - w] + con;
+                if (drops != null)
+                {
+                    // Links to the earlier columns (-x = 0, -z = 3) are checked here, in both directions; the others when their column is filled.
+                    CheckBack(link, first, count, drops, i, 0, c - 1, 2);
+                    CheckBack(link, first, count, drops, i, 3, c - w, 1);
+                }
+            }
+        }
+    }
+
+    // Span i links to an earlier column in direction d, which links back in direction e. Drops (i, d) when its target does not link back to i,
+    // and every entry (j, e) of the earlier column that points at i when i does not link to j.
+    private static void CheckBack(int[] link, ReadOnlySpan<int> first, ReadOnlySpan<int> count, List<int> drops, int i, int d, int earlier, int e)
+    {
+        if (earlier < 0)
+        {
+            return;
+        }
+        int t = link[(4 * i) + d];
+        if (t >= 0 && link[(4 * t) + e] != i)
+        {
+            drops.Add((4 * i) + d);
+        }
+        int end = first[earlier] + count[earlier];
+        for (int j = first[earlier]; j < end; j++)
+        {
+            if (link[(4 * j) + e] == i && t != j)
+            {
+                drops.Add((4 * j) + e);
             }
         }
     }
