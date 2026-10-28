@@ -59,11 +59,6 @@ Exception: a joint that is collinear in cells and whose both incident edges are 
 (Float32 rounding can tip collinear points to the wrong side, and the format rejects that; wall-collinear vertices exist only because long wall edges are split.)
 Merging never crosses contours. The polygon's area and region are the contour's.
 
-**Re-cutting** (after merging, per contour). Merging only joins pairs, so three neighbours that fit into one fewer polygon are looked for explicitly. In passes (at most 16) over polygons `q` in index order,
-for each pair of edges `e1 < e2` of `q` (edge order) that have neighbours `p` and `r` (distinct, not yet used in this pass, each sharing exactly one edge with `q`), the ring `q ∪ p ∪ r` is formed (joined as in merging, no convexity tests; its vertices must be distinct).
-A ring with more than 2 right turns (in cells) is skipped. Otherwise it is cut by the first diagonal `(i, j)` (`i` ascending, then `j`; ring indices) whose two sides have positive area, at most `MaxVertsPerPoly` vertices, and are convex in cells and in float32 positions (the same test as merging).
-The two sides replace `q` and `p`, `r` is deleted, and the three are marked used for the pass. After a pass the edge table is rebuilt; passes stop when none finds anything. Polygons are visited in index order and nothing depends on hashing.
-
 ## 4. Height detail (`DetailMeshBuilder`)
 
 Coordinates are the stored tile-local float32 values, widened to double: `TileCoordinates.Local(c)` is `0` for `c = B`, `(float)TileSize` for `c = B + TileCells`, else `(float)((c − B)·cs)`;
