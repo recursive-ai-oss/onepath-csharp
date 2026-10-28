@@ -208,13 +208,13 @@ internal static class GltfFuzz
             }
         }
         st.UpdateAll();
-        // Each held tile came back exactly as it left (a held tile may itself be a damaged-but-valid variant the script streamed in earlier,
+        // Each held tile came back exactly as it left (the tile header carries the version, flags and a 16-byte fingerprint before its position; a held tile may itself be a damaged-but-valid variant the script streamed in earlier,
         // for example with another layer number, so the position is read from the tile's own header).
         foreach (KeyValuePair<int, List<byte[]>> h in held)
         {
             foreach (byte[] t in h.Value)
             {
-                int tx = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(t.AsSpan(8)), tz = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(t.AsSpan(12)), layer = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(t.AsSpan(16));
+                int tx = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(t.AsSpan(24)), tz = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(t.AsSpan(28)), layer = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(t.AsSpan(32));
                 TileRef r = m.Tiles.GetTileRef(tx, tz, layer);
                 if (!r.IsSet || !NavMeshSerializer.WriteTile(m.Tiles.GetTile(r)!).AsSpan().SequenceEqual(t))
                 {
