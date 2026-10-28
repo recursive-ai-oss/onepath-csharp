@@ -372,6 +372,54 @@ public class TileCacheTests
     }
 
     [Fact]
+    public void ObstacleKeepsTheAgentRadiusClear()
+    {
+        // The obstacle is marked after erosion with its footprint grown by the agent radius, so no walkable point may come closer to it than
+        // about the radius (within a cell for the chamfer of the cell grid).
+        Soup s = Level();
+        TileCache c = Cache(s);
+        c.AddObstacle(TileObstacle.Cylinder(15.9, 0, 14, 2, 2));
+        All(c);
+        var refs = new TileRef[8];
+        double nearest = double.MaxValue;
+        for (int z = -2; z < 6; z++)
+        {
+            for (int x = -2; x < 6; x++)
+            {
+                int n = c.Mesh.GetTilesAt(x, z, refs);
+                for (int i = 0; i < n; i++)
+                {
+                    NavTile t = c.Mesh.GetTile(refs[i])!;
+                    ReadOnlySpan<float> v = t.Vertices;
+                    for (int k = 0; k < v.Length; k += 3)
+                    {
+                        double dx = t.OriginX + v[k] - 15.9, dz = t.OriginZ + v[k + 2] - 14;
+                        nearest = Math.Min(nearest, Math.Sqrt((dx * dx) + (dz * dz)));
+                    }
+                }
+            }
+        }
+        Assert.True(nearest >= 2 + 0.5 - 0.3, $"a mesh vertex is {nearest} from the obstacle's centre");
+    }
+
+    [Fact]
+    public void ObstaclesOverOtherTilesSkipTheirRebuildButStayCorrect()
+    {
+        // Adding and removing an obstacle in a far corner queues tiles whose areas do not change; the mesh must still equal a fresh build.
+        Soup s = Level();
+        TileCache c = Cache(s);
+        TiledNavMesh fresh = new Mesh3DPipeline(Settings).BuildSoup(s.V.ToArray(), s.I.ToArray());
+        int id = c.AddObstacle(TileObstacle.Cylinder(2, 0, 2, 1, 2));
+        int id2 = c.AddObstacle(TileObstacle.Cylinder(37, 0, 27, 1, 2));
+        All(c);
+        c.RemoveObstacle(id);
+        All(c);
+        c.RemoveObstacle(id2);
+        All(c);
+        AssertSame(fresh, c.Mesh);
+    }
+
+    [Fact]
     public void OrientedBoxTurnsByItsYaw()
     {
         // Half sizes 4 x 0.5; turned a quarter turn it is long along z.

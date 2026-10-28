@@ -54,10 +54,11 @@ internal static class OursTileCache
             obstacles.Add(TileObstacle.Cylinder((double)(float)p.X, (double)(float)(p.Y - 0.5f), (double)(float)p.Z, radius, height));
         }
 
-        // ONEPATH_TC_VARIANT=layers: the partition and detail work DetourTileCache does on a rebuild (monotone regions on height layers, polygon
-        // heights from the layer, no detail sampling) instead of our default watershed with detail sampling. The default rows stay the default.
+        // The rebuild work DetourTileCache does is monotone regions on height layers and polygon heights from the layer, with no detail sampling,
+        // so that is the default here (partition Layers, detail sampling off). ONEPATH_TC_VARIANT=watershed measures our default settings
+        // (watershed with detail sampling) instead.
         NavSettings settings = OursBuild.SettingsFor(verts, true, tileCells);
-        bool layersVariant = Environment.GetEnvironmentVariable("ONEPATH_TC_VARIANT") == "layers";
+        bool layersVariant = Environment.GetEnvironmentVariable("ONEPATH_TC_VARIANT") != "watershed";
         if (layersVariant)
         {
             settings = settings with { Partition = PartitionType.Layers, DetailSampleDistance = 0 };
