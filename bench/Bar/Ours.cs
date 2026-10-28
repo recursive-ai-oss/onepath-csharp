@@ -30,6 +30,10 @@ internal static class OurScenarios
         {
             return OursBuild.Run(row, paths);
         }
+        if (row.Part == "crowd")
+        {
+            return OursCrowd.Run(row, paths);
+        }
         return row.Part == "grid" ? GridBar.Run(row, paths) : null;
     }
 }

@@ -39,6 +39,14 @@ public sealed class TiledNavMesh
     /// <summary>Number of tiles present.</summary>
     public int TileCount => _tileCount;
 
+    /// <summary>
+    /// Counts the changes made to the mesh through this object (tiles added, replaced or removed, polygon flags and areas set, links
+    /// switched, state restored). It only grows within a process; it is not saved, so compare it for "changed since", never for equality across runs.
+    /// </summary>
+    public long EditCount => _editCount;
+
+    private long _editCount;
+
     /// <summary>Number of slots ever used (present or free); slot indices are 0 to SlotCount - 1.</summary>
     public int SlotCount => _tiles.Count;
 
@@ -57,6 +65,7 @@ public sealed class TiledNavMesh
     /// <exception cref="InvalidOperationException">A tile already exists at the tile's (column, row, layer), or no slot is left.</exception>
     public TileRef AddTile(NavTile tile)
     {
+        _editCount++;
         CheckTile(tile);
         if (FindSlot(tile.TileX, tile.TileZ, tile.Layer) >= 0)
         {
@@ -75,6 +84,7 @@ public sealed class TiledNavMesh
     /// <exception cref="ArgumentException">The tile was built with different parameters.</exception>
     public TileRef ReplaceTile(NavTile tile)
     {
+        _editCount++;
         CheckTile(tile);
         int slot = FindSlot(tile.TileX, tile.TileZ, tile.Layer);
         if (slot < 0)
@@ -92,6 +102,7 @@ public sealed class TiledNavMesh
     /// <returns>False if the reference was not valid (nothing changed).</returns>
     public bool RemoveTile(TileRef tile)
     {
+        _editCount++;
         if (!IsValid(tile))
         {
             return false;
@@ -272,6 +283,7 @@ public sealed class TiledNavMesh
     // generations), then runtime edits are applied before the links are built.
     internal void RestoreSlots(IReadOnlyList<(uint Salt, NavTile? Tile)> slots)
     {
+        _editCount++;
         var list = new List<SlotRestore>(slots.Count);
         foreach ((uint salt, NavTile? tile) in slots)
         {
@@ -286,6 +298,7 @@ public sealed class TiledNavMesh
 
     internal void RestoreSlots(IReadOnlyList<SlotRestore> slots)
     {
+        _editCount++;
         for (int i = 0; i < slots.Count; i++)
         {
             _tiles.Add(null);
@@ -321,6 +334,7 @@ public sealed class TiledNavMesh
     // restore either replaces everything or nothing.
     internal void AdoptState(TiledNavMesh o)
     {
+        _editCount++;
         _tiles.Clear();
         _tiles.AddRange(o._tiles);
         _salts.Clear();
@@ -345,6 +359,7 @@ public sealed class TiledNavMesh
     /// <returns>False if the reference is stale or invalid (nothing changed).</returns>
     public bool SetPolyFlags(PolyRef poly, ushort flags)
     {
+        _editCount++;
         if (!TryGetPoly(poly, out NavTile t, out int pi))
         {
             return false;
@@ -358,6 +373,7 @@ public sealed class TiledNavMesh
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="area"/> is above <see cref="NavMeshFormat.MaxArea"/>.</exception>
     public bool SetPolyArea(PolyRef poly, byte area)
     {
+        _editCount++;
         if (area > NavMeshFormat.MaxArea)
         {
             throw new ArgumentOutOfRangeException(nameof(area), area, $"The largest area id is {NavMeshFormat.MaxArea}.");
@@ -377,6 +393,7 @@ public sealed class TiledNavMesh
     /// <returns>False if the tile reference is stale or the link index does not exist (nothing changed).</returns>
     public bool SetOffMeshLinkEnabled(TileRef tile, int link, bool enabled)
     {
+        _editCount++;
         NavTile? t = GetTile(tile);
         if (t is null || (uint)link >= (uint)t.OffMeshLinks.Length)
         {

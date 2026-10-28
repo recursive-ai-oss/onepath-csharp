@@ -58,24 +58,22 @@ public sealed class QueryFilter
             throw new ArgumentOutOfRangeException(nameof(cost), cost, "Area cost must be positive (infinity forbids the area).");
         }
         _cost[area] = cost;
+        double m = double.PositiveInfinity;
+        foreach (double c in _cost)
+        {
+            m = Math.Min(m, c);
+        }
+        _minCost = double.IsInfinity(m) ? 1.0 : m;
         return this;
     }
 
     /// <summary>The cost multiplier of an area (1 for areas outside 0..63 are not valid; callers pass real areas).</summary>
     public double GetAreaCost(byte area) => _cost[area & 63];
 
-    internal double MinCost
-    {
-        get
-        {
-            double m = double.PositiveInfinity;
-            foreach (double c in _cost)
-            {
-                m = Math.Min(m, c);
-            }
-            return double.IsInfinity(m) ? 1.0 : m;
-        }
-    }
+    // Kept up to date by SetAreaCost so that preparing a filter for a query (done by every plain-filter call) costs nothing.
+    private double _minCost = 1.0;
+
+    internal double MinCost => _minCost;
 
     internal bool Accepts(ushort flags, byte area) =>
         (IncludeFlags == 0xFFFF || (flags & IncludeFlags) != 0) && (flags & ExcludeFlags) == 0 && !double.IsPositiveInfinity(_cost[area & 63]) && (Predicate is null || Predicate(flags, area));

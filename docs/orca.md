@@ -145,3 +145,17 @@ number of workers, gives the same bits. There is no clock. Zero agents is a no-o
 - Simulations of antipodal circles, crossing blocks, a gap in a wall and a two-way corridor reach their goals; the deepest overlap
   is bounded: sparse scenes 0.1 radius; the dense centre of an antipodal circle 0.5 radius at 100-300 agents (observed 0.31 at 100) and 0.75 radius at 1000 agents (observed 0.55).
 - `hash matrix`: the `orca/*` scenarios are equal on x64 JIT/AOT/scalar, WebAssembly, and arm64.
+
+## One-sided boundary constraint (`ForBoundary`)
+
+For a walkable area whose boundary the agent's centre may touch (the area was already shrunk by the agent radius), `OrcaConstraints.ForBoundary(a, b, clearance, tau)`
+gives the half-plane for one boundary stretch `a`–`b` (relative to the agent; the walkable side is to the left of `a` → `b`, the winding of a counter-clockwise polygon).
+With `e = b − a`, `s = −(a · e) / (e · e)` (the projection of the agent on the line, as a fraction), `n = (−e.y, e.x) / |e|` and `d = −(a · n)` (the signed distance of the agent
+from the line, positive on the walkable side):
+
+- there is **no** constraint when `e = 0`, when `s ≤ m` or `s ≥ 1 − m` with `m = (clearance + 1e-6) / |e|` (the agent is beside the stretch: grazing a corner is not
+  a collision), or when `d < −1e-6` (the stretch faces away: it is the far side of a thin wall);
+- otherwise the half-plane has normal `n` and point `−n · (d − clearance) / tau`, i.e. `v · n ≥ −(d − clearance) / tau`: an agent may approach the line at the speed that
+  reaches `clearance` from it in `tau`, may always move along it or away from it, and is pushed away at `(clearance − d) / tau` when it is closer than `clearance`.
+
+This is the paper's section 5.4 with the obstacle taken one-sided and without the corner legs, which the surface the agent moves on handles.

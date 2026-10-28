@@ -24,7 +24,31 @@ public sealed partial class NavMeshQuery
     /// <param name="truncated">True if <paramref name="result"/> was too small; the points written are a prefix.</param>
     /// <returns>Success, or <see cref="PathStatus.InvalidCorridor"/> (nothing written).</returns>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
-    public PathStatus FindStraightPath(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, out int count, out bool truncated)
+    public PathStatus FindStraightPath(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, out int count, out bool truncated) =>
+        StraightCore(start, end, corridor, result, int.MaxValue, out count, out truncated);
+
+    /// <summary>
+    /// Like <see cref="FindStraightPath(Vector3D, Vector3D, ReadOnlySpan{PolyRef}, Span{StraightPathPoint}, out int, out bool)"/> but
+    /// stops as soon as <paramref name="maxCorners"/> points (the start included) are found, so the cost follows the corners asked
+    /// for and not the corridor length. The points written equal the prefix of the full result. <paramref name="truncated"/> is
+    /// true when the limit was reached (the end point may or may not be among the points; the full result may have no more).
+    /// </summary>
+    /// <param name="start">Path start (world).</param>
+    /// <param name="end">Path end (world).</param>
+    /// <param name="corridor">Polygons from the start polygon to the end polygon; each pair must touch.</param>
+    /// <param name="result">Receives the points.</param>
+    /// <param name="count">Number of points written.</param>
+    /// <param name="truncated">True when the limit or the size of <paramref name="result"/> was reached.</param>
+    /// <returns>Success, or <see cref="PathStatus.InvalidCorridor"/> (nothing written).</returns>
+    /// <param name="maxCorners">Most points to find, at least 1; also limited by the length of <paramref name="result"/>.</param>
+    /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21, or <paramref name="maxCorners"/> is below 1.</exception>
+    public PathStatus FindStraightPath(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, int maxCorners, out int count, out bool truncated)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxCorners, 1);
+        return StraightCore(start, end, corridor, result, maxCorners, out count, out truncated);
+    }
+
+    private PathStatus StraightCore(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, int limit, out int count, out bool truncated)
     {
         CheckPos(start, nameof(start));
         CheckPos(end, nameof(end));
@@ -42,7 +66,7 @@ public sealed partial class NavMeshQuery
                 return PathStatus.InvalidCorridor;
             }
         }
-        var w = new Writer(result);
+        var w = new Writer(result, limit);
         w.Add(new StraightPathPoint(s, StraightPathMarks.Start, corridor[0]));
         Vector3D segStart = s;
         int segBegin = 0;
@@ -85,14 +109,20 @@ public sealed partial class NavMeshQuery
     {
         private readonly Span<StraightPathPoint> _r;
 
-        public Writer(Span<StraightPathPoint> r)
+        public Writer(Span<StraightPathPoint> r, int limit)
         {
-            _r = r;
+            _r = limit < r.Length ? r.Slice(0, limit) : r;
+            EarlyStop = limit < r.Length;
             Count = 0;
             Truncated = false;
         }
 
         public int Count { get; private set; }
+
+        // True for the limited form: the funnel stops once the buffer is full.
+        public bool EarlyStop { get; }
+
+        public bool Full => EarlyStop && Count >= _r.Length;
 
         public bool Truncated { get; private set; }
 
@@ -135,6 +165,10 @@ public sealed partial class NavMeshQuery
         int apexIdx = 0, leftIdx = 0, rightIdx = 0;
         for (int i = 0; i <= pc; i++)
         {
+            if (w.Full)
+            {
+                return;
+            }
             double nlx, nly, nlz, nrx, nry, nrz;
             if (i < pc)
             {
