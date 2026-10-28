@@ -6,7 +6,7 @@
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4)](#install)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#licence)
 
-**Status: preview** (`0.5.0-preview.1`). Every part meets its speed target on x64 and arm64 (see [the table](#speed-against-the-references)), but the API can still change between previews. See [CHANGELOG.md](CHANGELOG.md).
+**Status: release candidate** (`1.0.0-rc.1`). Every part meets its speed target on x64 and arm64 (see [the table](#speed-against-the-references)), and the public API is frozen for 1.0 unless a release candidate finds a defect. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Packages
 

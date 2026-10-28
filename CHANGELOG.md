@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.0.0-rc.1]
+
+Release candidate for 1.0: the public API is frozen from here unless a release candidate finds a defect. Every part measures within its speed target against the native references on x64 and arm64 (see the README table); results are bit-identical across x64, arm64, WebAssembly, SIMD and scalar, and any thread count.
+
 ### Breaking
 
 - **`QueryFilter` is immutable after construction.** `IncludeFlags`, `ExcludeFlags` and `Predicate` are `init`-only (set them in an object initializer), and `SetAreaCost` is replaced by `WithAreaCost(area, cost)`, which returns a new filter and leaves the original alone. A filter inside `PathOptions` or `CrowdOptions` can therefore be shared by queries, crowds and threads without one caller changing it under another. Migrate `f.SetAreaCost(3, x);` to `f = f.WithAreaCost(3, x);`.
@@ -80,7 +84,8 @@ These types carry `[Experimental]` and may change or move in any preview:
 - Peak memory is higher than the native references'.
 - Path queries on one large single-tile city mesh ran 1.6-1.8x slower than Detour in the last locked run (a later change to the mesh contours is not yet re-measured), and the tile cache is 4-6x slower than DetourTileCache; the README table lists the rows.
 
-[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.5.0-preview.1...HEAD
+[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.1]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.5.0-preview.1...v1.0.0-rc.1
 [0.5.0-preview.1]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.3...v0.5.0-preview.1
 [0.4.0-preview.3]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.2...v0.4.0-preview.3
 [0.4.0-preview.2]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.1...v0.4.0-preview.2

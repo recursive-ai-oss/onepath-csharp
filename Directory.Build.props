@@ -4,7 +4,7 @@
   <PropertyGroup>
     <PackagePrefix>RecursiveAI</PackagePrefix>
     <!-- The one place the package version lives. A package may not be stable while it depends on a prerelease. -->
-    <Version>0.5.0-preview.1</Version>
+    <Version>1.0.0-rc.1</Version>
     <Authors>Recursive AI, LLC</Authors>
     <Company>Recursive AI, LLC</Company>
     <Copyright>Copyright © Recursive AI, LLC</Copyright>
