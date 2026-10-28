@@ -118,6 +118,31 @@ public class OrcaConstraintTests
     }
 
     [Fact]
+    public void ForAgent_CutoffConstruction_MatchesSupportFunctionConstruction()
+    {
+        // The case-by-case truncated cone (cutoff arc and two legs) against the support-function form that ClosestBoundaryPoint uses,
+        // over random relative positions and velocities, inside and outside the obstacle.
+        var rng = new Random(11);
+        double Next(double s) => (rng.NextDouble() * 2 - 1) * s;
+        for (int i = 0; i < 20000; i++)
+        {
+            double r = 0.2 + (rng.NextDouble() * 3);
+            double dist = r + 0.01 + (rng.NextDouble() * 30);
+            double ang = rng.NextDouble() * 6.283185307179586;
+            var a = new Vector2D(dist * Math.Cos(ang), dist * Math.Sin(ang));
+            double tau = 0.5 + (rng.NextDouble() * 10);
+            var va = new Vector2D(Next(3), Next(3));
+            var vb = new Vector2D(Next(3), Next(3));
+            HalfPlane h = OrcaConstraints.ForAgent(a, va, vb, r, tau, 0.1);
+            OrcaConstraints.ClosestBoundaryPoint(a, a, r, tau, 0.1, va - vb, out Vector2D u, out Vector2D n);
+            Assert.True(Math.Abs(h.Normal.Length() - 1) < 1e-12);
+            Assert.True((h.Normal - n).Length() < 1e-7, $"normal {h.Normal} vs {n} at {i}");
+            Vector2D expected = va + (u * 0.5);
+            Assert.True((h.Point - expected).Length() < 1e-7 * (1 + u.Length()), $"point {h.Point} vs {expected} at {i}");
+        }
+    }
+
+    [Fact]
     public void ForAgent_KnownAnswer_HeadOn()
     {
         // B is 10 units ahead on the x axis, radius sum 2, tau 5, both at rest relative to each other (x = 0): the cutoff circle at (2, 0) with radius 0.4
