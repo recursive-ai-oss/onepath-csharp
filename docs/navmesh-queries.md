@@ -78,10 +78,10 @@ in-tile neighbour edges by edge index, then the polygon's links in link order.
 specified; a stale heap entry (node already expanded) is skipped. One *iteration* is one expansion of a node (stale pops are free).
 Reaching the end polygon adds a terminal node (cost of the final leg); the search ends when the terminal node is popped (`Success`).
 
-**Node model.** The query object has a `PathNodeModel`, fixed when it is created.
+**Node model.** The query object has a `PathNodeModel`, fixed when it is created; `Polygon` unless the constructor is given `Crossing`.
 
-- `Crossing` (the default) is the algorithm above.
-- `Polygon`: one node per polygon, keyed by the polygon alone. A node sits at the position where the cheapest route found so far enters
+- `Crossing` is the algorithm above: exact for the midpoint-crossing cost model, about three times the nodes of `Polygon`.
+- `Polygon` (the default): one node per polygon, keyed by the polygon alone. A node sits at the position where the cheapest route found so far enters
   the polygon, and its cost is that route's cost to that position. Leaving a polygon from position *c* (start position for the start
   polygon) through an in-tile edge from vertex *a* to vertex *b*, with *e* the end position and *w = e − c* in X/Z, the entry
   position is `a + s (b − a)` (heights interpolated the same way) with `s = cross(c − a, w) / cross(b − a, w)` clamped to [0, 1], or
@@ -92,6 +92,8 @@ Reaching the end polygon adds a terminal node (cost of the final leg); the searc
   change). Moves back into the polygon the node was reached from are not generated. The cost is a real walk's length but not the least one
   of the polygon-to-polygon cost model, so corridors can differ from `Crossing`'s; it expands about half the nodes. On generated test levels the mean string-pulled
   path length differs from `Crossing`'s by -0.5% to +1.4%.
+  *Implementation note (no effect on results):* the `Polygon` model finds a polygon's node through a table indexed by tile slot and
+  polygon index (8 bytes per polygon of the mesh, resized when the mesh is edited) and not through a hash; the table is a speed device only.
 
 **Partial paths.** If the open list empties, or the node limit (`maxNodes` of the query object, default 65536; new nodes beyond it
 are dropped) stops the search from finding the end, the result is `Partial`: the corridor leads to the expanded node closest (3D) to the

@@ -8,7 +8,9 @@ settings. This page is normative: a later port of the bar runner must produce co
 - **Warm, in-process, best of N.** Every driver loads its input, does untimed warm-up work, then times the measured
   work repeatedly inside one process and reports the best (minimum) time, plus the median. The bar runner repeats the
   whole process `--reps` times and keeps the best per row. Times are monotonic-clock wall times of the measured section
-  only (no process start, no file loading), except where a metric says otherwise.
+  only (no process start, no file loading), except where a metric says otherwise. Our query rows warm up for about half a
+  second per phase (path, raycast, nearest) before timing: a short row otherwise runs mostly in the .NET runtime's first-tier
+  code, which a native reference has no counterpart of. The wall clock decides only how long the warm-up lasts, never a result.
 - **Same inputs and settings.** Navmesh builds read the same OBJ with the same settings (below); query sets are the same
   point file; crowds and grid scenarios are the same parameters. Settings for the builders default to a humanoid:
   cell 0.3, cell height 0.2, agent height 2.0, radius 0.6, max climb 0.9, max slope 45 degrees, min region 8, merge region

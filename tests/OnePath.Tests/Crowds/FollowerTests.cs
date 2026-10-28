@@ -29,8 +29,8 @@ public class FollowerTests
 
     private static (int reached, double worstRatio, int crossings) ReachAll(TiledNavMesh mesh, Func<NavMeshWorlds.Rng, Vector3D> point, int pairs, ulong seed, FollowerOptions? options = null)
     {
-        var q = new NavMeshQuery(mesh);
-        var fresh = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
+        var fresh = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(seed);
         int reached = 0, crossings = 0, tried = 0;
         double worst = 0;
@@ -120,7 +120,7 @@ public class FollowerTests
     public void UnreachableGoal_EndsAtTheClosestPointWithoutReachingIt()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(48, 4);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(2);
         int found = 0;
         for (int i = 0; i < 400 && found < 8; i++)
@@ -147,7 +147,7 @@ public class FollowerTests
     public void NoPolygonNearTheTarget_GivesNoPath_AndAnotherDestinationRecovers()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(20, 1);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var f = new PathFollower();
         Assert.False(f.Place(q, new Vector3D(500, 0, 500)));
         Assert.Equal(PathStatus.InvalidStartPoly, f.SetDestination(q, new Vector3D(1, 0, 1)));
@@ -166,7 +166,7 @@ public class FollowerTests
     public void ChangingTheDestinationMidWay_Works()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(40, 12);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(6);
         int done = 0;
         for (int i = 0; i < 200 && done < 25; i++)
@@ -209,7 +209,7 @@ public class FollowerTests
         var cells = new bool[60 * 3];
         Array.Fill(cells, true);
         TiledNavMesh mesh = NavMesh.Build2D(cells, 60, 3, 1.0, new Vector2D(0, 0), CorridorWorlds.FlatSettings()).Tiles;
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         FollowerOptions o = FollowerOptions.Humanoid with { MaxSpeed = 4, MaxAcceleration = 10, SlowRadius = 2 };
         var f = new PathFollower(o);
         Assert.True(f.Place(q, new Vector3D(1, 0, 1.5)));
@@ -243,7 +243,7 @@ public class FollowerTests
     public void StuckAgent_IsDetected_ReplansThenStops()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(30, 2);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(1);
         PathResult r;
         Vector3D a, b;
@@ -281,7 +281,7 @@ public class FollowerTests
         for (ulong seed = firstSeed; seed < firstSeed + 40; seed++)
         {
             TiledNavMesh mesh = CorridorWorlds.TwoFloors(seed);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             List<PolyRef> polys = CorridorWorlds.AllPolys(mesh);
             var rng = new NavMeshWorlds.Rng(seed);
             for (int i = 0; i < 200; i++)
@@ -308,7 +308,7 @@ public class FollowerTests
     public void OffMeshLink_AutomaticCrossingTakesItsDuration()
     {
         (TiledNavMesh mesh, Vector3D a, Vector3D b) = FindLinkRoute(1);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var f = new PathFollower(FollowerOptions.Humanoid with { OffMeshSpeed = 2 });
         f.Place(q, a);
         f.SetDestination(q, b);
@@ -340,7 +340,7 @@ public class FollowerTests
     public void OffMeshLink_HostDrivenWaitsForCompletion()
     {
         (TiledNavMesh mesh, Vector3D a, Vector3D b) = FindLinkRoute(1);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var f = new PathFollower(FollowerOptions.Humanoid with { OffMeshMode = OffMeshMode.Host });
         f.Place(q, a);
         f.SetDestination(q, b);
@@ -384,7 +384,7 @@ public class FollowerTests
         {
             ulong world = seed * 6151;
             TiledNavMesh mesh = CorridorWorlds.TwoFloors(world);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var rng = new NavMeshWorlds.Rng(seed);
             var mut = new NavMeshWorlds.Rng(seed + 999);
             for (int trial = 0; trial < 6; trial++)
@@ -416,7 +416,7 @@ public class FollowerTests
                     lost++;
                     continue;
                 }
-                var fq = new NavMeshQuery(mesh);
+                var fq = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
                 NearestPoly ng = fq.FindNearestPoly(b, CorridorWorlds.Extents);
                 PathResult r = ng.Poly.IsSet ? fq.FindPath(f.Position, b) : null!;
                 if (r is null || r.Status != PathStatus.Success)
@@ -450,7 +450,7 @@ public class FollowerTests
         for (int variant = 0; variant < 3; variant++)
         {
             TiledNavMesh mesh = variant == 0 ? CorridorWorlds.Field(40, 5) : CorridorWorlds.TwoFloors((ulong)variant);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var rng = new NavMeshWorlds.Rng((ulong)variant + 1);
             List<PolyRef> polys = CorridorWorlds.AllPolys(mesh);
             FollowerOptions o = variant == 2 ? FollowerOptions.Humanoid with { ReplanBudget = 2, MaxReplanRounds = 500 } : FollowerOptions.Humanoid;
@@ -501,7 +501,7 @@ public class FollowerTests
     public void SnapshotTakenInsideAnOffMeshCrossing_Resumes()
     {
         (TiledNavMesh mesh, Vector3D a, Vector3D b) = FindLinkRoute(3);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var f = new PathFollower();
         f.Place(q, a);
         f.SetDestination(q, b);
@@ -529,7 +529,7 @@ public class FollowerTests
     public void DamagedStateBytes_AreRejected_AndLeaveTheFollowerAlone()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(30, 3);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var f = new PathFollower();
         f.Place(q, new Vector3D(1.5, 0, 1.5));
         f.SetDestination(q, new Vector3D(25.5, 0, 22.5));
@@ -571,7 +571,7 @@ public class FollowerTests
     public void HostileArguments_AreRejectedWithNamedErrors()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(10, 3);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var f = new PathFollower();
         f.Place(q, new Vector3D(1.5, 0, 1.5));
         Assert.Throws<ArgumentOutOfRangeException>(() => f.Place(q, new Vector3D(double.NaN, 0, 0)));
@@ -602,7 +602,7 @@ public class FollowerTests
     public void DebugGeometry_DescribesTheFollower()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(20, 4);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var f = new PathFollower();
         Assert.True(f.Place(q, new Vector3D(1.5, 0, 1.5)));
         f.SetDestination(q, new Vector3D(15.5, 0, 15.5));
@@ -623,7 +623,7 @@ public class FollowerTests
     public void Steps_AllocateNothingInSteadyState()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(48, 2);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(3);
         var agents = new List<PathFollower>();
         while (agents.Count < 30)

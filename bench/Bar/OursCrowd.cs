@@ -183,7 +183,7 @@ internal static class OursCrowd
             pts = raw.Select(p => new Vector3D(-47 + ((p.X - x0) / Math.Max(1e-9, x1 - x0) * 62), 0.2, -47 + ((p.Z - z0) / Math.Max(1e-9, z1 - z0) * 62))).ToList();
             meshSource = "format test generator (8x8 tiles); points scaled onto it";
         }
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var usable = new List<NearestPoly>();
         foreach (Vector3D p in pts)
         {

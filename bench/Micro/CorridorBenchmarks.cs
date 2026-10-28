@@ -32,7 +32,7 @@ public class CorridorBenchmarks
     public void Setup()
     {
         _mesh = CorridorWorlds.Field(Size, 5);
-        _query = new NavMeshQuery(_mesh);
+        _query = new NavMeshQuery(_mesh, 65536, PathNodeModel.Crossing);
         _rng = new NavMeshWorlds.Rng(1);
         _agents.Clear();
         while (_agents.Count < Agents)

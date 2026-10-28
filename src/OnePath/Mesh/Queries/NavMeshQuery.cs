@@ -23,8 +23,8 @@ public sealed partial class NavMeshQuery
     /// <param name="maxNodes">Most search nodes one path search may create; a search that needs more ends as Partial. Default 65536; 2 to 8 000 000.</param>
     /// <exception cref="ArgumentNullException"><paramref name="mesh"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="maxNodes"/> is out of range.</exception>
-    /// <param name="nodeModel">What one search node stands for; see <see cref="PathNodeModel"/>. Default <see cref="PathNodeModel.Crossing"/>.</param>
-    public NavMeshQuery(TiledNavMesh mesh, int maxNodes = 65536, PathNodeModel nodeModel = PathNodeModel.Crossing)
+    /// <param name="nodeModel">What one search node stands for; see <see cref="PathNodeModel"/>. Default <see cref="PathNodeModel.Polygon"/>.</param>
+    public NavMeshQuery(TiledNavMesh mesh, int maxNodes = 65536, PathNodeModel nodeModel = PathNodeModel.Polygon)
     {
         ArgumentNullException.ThrowIfNull(mesh);
         if (maxNodes < 2 || maxNodes > 8_000_000)

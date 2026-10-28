@@ -174,7 +174,7 @@ public class NavMeshQueryTests
         for (ulong seed = 1; seed <= 12; seed++)
         {
             TiledNavMesh m = NavMeshWorlds.RandomMesh(seed, 0, 0, 2, 2, 1 + (int)(seed % 3), detail: false, offMesh: (int)(seed % 3));
-            var q = new NavMeshQuery(m);
+            var q = new NavMeshQuery(m, 65536, PathNodeModel.Crossing);
             var r = new NavMeshWorlds.Rng(seed * 31);
             List<PolyRef> polys = AllPolys(m);
             var corridor = new PolyRef[2048];
