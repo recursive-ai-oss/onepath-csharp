@@ -1,8 +1,8 @@
-# Tiled navigation mesh format (draft, unstable)
+# Tiled navigation mesh format (frozen candidate, unstable flag still set)
 
-Status: **draft**. The format may still change incompatibly until the 3D builder has landed; every file carries
-`Version = 1` and header flag bit 0 (`Unstable`) set. A later stable format bumps the version and clears the flag,
-so draft files are never mistaken for stable ones. See "What may still change" below.
+Status: **freeze candidate**. The 3D builder, authored links, agent classes and streaming have landed and none forced a layout
+change; every file still carries `Version = 1` and header flag bit 0 (`Unstable`) set. Freezing bumps the version and clears the
+flag, so draft files are never mistaken for stable ones. See "Freeze decisions" below.
 
 The format serves two builders (an exact 2D polygon builder and a voxel-based 3D builder), the query layer and
 crowds. Nothing here is specific to one builder.
@@ -182,15 +182,61 @@ for an off-mesh link), in slot / polygon / link order.
   float32, snaps coordinates within `CellSize/1024` of a tile boundary onto it, reverses clockwise polygons,
   derives in-tile adjacency from reversed shared edges (an edge shared by other than two polygons stays a wall) and marks wall
   edges lying on a boundary as portals. Detail is left empty.
-- **3D builder (not yet built):** fills a `NavTileData` directly from its polygon mesh and detail mesh: polygon
+- **3D builder:** fills a `NavTileData` directly from its polygon mesh and detail mesh: polygon
   vertices as tile-local float32, `DetailMeshes` / `DetailVertices` / `DetailTriangles` from the detail stage,
   `EdgePortalSides` from the contour edges that touch a tile border, `Layer` from the layer partitioner,
   `OffMeshLinks` from the link markup. `NavTile.Create` then validates it.
 
-## What 0.3 may still change
+## Freeze decisions (candidates collected through the 3D builder, authored links, agent classes and streaming)
 
-The 3D builder's real output may require: a different polygon vertex limit or index width; per-edge flags beyond the portal side
-(for example "jumpable" or "crouch" edge markers); per-polygon "walkable height" / clearance; wider area ids; a tile-level bounding volume tree
-or a baked per-tile layer-cell map; detail triangle edge-flag semantics; a heightfield or compressed-height
-alternative to the detail mesh; and off-mesh link start/end polygon indices baked in by the builder instead of resolved at
-stitch time. Any of these bumps `Version` and keeps the `Unstable` flag until the format is declared stable.
+Every item the draft listed as possibly changing, with what the builders, queries, crowds, authoring and streaming showed. Nothing below
+changes a byte of the layout: the draft layout is the proposed frozen layout, so freezing is the version bump and clearing the flag.
+
+| Candidate | Decision | Reason |
+|---|---|---|
+| Polygon vertex limit, index width | **Keep**: 3 to 16 vertices (builders use 6), `uint16` vertex indices, 65 536 vertices and 1 048 575 polygons per tile | Builders stay far inside on every test level; a tile that would exceed them fails with a message naming the tile and advising a smaller tile size. |
+| Per-edge flags ("jumpable", "crouch") | **Reject** | Jumps and ladders are off-mesh links (authored, below); crouch and similar are polygon areas and flags. Edge flags would double the per-edge data for no query that needs them. |
+| Per-polygon walkable height / clearance | **Reject** | One mesh per agent class (`NavWorld`) already bakes clearance into each class's polygons. |
+| Wider area ids | **Keep** 6 bits (0 to 63) | Matches the cost table size of queries and filters; 64 areas covers every use found. |
+| Stored tile bounding-volume tree | **Reject** | Derived data: queries find polygons by tile bounds and a scan of the tile; storing a tree would make equal geometry unequal on disk. |
+| Layer-cell map | **Reject** | Derived from the polygons when needed. |
+| Heightfield detail instead of a detail mesh | **Reject** | The detail mesh is what the 3D builder produces and what height queries read; a second representation would need a second conversion. |
+| Off-mesh start/end polygon indices baked into the tile | **Reject** | They depend on the neighbouring tile (the end may be in another tile) and would make a tile's bytes depend on its neighbours. Stitching resolves them (rules above); authored links need nothing more than the slot. |
+| Detail edge-flag semantics | **Keep** (bit *k* = triangle edge *k* lies on the polygon boundary) | The 3D builder follows it. |
+| Wider layer index | **Keep** 0 to 1023 | Builders report the layer count needed; no level needs more than a few. |
+| A parameter fingerprint in the tile header | **Open: owner decision before freezing** | A tile's bytes carry no mesh parameters, so a tile built for another mesh (other cell size or tile size) is read against this mesh's parameters and accepted if its numbers happen to pass validation. Streaming from separately stored tiles makes this a real hazard. Adding a 4-byte fingerprint of the parameters to the tile header fixes it, but changes every tile's bytes, content ids and hashes, so it is a deliberate step, not a side effect. Until then the host stores tiles with the mesh header they came from (`WriteMesh`) or one mesh per directory. |
+
+Proposed frozen header: `Version = 2`, flag bit 0 clear (draft files stay readable only with the draft reader; a frozen reader
+rejects version 1 with a typed error).
+
+## Authoring: off-mesh links, agent classes, streaming
+
+**Authored links** (`NavSettings.OffMeshLinks`, a list of `OffMeshLinkDefinition`): world-space start and end (double, inside the
+coordinate rule), radius, direction, area, flags and a caller id. Every build (2D and 3D) and every rebuild of a tile bakes into the
+slots of the tile that holds the link's start:
+
+1. The start's column is `WorldToTile(start.x, start.z)`. If the build produced no tile there, the link is dropped.
+2. With several layers in the column, the link goes to the layer whose polygon is nearest the start by the stitching rule
+   (horizontal distance to the polygon within the radius, height outside the polygon's vertex range within the climb; score
+   horizontal² + vertical²); layers with no polygon in reach score infinity; ties and all-infinity go to the lowest layer.
+3. Slot values are `(float)(world − tileOrigin)`, X and Z against the tile's origin, Y against the tile's `OriginY`. The end may
+   lie in any column but within `MaxLocalExtent` of the start's tile origin in X and Z; otherwise the build throws
+   `ArgumentOutOfRangeException` naming `OffMeshLinks[i]`. Non-finite or out-of-bound numbers, a radius not above 0, an area above 63 are
+   rejected the same way. A vertical offset beyond `MaxLocalExtent` from the tile origin throws `InvalidOperationException`.
+4. Links of one tile are appended after any slots the builder already filled, in definition order. A tile's link order therefore
+   equals the order of the definitions whose start it holds.
+
+Resolving to polygons, one-way and two-way behaviour, run-time switches and the corridors' crossing all work as stitching defines.
+A link that finds no polygon within its radius at either end stays unconnected.
+
+**Agent classes** (`NavWorld`): one `NavMesh` per `NavSettings`, built from the same input in the order given; class *i* is
+byte-identical to a single-class build with `classes[i]`. `ClassFor(radius)` is the class with the smallest `AgentRadius` ≥ radius
+(lowest index among equals), or the largest class if none is large enough. `WorldCrowd` holds one crowd per class and steps them
+in class order; agents of different classes walk different meshes and do not see each other.
+
+**Streaming** (`TileStreamer`): operations are queued and applied in queue order, `Update(maxOperations)` applying at most that many.
+One operation is one tile added or replaced (`ReadTile` against the mesh's parameters, then `AddTile` or `ReplaceTile`), or one tile
+column removed (all layers, lowest first). A failing operation leaves the queue before its exception propagates. Adding takes the
+lowest free slot and advances slot generations as for any edit, so tile bytes and query answers return after out-and-in but polygon
+references and slot numbers do not. Links stitch again after every operation. A crowd whose destination polygon streamed out has no
+route (`NoPath`); the host sends it again after the tile returns. The queue is not part of a mesh snapshot.

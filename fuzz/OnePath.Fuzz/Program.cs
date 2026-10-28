@@ -47,6 +47,7 @@ public static class Program
             GraphTargets.WriteSeeds(System.IO.Path.Combine(args[1], "graph-landmarks"));
             CorridorFuzz.WriteSeeds(System.IO.Path.Combine(args[1], "corridor"));
             GridStateFuzz.WriteSeeds(System.IO.Path.Combine(args[1], "grid-state"));
+            GltfFuzz.WriteSeeds(System.IO.Path.Combine(args[1], "gltf"));
             return 0;
         }
 
@@ -121,5 +122,7 @@ public static class Targets
         ["corridor-follow"] = CorridorFuzz.Run,
         ["crowd"] = CrowdFuzz.Run,
         ["crowd-state"] = CrowdStateFuzz.Run,
+        ["gltf"] = GltfFuzz.Gltf,
+        ["links-streaming"] = GltfFuzz.LinksStreaming,
     };
 }

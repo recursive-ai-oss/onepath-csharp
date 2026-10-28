@@ -87,12 +87,14 @@ public static class Mesh2DPipeline
         ArgumentNullException.ThrowIfNull(settings);
         NavMeshParams p = settings.ToParams();
         NavMeshParams.CheckWorld(settings.Height, nameof(settings.Height));
+        OffMeshLinkBaker.Validate(p, settings.OffMeshLinks);
         Region shrunk = Shrink(walkable, settings.AgentRadius, settings.CellSize / 4);
         var tiles = new List<NavTileData>();
         foreach (TilePartition t in TileSlicer.Slice(shrunk, p))
         {
             tiles.Add(ToTileData(t, p, settings.Height, settings.Area, settings.Flags));
         }
+        OffMeshLinkBaker.Attach(p, settings.OffMeshLinks, tiles, 0);
         return Assemble(p, tiles);
     }
 }

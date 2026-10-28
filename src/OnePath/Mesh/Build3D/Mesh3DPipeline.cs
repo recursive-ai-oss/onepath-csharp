@@ -24,6 +24,7 @@ public sealed class Mesh3DPipeline
         Settings = settings;
         Params = settings.ToParams();
         CheckSettings(settings);
+        OffMeshLinkBaker.Validate(Params, settings.OffMeshLinks);
         double ratio = (Params.TileSize / Params.CellSize) - 1e-4;
         TileCells = Math.Max(1, (int)Math.Ceiling(ratio));
         CellSize = Params.TileSize / TileCells;
@@ -425,6 +426,14 @@ public sealed class Mesh3DPipeline
     /// then <paramref name="extraObstacles"/>) → erosion and the pipeline's volumes → <paramref name="extraVolumes"/> → regions → contours → polygons → detail → tile data.
     /// </summary>
     internal void FinishTile(CompactHeightfield chf, int tx, int tz, IReadOnlyList<TileObstacle>? extraObstacles, IReadOnlyList<ConvexVolume>? extraVolumes, List<NavTileData> output)
+    {
+        int first = output.Count;
+        FinishTileCore(chf, tx, tz, extraObstacles, extraVolumes, output);
+        // Authored off-mesh links belong to the tile that holds their start, so every build and every rebuild of that tile bakes them in.
+        OffMeshLinkBaker.Attach(Params, Settings.OffMeshLinks, output, first);
+    }
+
+    private void FinishTileCore(CompactHeightfield chf, int tx, int tz, IReadOnlyList<TileObstacle>? extraObstacles, IReadOnlyList<ConvexVolume>? extraVolumes, List<NavTileData> output)
     {
         foreach (TileObstacle o in Obstacles)
         {
