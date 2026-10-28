@@ -30,7 +30,7 @@ public sealed class Mesh3DPipeline
         float cs = (float)settings.CellSize, ch = (float)settings.CellHeight;
         SpanOptions = new SpanSettings
         {
-            WalkableSlopeCosine = SlopeMath.CosineOfDegrees(settings.AgentMaxSlopeDegrees),
+            WalkableSlopeDegrees = settings.AgentMaxSlopeDegrees,
             WalkableHeight = Math.Max(1, (int)Math.Ceiling(settings.AgentHeight / ch)),
             WalkableClimb = (int)Math.Floor(settings.WalkableClimb / ch),
             WalkableRadius = (int)Math.Ceiling(settings.AgentRadius / cs),
@@ -636,33 +636,5 @@ public sealed class Mesh3DPipeline
             }
         }
         return layer;
-    }
-}
-
-/// <summary>Slope helpers that need no library trigonometry.</summary>
-internal static class SlopeMath
-{
-    /// <summary>
-    /// The cosine of an angle in degrees (0 to 90) as float32: a Taylor series of 14 terms over the angle in radians, summed from the smallest term up, in double;
-    /// plain additions and multiplications only, so every platform gets the same bits. Accurate to better than 1e-15, far below float32 resolution.
-    /// </summary>
-    public static float CosineOfDegrees(float degrees)
-    {
-        double x = degrees * (3.14159265358979323846 / 180.0);
-        double x2 = x * x;
-        var term = new double[14];
-        double t = 1;
-        term[0] = 1;
-        for (int k = 1; k < 14; k++)
-        {
-            t = -t * x2 / ((2.0 * k - 1.0) * (2.0 * k));
-            term[k] = t;
-        }
-        double sum = 0;
-        for (int k = 13; k >= 0; k--)
-        {
-            sum += term[k];
-        }
-        return (float)sum;
     }
 }
