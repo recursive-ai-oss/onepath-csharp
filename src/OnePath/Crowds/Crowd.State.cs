@@ -28,8 +28,60 @@ public sealed partial class Crowd
     /// <returns>A new array.</returns>
     public byte[] SaveState()
     {
-        var w = new Sink(256 + (_count * 512));
-        WriteHeader(w, KindCrowd);
+        byte[] bytes = new byte[GetStateSize()];
+        bool ok = TrySaveState(bytes, out int written);
+        System.Diagnostics.Debug.Assert(ok && written == bytes.Length);
+        return bytes;
+    }
+
+    /// <summary>
+    /// The number of bytes <see cref="SaveState()"/> would produce now (and <see cref="TrySaveState"/> would write). Allocates nothing;
+    /// it walks the state once, so call it again after the crowd changes.
+    /// </summary>
+    public int GetStateSize()
+    {
+        var w = new StateSink(Span<byte>.Empty, false);
+        WriteState(ref w);
+        return w.Length;
+    }
+
+    /// <summary>
+    /// Writes the bytes of <see cref="SaveState()"/> (OPCS v1, byte for byte) into a buffer the caller owns. Allocates nothing once the
+    /// crowd's internal scratch has grown to its steady size (it is only used by <see cref="StateHash"/>).
+    /// </summary>
+    /// <param name="destination">The buffer; <see cref="GetStateSize"/> bytes are needed.</param>
+    /// <param name="written">The number of bytes written, or 0 when <paramref name="destination"/> is too small (nothing is promised about its contents then).</param>
+    /// <returns>True when the state fitted.</returns>
+    public bool TrySaveState(Span<byte> destination, out int written)
+    {
+        var w = new StateSink(destination, false);
+        WriteState(ref w);
+        if (w.Length > destination.Length)
+        {
+            written = 0;
+            return false;
+        }
+        written = w.Length;
+        return true;
+    }
+
+    /// <summary>
+    /// A 64-bit hash of exactly the state <see cref="SaveState()"/> captures, defined as FNV-1a (64-bit: offset basis
+    /// 0xCBF29CE484222325, prime 0x100000001B3, over the bytes in order) of the bytes <see cref="SaveState()"/> returns. Equal states
+    /// give equal hashes on every platform and for any <see cref="CrowdOptions.MaxThreads"/>; different states differ except for
+    /// the usual 2^-64 collisions. It does not include the mesh or the options (see <see cref="SaveState()"/>). Allocates nothing once
+    /// the crowd's internal scratch has grown to the largest follower; costs about one pass over the snapshot bytes.
+    /// </summary>
+    public ulong StateHash()
+    {
+        var w = new StateSink(Span<byte>.Empty, true);
+        WriteState(ref w);
+        return w.Hash;
+    }
+
+    private void WriteState(ref StateSink w)
+    {
+        WriteHeader(ref w, KindCrowd);
         w.I32(_wallCap);
         w.I32(_slotCount);
         w.I32(_count);
@@ -49,7 +101,7 @@ public sealed partial class Crowd
             w.U8(_flags[i]);
             w.F64(_prefX[i]);
             w.F64(_prefZ[i]);
-            WriteAgentOptions(w, _agentOpt[i]!);
+            WriteAgentOptions(ref w, _agentOpt[i]!);
             // A wall cache is only worth keeping while it matches the mesh; a stale one is refreshed by the next step anyway.
             bool valid = _wallStamp[i] == _mesh.EditCount;
             w.U8(valid ? (byte)1 : (byte)0);
@@ -72,10 +124,26 @@ public sealed partial class Crowd
                 }
             }
             PathFollower f = _follow[i]!;
-            w.I32(f.ByteSize);
-            f.Write(w.Reserve(f.ByteSize));
+            int size = f.ByteSize;
+            w.I32(size);
+            if (w.Hashing)
+            {
+                if (_stateScratch.Length < size)
+                {
+                    _stateScratch = new byte[Math.Max(size, _stateScratch.Length * 2)];
+                }
+                f.Write(_stateScratch);
+                w.HashBytes(_stateScratch.AsSpan(0, size));
+            }
+            else if (w.Fits(size))
+            {
+                f.Write(w.Take(size));
+            }
+            else
+            {
+                w.Skip(size);
+            }
         }
-        return w.ToArray();
     }
 
     /// <summary>
@@ -91,10 +159,20 @@ public sealed partial class Crowd
     /// <see cref="CrowdOptions.MaxThreads"/>.
     /// </para>
     /// <para>All or nothing: if the bytes are rejected, the crowd is unchanged.</para>
+    /// <para>
+    /// Allocation: restoring a state of the same agents (same ids and settings in the same slots, only their dynamic state differing)
+    /// into a crowd whose capacity already suffices allocates nothing. It allocates for each agent that is new to its slot (its
+    /// <see cref="Agent"/>, settings and follower objects), when the slot arrays must grow, and when the bytes are rejected (the
+    /// exception).
+    /// </para>
     /// </summary>
-    /// <param name="state">Bytes from <see cref="SaveState"/> of a crowd with the same options.</param>
+    /// <param name="state">Bytes from <see cref="SaveState()"/> of a crowd with the same options.</param>
     /// <exception cref="NavMeshFormatException">The bytes are truncated, not crowd state, of another version, hold an impossible value (a count beyond the crowd's limits, a NaN, a corridor larger than its capacity, a duplicate agent id) or were saved with different wall-cache settings; the message names which.</exception>
-    public void RestoreState(ReadOnlySpan<byte> state) => Commit(Parse(state, KindCrowd));
+    public void RestoreState(ReadOnlySpan<byte> state)
+    {
+        Validate(state, KindCrowd, out RestoreHeader h);
+        Apply(state, in h);
+    }
 
     /// <summary>
     /// Saves the mesh's run-time state (<see cref="NavMeshSnapshot"/>) and the crowd's together, so a host restores both in the
@@ -106,13 +184,14 @@ public sealed partial class Crowd
     {
         byte[] mesh = NavMeshSnapshot.Take(_mesh, mode);
         byte[] crowd = SaveState();
-        var w = new Sink(mesh.Length + crowd.Length + 32);
-        WriteHeader(w, KindCrowdWithMesh);
+        byte[] all = new byte[8 + 4 + mesh.Length + 4 + crowd.Length];
+        var w = new StateSink(all, false);
+        WriteHeader(ref w, KindCrowdWithMesh);
         w.I32(mesh.Length);
         w.Bytes(mesh);
         w.I32(crowd.Length);
         w.Bytes(crowd);
-        return w.ToArray();
+        return all;
     }
 
     /// <summary>
@@ -137,9 +216,10 @@ public sealed partial class Crowd
         {
             throw r.Error("crowd state length", crowdLen);
         }
-        Prepared prepared = Parse(r.Bytes(crowdLen), KindCrowd);
+        ReadOnlySpan<byte> crowd = r.Bytes(crowdLen);
+        Validate(crowd, KindCrowd, out RestoreHeader h);
         NavMeshSnapshot.RestoreInto(_mesh, mesh, library);
-        Commit(prepared);
+        Apply(crowd, in h);
     }
 
     /// <summary>Finds an agent by its <see cref="Agent.Id"/>.</summary>
@@ -156,30 +236,24 @@ public sealed partial class Crowd
         return null;
     }
 
-    // ---- parsing ----
+    // ---- restore: validate everything first (touching nothing), then apply ----
 
-    private sealed class Slot
-    {
-        public long Id;
-        public double Priority, PrefX, PrefZ;
-        public byte Flags;
-        public AgentOptions Options = null!;
-        public bool WallsValid;
-        public double WallCx, WallCz;
-        public WallSegment[] Walls = Array.Empty<WallSegment>();
-        public int FollowerStart, FollowerLength;
-        public PathFollower Follower = null!;
-    }
-
-    private sealed class Prepared
+    private struct RestoreHeader
     {
         public int SlotCount, Count, LowestFree;
         public long NextId, Steps;
-        public Slot?[] Slots = Array.Empty<Slot?>();
-        public byte[] Bytes = Array.Empty<byte>();
     }
 
-    private static void WriteHeader(Sink w, int kind)
+    // Per slot the validation pass records where the slot, its settings and its end lie in the bytes, and the objects a slot needs
+    // that the crowd does not already have. A slot whose agent has the same id and byte-identical settings is reused as it is.
+    private AgentOptions?[] _rsOpt = Array.Empty<AgentOptions?>();
+    private PathFollower?[] _rsFollow = Array.Empty<PathFollower?>();
+    private int[] _rsAt = Array.Empty<int>();
+    private long[] _rsIds = Array.Empty<long>();
+    private byte[] _stateScratch = Array.Empty<byte>();
+    private readonly byte[] _optScratch = new byte[512];
+
+    private static void WriteHeader(ref StateSink w, int kind)
     {
         w.U32(StateMagic);
         w.U16(StateVersion);
@@ -208,22 +282,20 @@ public sealed partial class Crowd
         }
     }
 
-    // Reads and validates everything without touching the crowd, building the followers as it goes.
-    private Prepared Parse(ReadOnlySpan<byte> state, int kind)
+    private static void ReadHead(ref CrowdStateReader r, int kind, int wallCap, int maxAgents, out RestoreHeader h)
     {
-        var r = new CrowdStateReader(state, "crowd");
         ReadHeader(ref r, kind);
-        int wallCap = r.I32();
-        if (wallCap != _wallCap)
+        int cap = r.I32();
+        if (cap != wallCap)
         {
-            throw r.Error("MaxWallsPerAgent (differs from the crowd's options)", wallCap);
+            throw r.Error("MaxWallsPerAgent (differs from the crowd's options)", cap);
         }
         int slotCount = r.I32(), count = r.I32(), lowestFree = r.I32();
-        if (slotCount < 0 || slotCount > _opt.MaxAgents || slotCount > r.Remaining)
+        if (slotCount < 0 || slotCount > maxAgents || slotCount > r.Remaining)
         {
             throw r.Error("slot count", slotCount);
         }
-        if (count < 0 || count > slotCount || count > _opt.MaxAgents)
+        if (count < 0 || count > slotCount || count > maxAgents)
         {
             throw r.Error("agent count", count);
         }
@@ -240,10 +312,28 @@ public sealed partial class Crowd
         {
             throw r.Error("step count", steps);
         }
-        var p = new Prepared { SlotCount = slotCount, Count = count, LowestFree = lowestFree, NextId = (long)nextId, Steps = (long)steps, Slots = new Slot?[slotCount], Bytes = state.ToArray() };
-        int active = 0;
-        for (int i = 0; i < slotCount; i++)
+        h = new RestoreHeader { SlotCount = slotCount, Count = count, LowestFree = lowestFree, NextId = (long)nextId, Steps = (long)steps };
+    }
+
+    private void Validate(ReadOnlySpan<byte> state, int kind, out RestoreHeader h)
+    {
+        // Scratch left over from a rejected earlier call must not leak into this one.
+        Array.Clear(_rsOpt);
+        Array.Clear(_rsFollow);
+        var r = new CrowdStateReader(state, "crowd");
+        ReadHead(ref r, kind, _wallCap, _opt.MaxAgents, out h);
+        if (_rsOpt.Length < h.SlotCount)
         {
+            int n = Math.Max(h.SlotCount, 16);
+            _rsOpt = new AgentOptions?[n];
+            _rsFollow = new PathFollower?[n];
+            _rsAt = new int[3 * n];
+            _rsIds = new long[n];
+        }
+        int active = 0;
+        for (int i = 0; i < h.SlotCount; i++)
+        {
+            int at = r.Position;
             int flag = r.U8();
             if (flag > 1)
             {
@@ -251,108 +341,30 @@ public sealed partial class Crowd
             }
             if (flag == 0)
             {
-                if (i < lowestFree)
+                if (i < h.LowestFree)
                 {
                     throw r.Error("lowest free slot (a slot below it is empty)", i);
                 }
+                _rsAt[3 * i] = -1;
                 continue;
             }
-            active++;
-            if (active > count)
+            if (active >= h.Count)
             {
-                throw r.Error("agent count (fewer than the active slots)", count);
+                throw r.Error("agent count (fewer than the active slots)", h.Count);
             }
-            p.Slots[i] = ReadSlot(ref r, p.NextId);
+            _rsIds[active++] = ValidateSlot(ref r, i, h.NextId, at);
         }
-        if (active != count)
+        if (active != h.Count)
         {
-            throw r.Error("agent count (differs from the active slots)", count);
+            throw r.Error("agent count (differs from the active slots)", h.Count);
         }
         if (r.Remaining != 0)
         {
             throw r.Error("trailing bytes", r.Remaining);
         }
-        CheckDistinctIds(p, ref r);
-        return p;
-    }
-
-    private Slot ReadSlot(ref CrowdStateReader r, long nextId)
-    {
-        var s = new Slot();
-        ulong id = r.U64();
-        if (id >= (ulong)nextId)
-        {
-            throw r.Error("agent id", id);
-        }
-        s.Id = (long)id;
-        s.Priority = r.F64("priority", false);
-        if (!(s.Priority > 0))
-        {
-            throw r.Error("priority", s.Priority);
-        }
-        s.Flags = (byte)r.U8();
-        if ((s.Flags & FlagActive) == 0 || (s.Flags & ~(FlagActive | FlagWalking | FlagCrossing)) != 0)
-        {
-            throw r.Error("agent flags", s.Flags);
-        }
-        s.PrefX = r.F64("preferred velocity", false);
-        s.PrefZ = r.F64("preferred velocity", false);
-        s.Options = ReadAgentOptions(ref r);
-        int valid = r.U8();
-        if (valid > 1)
-        {
-            throw r.Error("wall cache flag", valid);
-        }
-        if (valid == 1)
-        {
-            s.WallsValid = true;
-            s.WallCx = r.F64("wall cache centre", true);
-            s.WallCz = r.F64("wall cache centre", true);
-            int n = r.I32();
-            if (n < 0 || n > _wallCap || (long)n * WallPieceBytes > r.Remaining)
-            {
-                throw r.Error("wall piece count", n);
-            }
-            s.Walls = new WallSegment[n];
-            for (int k = 0; k < n; k++)
-            {
-                double ax = r.F64("wall", true), ay = r.F64("wall", true), az = r.F64("wall", true);
-                double bx = r.F64("wall", true), by = r.F64("wall", true), bz = r.F64("wall", true);
-                ulong poly = r.U64();
-                int edge = r.I32();
-                if (edge < 0)
-                {
-                    throw r.Error("wall edge", edge);
-                }
-                s.Walls[k] = new WallSegment(ax, ay, az, bx, by, bz, new PolyRef(poly), edge);
-            }
-        }
-        int len = r.I32();
-        if (len < 0 || len > r.Remaining)
-        {
-            throw r.Error("follower length", len);
-        }
-        ReadOnlySpan<byte> fb = r.Bytes(len);
-        s.FollowerLength = len;
-        s.FollowerStart = r.Position - len;
-        s.Follower = new PathFollower(s.Options.ToFollowerOptions());
-        s.Follower.Read(fb);
-        return s;
-    }
-
-    private static void CheckDistinctIds(Prepared p, ref CrowdStateReader r)
-    {
-        long[] ids = new long[p.Count];
-        int n = 0;
-        for (int i = 0; i < p.SlotCount; i++)
-        {
-            if (p.Slots[i] is { } s)
-            {
-                ids[n++] = s.Id;
-            }
-        }
-        Array.Sort(ids);
-        for (int i = 1; i < n; i++)
+        Span<long> ids = _rsIds.AsSpan(0, active);
+        ids.Sort();
+        for (int i = 1; i < ids.Length; i++)
         {
             if (ids[i] == ids[i - 1])
             {
@@ -361,23 +373,124 @@ public sealed partial class Crowd
         }
     }
 
-    // ---- commit ----
-
-    private void Commit(Prepared p)
+    private long ValidateSlot(ref CrowdStateReader r, int slot, long nextId, int at)
     {
-        // Nothing below can fail: everything was validated, and the follower bytes were read once already.
-        EnsureSlots(Math.Max(p.SlotCount, 1));
-        for (int i = 0; i < Math.Max(_slotCount, p.SlotCount); i++)
+        ulong id = r.U64();
+        if (id >= (ulong)nextId)
+        {
+            throw r.Error("agent id", id);
+        }
+        double priority = r.F64("priority", false);
+        if (!(priority > 0))
+        {
+            throw r.Error("priority", priority);
+        }
+        int flags = r.U8();
+        if ((flags & FlagActive) == 0 || (flags & ~(FlagActive | FlagWalking | FlagCrossing)) != 0)
+        {
+            throw r.Error("agent flags", flags);
+        }
+        r.F64("preferred velocity", false);
+        r.F64("preferred velocity", false);
+        // Same agent as the crowd holds in this slot with byte-identical settings: nothing to build for it.
+        AgentOptions? existing = slot < _slotCount && _agents[slot] is { } a && a.Id == (long)id ? _agentOpt[slot] : null;
+        AgentOptions? built = null;
+        bool reuse = false;
+        if (existing is not null)
+        {
+            var o = new StateSink(_optScratch, false);
+            WriteAgentOptions(ref o, existing);
+            if (o.Length <= _optScratch.Length && r.Remaining >= o.Length && r.PeekEquals(_optScratch.AsSpan(0, o.Length)))
+            {
+                r.Bytes(o.Length);
+                reuse = true;
+            }
+        }
+        if (!reuse)
+        {
+            built = ReadAgentOptions(ref r);
+        }
+        int optsEnd = r.Position;
+        ReadWalls(ref r, Span<WallSegment>.Empty, out _, out _, out _);
+        int len = r.I32();
+        if (len < 0 || len > r.Remaining)
+        {
+            throw r.Error("follower length", len);
+        }
+        ReadOnlySpan<byte> fb = r.Bytes(len);
+        if (reuse)
+        {
+            _follow[slot]!.Check(fb);
+            _rsOpt[slot] = null;
+            _rsFollow[slot] = null;
+        }
+        else
+        {
+            var f = new PathFollower(built!.ToFollowerOptions());
+            f.Read(fb);
+            _rsOpt[slot] = built;
+            _rsFollow[slot] = f;
+        }
+        _rsAt[3 * slot] = at;
+        _rsAt[(3 * slot) + 1] = optsEnd;
+        _rsAt[(3 * slot) + 2] = r.Position;
+        return (long)id;
+    }
+
+    // Reads (and with a destination, stores) the wall-cache part of a slot; returns false when the slot has no valid cache.
+    private bool ReadWalls(ref CrowdStateReader r, Span<WallSegment> store, out double cx, out double cz, out int count)
+    {
+        cx = cz = 0;
+        count = 0;
+        int valid = r.U8();
+        if (valid > 1)
+        {
+            throw r.Error("wall cache flag", valid);
+        }
+        if (valid == 0)
+        {
+            return false;
+        }
+        cx = r.F64("wall cache centre", true);
+        cz = r.F64("wall cache centre", true);
+        int n = r.I32();
+        if (n < 0 || n > _wallCap || (long)n * WallPieceBytes > r.Remaining)
+        {
+            throw r.Error("wall piece count", n);
+        }
+        for (int k = 0; k < n; k++)
+        {
+            double ax = r.F64("wall", true), ay = r.F64("wall", true), az = r.F64("wall", true);
+            double bx = r.F64("wall", true), by = r.F64("wall", true), bz = r.F64("wall", true);
+            ulong poly = r.U64();
+            int edge = r.I32();
+            if (edge < 0)
+            {
+                throw r.Error("wall edge", edge);
+            }
+            if (!store.IsEmpty)
+            {
+                store[k] = new WallSegment(ax, ay, az, bx, by, bz, new PolyRef(poly), edge);
+            }
+        }
+        count = n;
+        return true;
+    }
+
+    // ---- apply ----
+
+    private void Apply(ReadOnlySpan<byte> state, in RestoreHeader h)
+    {
+        // Nothing below can fail: everything was validated by the pass that filled the scratch.
+        EnsureSlots(Math.Max(h.SlotCount, 1));
+        int top = Math.Max(_slotCount, h.SlotCount);
+        for (int i = 0; i < top; i++)
         {
             Agent? old = i < _slotCount ? _agents[i] : null;
-            Slot? s = i < p.SlotCount ? p.Slots[i] : null;
-            if (old is not null && (s is null || s.Id != old.Id))
+            bool present = i < h.SlotCount && _rsAt[3 * i] >= 0;
+            if (!present)
             {
-                old.Deactivate();
-                old = null;
-            }
-            if (s is null)
-            {
+                old?.Deactivate();
                 _agents[i] = null;
                 _follow[i] = null;
                 _agentOpt[i] = null;
@@ -387,29 +500,43 @@ public sealed partial class Crowd
                 _debugCount[i] = 0;
                 continue;
             }
-            Agent agent = old ?? new Agent(this, i, s.Id, s.Options);
-            _agents[i] = agent;
-            _agentOpt[i] = agent.Options;
-            if (old is not null && _follow[i] is { } keep)
+            var r = new CrowdStateReader(state.Slice(_rsAt[3 * i], _rsAt[(3 * i) + 1] - _rsAt[3 * i]), "crowd");
+            r.U8();
+            long id = (long)r.U64();
+            double priority = r.F64("priority", false);
+            byte flags = (byte)r.U8();
+            double prefX = r.F64("preferred velocity", false), prefZ = r.F64("preferred velocity", false);
+            bool reuse = _rsOpt[i] is null;
+            if (!reuse)
             {
-                // Same agent: keep its follower object, so a reference to Agent.Path stays valid.
-                keep.Read(p.Bytes.AsSpan(s.FollowerStart, s.FollowerLength));
+                old?.Deactivate();
+                old = null;
+                var agent = new Agent(this, i, id, _rsOpt[i]!);
+                _agents[i] = agent;
+                _agentOpt[i] = agent.Options;
+                _follow[i] = _rsFollow[i];
+                _rsOpt[i] = null;
+                _rsFollow[i] = null;
             }
-            else
+            var t = new CrowdStateReader(state.Slice(_rsAt[(3 * i) + 1], _rsAt[(3 * i) + 2] - _rsAt[(3 * i) + 1]), "crowd");
+            bool walls = ReadWalls(ref t, _walls.AsSpan(i * _wallCap, _wallCap), out double cx, out double cz, out int wallCount);
+            int len = t.I32();
+            ReadOnlySpan<byte> fb = t.Bytes(len);
+            if (reuse)
             {
-                _follow[i] = s.Follower;
+                // Same agent: its follower object (and corridor) is read in place, so a reference to Agent.Path stays valid.
+                _follow[i]!.ReadStored(fb);
             }
-            _priority[i] = s.Priority;
-            _flags[i] = s.Flags;
-            _prefX[i] = s.PrefX;
-            _prefZ[i] = s.PrefZ;
+            _priority[i] = priority;
+            _flags[i] = flags;
+            _prefX[i] = prefX;
+            _prefZ[i] = prefZ;
             _debugCount[i] = 0;
-            if (s.WallsValid)
+            if (walls)
             {
-                s.Walls.CopyTo(_walls.AsSpan(i * _wallCap, _wallCap));
-                _wallCount[i] = s.Walls.Length;
-                _wallCx[i] = s.WallCx;
-                _wallCz[i] = s.WallCz;
+                _wallCount[i] = wallCount;
+                _wallCx[i] = cx;
+                _wallCz[i] = cz;
                 _wallStamp[i] = _mesh.EditCount;
             }
             else
@@ -418,16 +545,16 @@ public sealed partial class Crowd
                 _wallStamp[i] = -1;
             }
         }
-        _slotCount = p.SlotCount;
-        _count = p.Count;
-        _lowestFree = p.LowestFree;
-        _nextId = p.NextId;
-        _steps = p.Steps;
+        _slotCount = h.SlotCount;
+        _count = h.Count;
+        _lowestFree = h.LowestFree;
+        _nextId = h.NextId;
+        _steps = h.Steps;
     }
 
     // ---- agent settings ----
 
-    private static void WriteAgentOptions(Sink w, AgentOptions o)
+    private static void WriteAgentOptions(ref StateSink w, AgentOptions o)
     {
         w.F64(o.Radius);
         w.F64(o.MaxSpeed);
@@ -537,41 +664,128 @@ public sealed partial class Crowd
         return o;
     }
 
-    // Growable little-endian byte buffer; doubles go by bit pattern.
-    private sealed class Sink
+    // Little-endian state writer over a caller's span, in one of two modes. Writing: bytes go into the span; what does not fit is
+    // skipped but still counted, so an empty span measures the size. Hashing: nothing is stored; the bytes feed FNV-1a (64-bit).
+    // Doubles go by bit pattern.
+    private ref struct StateSink
     {
-        private byte[] _b;
+        private const ulong FnvBasis = 0xCBF29CE484222325UL, FnvPrime = 0x100000001B3UL;
+        private readonly Span<byte> _d;
         private int _n;
+        private ulong _h;
 
-        public Sink(int capacity) => _b = new byte[Math.Max(capacity, 64)];
-
-        private Span<byte> Take(int n)
+        public StateSink(Span<byte> destination, bool hashing)
         {
-            if (_b.Length - _n < n)
-            {
-                Array.Resize(ref _b, Math.Max(_b.Length * 2, _n + n));
-            }
-            Span<byte> s = _b.AsSpan(_n, n);
+            _d = destination;
+            Hashing = hashing;
+            _n = 0;
+            _h = FnvBasis;
+        }
+
+        public bool Hashing { get; }
+
+        public int Length => _n;
+
+        public ulong Hash => _h;
+
+        public bool Fits(int n) => _d.Length - _n >= n;
+
+        public Span<byte> Take(int n)
+        {
+            Span<byte> s = _d.Slice(_n, n);
             _n += n;
             return s;
         }
 
-        public Span<byte> Reserve(int n) => Take(n);
+        public void Skip(int n) => _n += n;
 
-        public void U8(byte v) => Take(1)[0] = v;
+        private void Feed(ulong v, int bytes)
+        {
+            for (int k = 0; k < bytes; k++)
+            {
+                _h = (_h ^ (byte)(v >> (8 * k))) * FnvPrime;
+            }
+        }
 
-        public void U16(int v) => BinaryPrimitives.WriteUInt16LittleEndian(Take(2), (ushort)v);
+        public void U8(byte v)
+        {
+            if (Hashing)
+            {
+                Feed(v, 1);
+            }
+            else if (_n < _d.Length)
+            {
+                _d[_n] = v;
+            }
+            _n++;
+        }
 
-        public void U32(uint v) => BinaryPrimitives.WriteUInt32LittleEndian(Take(4), v);
+        public void U16(int v)
+        {
+            if (Hashing)
+            {
+                Feed((ushort)v, 2);
+            }
+            else if (Fits(2))
+            {
+                BinaryPrimitives.WriteUInt16LittleEndian(_d[_n..], (ushort)v);
+            }
+            _n += 2;
+        }
 
-        public void I32(int v) => BinaryPrimitives.WriteInt32LittleEndian(Take(4), v);
+        public void U32(uint v)
+        {
+            if (Hashing)
+            {
+                Feed(v, 4);
+            }
+            else if (Fits(4))
+            {
+                BinaryPrimitives.WriteUInt32LittleEndian(_d[_n..], v);
+            }
+            _n += 4;
+        }
 
-        public void U64(ulong v) => BinaryPrimitives.WriteUInt64LittleEndian(Take(8), v);
+        public void I32(int v) => U32((uint)v);
+
+        public void U64(ulong v)
+        {
+            if (Hashing)
+            {
+                Feed(v, 8);
+            }
+            else if (Fits(8))
+            {
+                BinaryPrimitives.WriteUInt64LittleEndian(_d[_n..], v);
+            }
+            _n += 8;
+        }
 
         public void F64(double v) => U64((ulong)BitConverter.DoubleToInt64Bits(v));
 
-        public void Bytes(ReadOnlySpan<byte> v) => v.CopyTo(Take(v.Length));
+        public void Bytes(ReadOnlySpan<byte> v)
+        {
+            if (Hashing)
+            {
+                HashBytes(v);
+                return;
+            }
+            if (Fits(v.Length))
+            {
+                v.CopyTo(_d[_n..]);
+            }
+            _n += v.Length;
+        }
 
-        public byte[] ToArray() => _b.AsSpan(0, _n).ToArray();
+        public void HashBytes(ReadOnlySpan<byte> v)
+        {
+            ulong h = _h;
+            for (int k = 0; k < v.Length; k++)
+            {
+                h = (h ^ v[k]) * FnvPrime;
+            }
+            _h = h;
+            _n += v.Length;
+        }
     }
 }

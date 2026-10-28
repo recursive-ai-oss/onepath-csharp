@@ -941,6 +941,18 @@ public sealed class PathFollower
     /// <exception cref="NavMeshFormatException">The bytes are truncated, of another version, hold impossible values or a corridor larger than <see cref="FollowerOptions.CorridorCapacity"/> (the message names which).</exception>
     public void Read(ReadOnlySpan<byte> source)
     {
+        ReadCore(source, false);
+        ReadCore(source, true);
+    }
+
+    // Validates bytes as Read would, changing nothing and allocating nothing.
+    internal void Check(ReadOnlySpan<byte> source) => ReadCore(source, false);
+
+    // Read in place (the corridor object is kept, so references to it stay valid). Call with store = false first.
+    internal void ReadStored(ReadOnlySpan<byte> source) => ReadCore(source, true);
+
+    private void ReadCore(ReadOnlySpan<byte> source, bool store)
+    {
         var r = new StateReader(source, "follower");
         r.Version(FormatVersion);
         int state = r.U8();
@@ -969,16 +981,23 @@ public sealed class PathFollower
         double offElapsed = r.F64("off-mesh elapsed", false), offDuration = r.F64("off-mesh duration", false);
         ulong exit = r.U64();
         double remaining = r.F64Remaining();
-        PathCorridor corr = PathCorridor.ReadFrom(ref r);
-        if (corr.Capacity != _opt.CorridorCapacity)
+        // Peek the capacity (after version, flags) so a mismatch is rejected before anything is stored.
+        int peekAt = r.Position + 2;
+        PathCorridor? corr = PathCorridor.ReadFrom(ref r, _corr, store);
+        int capacity = corr?.Capacity ?? System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(source[peekAt..]);
+        if (capacity != _opt.CorridorCapacity)
         {
-            throw r.Error("corridor capacity (differs from the options)", corr.Capacity);
+            throw r.Error("corridor capacity (differs from the options)", capacity);
         }
         if (r.Position != source.Length)
         {
             throw r.Error("trailing bytes", source.Length - r.Position);
         }
-        _corr = corr;
+        if (!store)
+        {
+            return;
+        }
+        _corr = corr!;
         _state = (FollowerState)state;
         _reached = reached == 1;
         _steps = (long)steps;
