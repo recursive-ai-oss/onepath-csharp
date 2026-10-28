@@ -43,7 +43,23 @@ public sealed class TileCache
 
         public int TileZ { get; }
 
+        /// <summary>The eroded compact heightfield with the pipeline's own volumes applied: what every rebuild starts from.</summary>
         public CompactHeightfield Chf { get; }
+
+        /// <summary>
+        /// Area ids of the spans the tile in the mesh was last built from (null after a restore, when the mesh may hold anything). A rebuild that
+        /// marks the same areas builds the same tile, so it is skipped.
+        /// </summary>
+        public byte[]? LastAreas { get; set; }
+
+        /// <summary>Layers the last build produced, or -1 when the tile is still the initial build and the count was not kept.</summary>
+        public int LastLayers { get; set; } = -1;
+
+        /// <summary>Area ids of the initial build, and the tile data it produced: a rebuild that ends with these areas again (every obstacle over the tile gone) reuses the data.</summary>
+        public byte[]? BaseAreas { get; set; }
+
+        /// <summary>See <see cref="BaseAreas"/>.</summary>
+        public List<NavTileData>? BaseTiles { get; set; }
     }
 
     internal TileCache(Mesh3DPipeline pipeline) => _pipeline = pipeline;
@@ -68,7 +84,37 @@ public sealed class TileCache
 
     internal void SetMesh(TiledNavMesh mesh) => _mesh = mesh;
 
-    internal void Store(int tx, int tz, CompactHeightfield chf) => _entries[Key(tx, tz)] = new Entry(tx, tz, chf);
+    internal void Store(int tx, int tz, CompactHeightfield chf) => _entries[Key(tx, tz)] = new Entry(tx, tz, chf) { LastAreas = Areas(chf), BaseAreas = Areas(chf) };
+
+    internal void StoreBase(int tx, int tz, List<NavTileData> output, int from) => _entries[Key(tx, tz)].BaseTiles = output.GetRange(from, output.Count - from);
+
+    private static byte[] Areas(CompactHeightfield chf)
+    {
+        ReadOnlySpan<CompactSpan> spans = chf.Spans;
+        var a = new byte[spans.Length];
+        for (int i = 0; i < a.Length; i++)
+        {
+            a[i] = spans[i].Area;
+        }
+        return a;
+    }
+
+    private static bool SameAreas(CompactHeightfield chf, byte[]? last)
+    {
+        ReadOnlySpan<CompactSpan> spans = chf.Spans;
+        if (last is null || last.Length != spans.Length)
+        {
+            return false;
+        }
+        for (int i = 0; i < last.Length; i++)
+        {
+            if (spans[i].Area != last[i])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 
     private static long Key(int tx, int tz) => ((long)tz << 32) + tx;
 
@@ -147,11 +193,12 @@ public sealed class TileCache
         return true;
     }
 
-    // Queues every cached tile whose build grid (tile plus border) overlaps the box, in tile row, column order. The box is widened by a cell:
+    // Queues every cached tile whose build grid (tile plus border) overlaps the box grown by the agent radius (obstacles are marked grown by it),
+    // in tile row, column order. The box is widened by one more cell:
     // a tile rebuilt without a change gives the same bytes, so over-queueing is harmless and rounding at an edge cannot lose a tile.
     private void Queue(double minX, double maxX, double minZ, double maxZ)
     {
-        double pad = _pipeline.CellSize * (_pipeline.Border + 1);
+        double pad = _pipeline.CellSize * (_pipeline.Border + _pipeline.SpanOptions.WalkableRadius + 1);
         double size = _pipeline.Params.TileSize;
         foreach (KeyValuePair<long, Entry> kv in _entries)
         {
@@ -208,8 +255,24 @@ public sealed class TileCache
         {
             volumes.Add(v);
         }
+        CompactHeightfield chf = e.Chf.Clone();
+        _pipeline.MarkObstacles(chf, obstacles, volumes);
+        // Tiles are queued generously (a neighbour's obstacle may only graze the border), so most rebuilds find the areas unchanged.
+        if (SameAreas(chf, e.LastAreas) && (e.LastLayers < 0 || Mesh.GetTilesAt(e.TileX, e.TileZ, _refs) == e.LastLayers))
+        {
+            return;
+        }
+        e.LastAreas = Areas(chf);
         var built = new List<NavTileData>();
-        _pipeline.FinishTile(e.Chf.Clone(), e.TileX, e.TileZ, obstacles, volumes, built);
+        if (e.BaseTiles is not null && SameAreas(chf, e.BaseAreas))
+        {
+            built.AddRange(e.BaseTiles);
+        }
+        else
+        {
+            _pipeline.FinishMarked(chf, e.TileX, e.TileZ, built);
+        }
+        e.LastLayers = built.Count;
 
         TiledNavMesh mesh = Mesh;
         int existing = Math.Min(mesh.GetTilesAt(e.TileX, e.TileZ, _refs), _refs.Length);
@@ -434,6 +497,10 @@ public sealed class TileCache
         _queue.AddRange(queue);
         _queued.Clear();
         _queued.UnionWith(queue);
+        foreach (Entry e in _entries.Values)
+        {
+            e.LastAreas = null;
+        }
         _nextObstacle = (int)nextObstacle;
         _nextVolume = (int)nextVolume;
     }
