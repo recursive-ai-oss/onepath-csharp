@@ -422,7 +422,7 @@ public sealed class Region
     private List<P[]> RoundPiecesOneSided(double radius, double tol)
     {
         var pieces = new List<P[]>();
-        double[] disc = DiscUnitVectors(radius, tol, out int m);
+        double[] disc = DiscUnitVectors(radius, tol, out int m, equalArea: true);
         var selected = new List<int>(m);
         foreach (P[] r in _rings)
         {
@@ -560,7 +560,7 @@ public sealed class Region
     // Vertex offsets (x0, y0, x1, y1, ...) of a counter-clockwise regular polygon circumscribed about a circle of the
     // given radius, with m = 8, 16, ... 256 vertices chosen so the vertices stay within tol of the circle. Uses only
     // + - * / and sqrt (half-angle recurrences), so it is identical everywhere.
-    private static double[] DiscUnitVectors(double radius, double tol, out int m)
+    private static double[] DiscUnitVectors(double radius, double tol, out int m, bool equalArea = false)
     {
         if (!(tol >= 1.0))
         {
@@ -594,7 +594,99 @@ public sealed class Region
             x = nx;
             y = ny;
         }
+        if (equalArea)
+        {
+            EqualAreaQuadrant(v, m, radius, ch, sh);
+        }
         return v;
+    }
+
+    // Reshapes the circumscribed polygon so that a quarter sector (the two tips on the circle at axis directions, the
+    // polygon's vertices between them) has exactly the area of a quarter disc, instead of the circumscribed polygon's
+    // excess. The first and last vertex of a quadrant slide along the tangent lines through the tips (so walls that run
+    // along the axes continue straight, and those vertices stay collinear and are dropped); the vertices between are
+    // scaled towards the centre by the same factor lambda. The area is quadratic in lambda; it is found by a fixed 60
+    // bisection steps on [0, 1] (the circumscribed polygon is larger than the disc at 1, the bare triangle smaller at 0),
+    // so the result is the same everywhere. The other three quadrants are 90-degree rotations of the first.
+    private static void EqualAreaQuadrant(double[] v, int m, double r, double ch, double sh)
+    {
+        int q = m / 4;
+        double t = r * sh / ch; // tangent offset of the circumscribed polygon's end vertices
+        double lo = 0.0, hi = 1.0;
+        for (int it = 0; it < 60; it++)
+        {
+            double mid = (lo + hi) * 0.5;
+            if (QuadrantTwiceArea(v, q, r, t, mid) < Math.PI * r * r * 0.5)
+            {
+                lo = mid;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+        double lambda = hi;
+        for (int k = 0; k < q; k++)
+        {
+            double x, y;
+            if (k == 0)
+            {
+                x = r;
+                y = lambda * t;
+            }
+            else if (k == q - 1)
+            {
+                x = lambda * t;
+                y = r;
+            }
+            else
+            {
+                x = lambda * v[2 * k];
+                y = lambda * v[(2 * k) + 1];
+            }
+            v[2 * k] = x;
+            v[(2 * k) + 1] = y;
+        }
+        for (int k = q; k < m; k++)
+        {
+            int src = k - q; // rotate the vertex q places earlier by a quarter turn
+            v[2 * k] = -v[(2 * src) + 1];
+            v[(2 * k) + 1] = v[2 * src];
+        }
+    }
+
+    // Twice the area of the polygon centre, (r, 0), the quadrant's vertices (reshaped by lambda), (0, r).
+    private static double QuadrantTwiceArea(double[] ring, int q, double r, double t, double lambda)
+    {
+        double px = r, py = 0, twice = 0;
+        for (int k = 0; k <= q; k++)
+        {
+            double x, y;
+            if (k == q)
+            {
+                x = 0;
+                y = r;
+            }
+            else if (k == 0)
+            {
+                x = r;
+                y = lambda * t;
+            }
+            else if (k == q - 1)
+            {
+                x = lambda * t;
+                y = r;
+            }
+            else
+            {
+                x = lambda * ring[2 * k];
+                y = lambda * ring[(2 * k) + 1];
+            }
+            twice += (px * y) - (py * x);
+            px = x;
+            py = y;
+        }
+        return twice;
     }
 
     private List<P[]> SquarePieces(double radius)

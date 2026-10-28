@@ -144,6 +144,29 @@ the polygonal arcs stay within the arc tolerance of the circle, and the rings ca
 much (about 0.2% of the area on a dense noisy tile map). The pipeline passes `arcTolerance =
 CellSize / 4` (the mesh cannot resolve finer), so a circle of radius two to four cells has 8 or 16 vertices. `Region.Offset` itself is unchanged.
 
+**Equal-area arcs.** A circumscribed polygon removes more than the disc, by the same amount at every round corner
+(`m tan(π/m) − π` times r², about 4% of a disc for m = 16, 10% for m = 8). Across many corners, or around a small leftover
+such as the cusp between a quarter disc and two walls, that is a large share of the walkable area. So the shrink
+reshapes the polygon, keeping the same `m`: let `q = m/4`, `h = r·tan(π/m)` (the tangent offset of the circumscribed
+polygon's end vertices). In the quadrant of directions from 0 to 90 degrees the vertices are
+
+- the first, `(r, λh)`, and the last, `(λh, r)`, which slide along the tangent lines through the quadrant's two axis points
+  `(r, 0)` and `(0, r)`, so walls that run along the axes continue straight and the axis points stay collinear;
+- the `q − 2` vertices between, the circumscribed polygon's own, multiplied by `λ`.
+
+`λ` in (0, 1] is the value at which the polygon `centre, (r, 0), the q vertices, (0, r)` has area `π r² / 4`. That area
+is quadratic in `λ` and is below the quarter disc at 0 and above it at 1, so it is found by 60 bisection steps on
+[0, 1] (`mid = (lo + hi) / 2`, keep `[mid, hi]` when the area is below, else `[lo, mid]`; use `hi`), which uses only `+ − × ÷`
+and gives the same bits everywhere. The other three quadrants are the first rotated by 90, 180 and 270 degrees
+(`(x, y) → (−y, x)` applied to the vertex `q` places earlier). Sector pieces take the vertices strictly between their two
+tips from this ring exactly as before.
+
+Clearance deviates from `r` by a bounded amount in both directions: the vertices lie up to 5.8% of `r` outside the
+circle and the chords up to 4.9% inside it for 8 vertices (1.9% and 1.2% for 16), where the circumscribed polygon
+lay 8.2% (1.96%) outside. So where the shrunk boundary turns a round corner an agent's centre may come up to 1.2% (16 vertices) or 4.9% (8)
+of its radius closer to the wall than `r`, at the chord midpoints; this is the one place the build over-covers.
+On the pillar-room shapes this brings coverage from −1.14% and −4.7% (cusps) of the exact eroded area to within ±0.1%.
+
 ## Constrained Delaunay triangulation
 
 Input: distinct grid points sorted by (x, y), and noded constraints (segments meeting only at endpoints).
