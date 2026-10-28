@@ -11,7 +11,7 @@ namespace RecursiveAI.OnePath;
 /// search, <see cref="TryBegin"/>, <see cref="Step"/>, <see cref="CopyPath(Span{Cell})"/>, <see cref="SaveState(Span{byte})"/> and
 /// <see cref="GetStateSize"/> allocate nothing.
 /// <para>
-/// It runs the same engine as <see cref="Grid.FindPath(Cell, Cell, GridOptions?)"/> with the same options, so the path it finds is
+/// It runs the same engine as <see cref="Grid.FindPath(Cell, Cell, GridOptions?, System.Threading.CancellationToken)"/> with the same options, so the path it finds is
 /// cell for cell the path <c>FindPath</c> returns, however the iterations are sliced. <c>FindPath</c> is <c>TryBegin</c> followed by one
 /// <c>Step(IterationBudget)</c>. <see cref="GridAlgorithm.AStar"/>, <see cref="GridAlgorithm.Jps"/> and <see cref="GridAlgorithm.JpsPlus"/>
 /// are supported (the other algorithms keep their one-shot <c>FindPath</c> and, for the generic forms, their own <c>Begin</c>/<c>Step</c>).

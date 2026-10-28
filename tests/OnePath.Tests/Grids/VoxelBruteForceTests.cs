@@ -243,7 +243,7 @@ public class VoxelSearchAgainstBruteForce
                 for (int q = 0; q < 4; q++)
                 {
                     VoxelCell b = open[rng.NextInt(open.Count)];
-                    VoxelPath p = g.FindPath(a, b, new VoxelOptions { Connectivity = conn });
+                    VoxelPath p = g.FindPath(a, b, new VoxelOptions { Connectivity = conn }, cancellationToken: TestContext.Current.CancellationToken);
                     double expect = dist[g.NodeIndex(b.X, b.Y, b.Z)];
                     if (double.IsPositiveInfinity(expect))
                     {

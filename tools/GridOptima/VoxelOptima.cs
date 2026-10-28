@@ -28,7 +28,8 @@ internal static class VoxelOptima
         int perMap = int.MaxValue;
         double tolerance = 1e-6;
         bool verbose = false;
-        var options = new VoxelOptions();
+        VoxelConnectivity conn = VoxelConnectivity.TwentySix;
+        VoxelCornerRule corners = VoxelCornerRule.NoCornerCutting;
         for (int i = 0; i < args.Length; i++)
         {
             if (args[i] == "--voxel")
@@ -55,9 +56,9 @@ internal static class VoxelOptima
                 case "--limit": limit = long.Parse(v, CultureInfo.InvariantCulture); break;
                 case "--per-map": perMap = int.Parse(v, CultureInfo.InvariantCulture); break;
                 case "--tolerance": tolerance = double.Parse(v, CultureInfo.InvariantCulture); break;
-                case "--conn": options.Connectivity = (VoxelConnectivity)int.Parse(v, CultureInfo.InvariantCulture); break;
+                case "--conn": conn = (VoxelConnectivity)int.Parse(v, CultureInfo.InvariantCulture); break;
                 case "--rule":
-                    options.Corners = v switch
+                    corners = v switch
                     {
                         "cut" => VoxelCornerRule.NoCornerCutting,
                         "squeeze" => VoxelCornerRule.NoSqueezing,
@@ -68,6 +69,7 @@ internal static class VoxelOptima
                 default: Console.Error.WriteLine($"unknown option {args[i - 1]}"); return 2;
             }
         }
+        var options = new VoxelOptions { Connectivity = conn, Corners = corners };
         if (dir is null || set is null)
         {
             Console.Error.WriteLine("usage: GridOptima --voxel --maps DIR --set NAME [--only A1,A2] [--threads N] [--limit N] [--per-map N] [--tolerance ABS] [--conn 6|18|26] [--rule cut|squeeze|all]");

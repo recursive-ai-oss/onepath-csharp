@@ -149,7 +149,7 @@ public class CrowdTests
             double longest = 0;
             foreach (Agent a in sim.Agents)
             {
-                longest = Math.Max(longest, fresh.FindPath(a.Position, a.Destination).Length);
+                longest = Math.Max(longest, fresh.FindPath(a.Position, a.Destination, cancellationToken: TestContext.Current.CancellationToken).Length);
             }
             // Budget: three times the time to walk the longest route at full speed, plus ten seconds for queues and turns.
             int budget = (int)((3 * longest / (Agent.Small.MaxSpeed * Dt)) + (10 / Dt));

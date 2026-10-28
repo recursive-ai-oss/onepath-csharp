@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 
 namespace RecursiveAI.OnePath.Grids.Voxel;
 
@@ -171,7 +172,8 @@ internal sealed class VoxelSearchState
         bool record,
         out int goalSlot,
         out double pathCost,
-        out int expandedCount)
+        out int expandedCount,
+        CancellationToken token = default)
         where TCost : struct, IStepCost
     {
         Begin();
@@ -188,8 +190,13 @@ internal sealed class VoxelSearchState
         int expanded = 0;
         goalSlot = -1;
         pathCost = double.PositiveInfinity;
+        bool cancellable = token.CanBeCanceled;
         while (budget > 0)
         {
+            if (cancellable && (expanded & 255) == 0)
+            {
+                token.ThrowIfCancellationRequested();
+            }
             if (_count == 0)
             {
                 expandedCount = expanded;

@@ -10,7 +10,7 @@ namespace RecursiveAI.OnePath;
 public sealed partial class Grid
 {
     /// <summary>
-    /// Creates a resumable A* search (see <see cref="GridSearch"/>) over this grid. It runs the engine <see cref="FindPath(Cell, Cell, GridOptions?)"/>
+    /// Creates a resumable A* search (see <see cref="GridSearch"/>) over this grid. It runs the engine <see cref="FindPath(Cell, Cell, GridOptions?, System.Threading.CancellationToken)"/>
     /// runs for the same options, so both return the same path.
     /// </summary>
     /// <param name="options">Options (copied); null means <see cref="GridOptions.Default"/>. <see cref="GridOptions.Algorithm"/> must be <see cref="GridAlgorithm.AStar"/>; <see cref="GridOptions.IterationBudget"/> and <see cref="GridOptions.RecordExpansions"/> do not apply (budgets are the <c>Step</c> argument).</param>
@@ -76,7 +76,7 @@ public sealed partial class Grid
 
     /// <summary>
     /// True when an agent that occupies <paramref name="agentSize"/> × <paramref name="agentSize"/> cells with <paramref name="cell"/> as its
-    /// top-left cell stands on walkable ground only. This is the test <see cref="FindPath(Cell, Cell, GridOptions?)"/> applies to its
+    /// top-left cell stands on walkable ground only. This is the test <see cref="FindPath(Cell, Cell, GridOptions?, System.Threading.CancellationToken)"/> applies to its
     /// start and goal for <see cref="GridOptions.AgentSize"/>, equal to <c>GetClearance(x, y) &gt;= agentSize</c>.
     /// </summary>
     /// <param name="cell">The top-left cell of the footprint.</param>

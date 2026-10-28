@@ -4,7 +4,7 @@ using RecursiveAI.OnePath.Grids;
 namespace RecursiveAI.OnePath;
 
 /// <summary>
-/// Options for the one-line grid queries (<see cref="Grid.FindPath(Cell, Cell, GridOptions?)"/> and the hex equivalent).
+/// Options for the one-line grid queries (<see cref="Grid.FindPath(Cell, Cell, GridOptions?, System.Threading.CancellationToken)"/> and the hex equivalent).
 /// Every default is documented here; the static presets cover the usual cases. Costs and filters are plain
 /// delegates: nothing here asks for a struct callback (those live in <see cref="AStar{TTopology, TCost, THeuristic}"/>).
 /// </summary>
@@ -17,10 +17,10 @@ public sealed class GridOptions
     private int _hpaChunkSize = 16;
 
     /// <summary>The moves allowed on a square grid. Default <see cref="OnePath.Connectivity.Eight"/>. Ignored on hex grids (always six).</summary>
-    public Connectivity Connectivity { get; set; } = Connectivity.Eight;
+    public Connectivity Connectivity { get; init; } = Connectivity.Eight;
 
     /// <summary>When diagonal moves are allowed. Default <see cref="DiagonalRule.NoCornerCutting"/>. Ignored on hex grids and four-connected searches.</summary>
-    public DiagonalRule Diagonals { get; set; } = DiagonalRule.NoCornerCutting;
+    public DiagonalRule Diagonals { get; init; } = DiagonalRule.NoCornerCutting;
 
     /// <summary>
     /// Agent size in cells (1..255): the agent occupies a square block whose top-left cell is its position
@@ -30,7 +30,7 @@ public sealed class GridOptions
     public int AgentSize
     {
         get => _agentSize;
-        set
+        init
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
             ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 255);
@@ -39,7 +39,7 @@ public sealed class GridOptions
     }
 
     /// <summary>The distance estimate. Default <see cref="GridHeuristic.Auto"/>.</summary>
-    public GridHeuristic Heuristic { get; set; } = GridHeuristic.Auto;
+    public GridHeuristic Heuristic { get; init; } = GridHeuristic.Auto;
 
     /// <summary>
     /// Multiplier on the estimate; 1 (the default) gives optimal paths. Above 1 searches are faster and paths may
@@ -49,7 +49,7 @@ public sealed class GridOptions
     public double HeuristicWeight
     {
         get => _heuristicWeight;
-        set
+        init
         {
             if (!(value >= 0.0) || double.IsPositiveInfinity(value))
             {
@@ -64,24 +64,24 @@ public sealed class GridOptions
     /// to use. Return +∞ or NaN to forbid the move. Returning less than the grid's own cost may make the estimate
     /// inadmissible (paths may then not be optimal). Must be deterministic. Default none.
     /// </summary>
-    public Func<Cell, Cell, double, double>? StepCost { get; set; }
+    public Func<Cell, Cell, double, double>? StepCost { get; init; }
 
     /// <summary>Optional extra blocking: cells for which this returns true cannot be entered (nor used as start or goal). Default none.</summary>
-    public Func<Cell, bool>? Blocked { get; set; }
+    public Func<Cell, bool>? Blocked { get; init; }
 
     /// <summary>
     /// The search algorithm. Default <see cref="GridAlgorithm.AStar"/>. <see cref="GridAlgorithm.Jps"/> and <see cref="GridAlgorithm.JpsPlus"/>
     /// give the same optimal cost on the grids they apply to (see <see cref="GridAlgorithm"/> for the conditions; otherwise A* runs
     /// and <see cref="GridPath.Algorithm"/> reports it) but may return a different path of that cost.
     /// </summary>
-    public GridAlgorithm Algorithm { get; set; } = GridAlgorithm.AStar;
+    public GridAlgorithm Algorithm { get; init; } = GridAlgorithm.AStar;
 
     /// <summary>Chunk side in cells for <see cref="GridAlgorithm.Hpa"/> (2..1024). Default 16.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is outside 2..1024.</exception>
     public int HpaChunkSize
     {
         get => _hpaChunkSize;
-        set
+        init
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(value, 2);
             ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 1024);
@@ -90,13 +90,13 @@ public sealed class GridOptions
     }
 
     /// <summary>Whether <see cref="GridAlgorithm.Hpa"/> smooths the refined path (see <see cref="HpaSearch"/>). Default true.</summary>
-    public bool HpaSmoothing { get; set; } = true;
+    public bool HpaSmoothing { get; init; } = true;
 
     /// <summary>
     /// When true the result lists the expanded cells in order (debug data; <see cref="GridPath.ExpandedCells"/> then has <see cref="GridPath.ExpandedCount"/> entries).
     /// For a replanner it lists the nodes each <c>Replan</c> settled or reset. Default false, and then nothing is recorded.
     /// </summary>
-    public bool RecordExpansions { get; set; }
+    public bool RecordExpansions { get; init; }
 
     /// <summary>
     /// Whether plain A*, JPS and JPS+ may run on the specialised octile engines when the options allow it (eight moves, no corner
@@ -109,7 +109,7 @@ public sealed class GridOptions
     /// path from <c>FindPath</c>, <see cref="Grid.CreateSearch"/> and its own generic <c>AStar</c> sets this to false for all of them.
     /// </para>
     /// </summary>
-    public bool SpecializedEngines { get; set; } = true;
+    public bool SpecializedEngines { get; init; } = true;
 
     /// <summary>
     /// The farthest ring, in cells (Chebyshev distance from the query cell), <see cref="Grid.TryFindNearestWalkable(Cell, out Cell, GridOptions?)"/>
@@ -119,7 +119,7 @@ public sealed class GridOptions
     public int NearestRadius
     {
         get => _nearestRadius;
-        set
+        init
         {
             ArgumentOutOfRangeException.ThrowIfNegative(value);
             _nearestRadius = value;
@@ -134,7 +134,7 @@ public sealed class GridOptions
     public int IterationBudget
     {
         get => _iterationBudget;
-        set
+        init
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
             _iterationBudget = value;

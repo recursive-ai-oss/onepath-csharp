@@ -88,7 +88,7 @@ public sealed class TileCache
     /// <summary>The pipeline the tiles were built with and are rebuilt with.</summary>
     public Mesh3DPipeline Pipeline => _pipeline;
 
-    /// <summary>Tiles waiting to be rebuilt.</summary>
+    /// <summary>Number of tiles waiting to be rebuilt. <see cref="Update"/> rebuilds them in the order the changes queued them (first queued, first rebuilt).</summary>
     public int PendingCount => _queue.Count;
 
     /// <summary>The number of obstacles in force.</summary>
@@ -186,7 +186,7 @@ public sealed class TileCache
         return true;
     }
 
-    /// <summary>The obstacle with this id, or null.</summary>
+    /// <summary>The obstacle with this id (the value returned when it was added), or null if there is none (never added, or removed).</summary>
     public TileObstacle? GetObstacle(int id)
     {
         int i = _obstacles.FindIndex(o => o.Id == id);
@@ -273,8 +273,10 @@ public sealed class TileCache
         return done;
     }
 
-    /// <summary>Rebuilds every queued tile.</summary>
+    /// <summary>Rebuilds every queued tile (<see cref="Update"/> with no budget).</summary>
+    /// <param name="cancellationToken">Stops between tiles; see <see cref="Update"/>.</param>
     /// <returns>The number of tiles rebuilt.</returns>
+    /// <exception cref="OperationCanceledException">Cancelled; the tiles rebuilt so far stay rebuilt and the rest stay queued.</exception>
     public int UpdateAll(CancellationToken cancellationToken = default) => Update(int.MaxValue, cancellationToken);
 
     private void RebuildTile(Entry e)

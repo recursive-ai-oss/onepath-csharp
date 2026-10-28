@@ -36,7 +36,7 @@ public class VoxelPagedSearchTests
                 dense.Begin(g.NodeIndex(a.X, a.Y, a.Z), g.NodeIndex(b.X, b.Y, b.Z));
                 SearchStatus status = dense.Run(TestContext.Current.CancellationToken);
 
-                VoxelPath p = g.FindPath(a, b, options);
+                VoxelPath p = g.FindPath(a, b, options, cancellationToken: TestContext.Current.CancellationToken);
                 Assert.Equal(status == SearchStatus.Found, p.Found);
                 Assert.Equal(dense.ExpandedCount, p.ExpandedCount);
                 ReadOnlySpan<int> expect = buffers.ExpandedNodes;
@@ -68,10 +68,10 @@ public class VoxelPagedSearchTests
         List<VoxelCell> open = VoxelBruteForce.OpenCells(g);
         VoxelCell a = open[3];
         VoxelCell b = open[open.Count - 5];
-        VoxelPath full = g.FindPath(a, b);
+        VoxelPath full = g.FindPath(a, b, cancellationToken: TestContext.Current.CancellationToken);
         foreach (int budget in new[] { 1, 2, 7, 50, 300 })
         {
-            VoxelPath p = g.FindPath(a, b, new VoxelOptions { IterationBudget = budget });
+            VoxelPath p = g.FindPath(a, b, new VoxelOptions { IterationBudget = budget }, cancellationToken: TestContext.Current.CancellationToken);
             if (budget < full.ExpandedCount + 1)
             {
                 Assert.Equal(PathStatus.BudgetExhausted, p.Status);
@@ -87,7 +87,7 @@ public class VoxelPagedSearchTests
         var g = new VoxelGrid(1300, 1300, 300);
         // Count only this thread's allocations: the process heap also holds whatever tests running in parallel allocate.
         long before = GC.GetAllocatedBytesForCurrentThread();
-        VoxelPath p = g.FindPath(new VoxelCell(10, 10, 10), new VoxelCell(60, 40, 30));
+        VoxelPath p = g.FindPath(new VoxelCell(10, 10, 10), new VoxelCell(60, 40, 30), cancellationToken: TestContext.Current.CancellationToken);
         long after = GC.GetAllocatedBytesForCurrentThread();
         Assert.True(p.Found);
         Assert.True(after - before < 64L * 1024 * 1024, $"the query allocated {after - before} bytes");
@@ -104,11 +104,11 @@ public class VoxelPagedSearchTests
         for (int i = 0; i < 20; i++)
         {
             pairs.Add((open[rng.NextInt(open.Count)], open[rng.NextInt(open.Count)]));
-            first.Add(g.FindPath(pairs[i].Item1, pairs[i].Item2));
+            first.Add(g.FindPath(pairs[i].Item1, pairs[i].Item2, cancellationToken: TestContext.Current.CancellationToken));
         }
         for (int i = 19; i >= 0; i--)
         {
-            VoxelPath again = g.FindPath(pairs[i].Item1, pairs[i].Item2);
+            VoxelPath again = g.FindPath(pairs[i].Item1, pairs[i].Item2, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(first[i].Status, again.Status);
             Assert.Equal(first[i].Cost, again.Cost);
             Assert.Equal(first[i].ExpandedCount, again.ExpandedCount);

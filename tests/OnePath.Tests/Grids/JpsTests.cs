@@ -125,13 +125,13 @@ public class JpsTests
         ];
         foreach (GridOptions o in options)
         {
-            GridPath p = g.FindPath(a, b, o);
+            GridPath p = g.FindPath(a, b, o, cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(p.Found);
             Assert.Equal(GridAlgorithm.AStar, p.Algorithm);
         }
         g.Areas[3] = 2.0; // areas now cost differently
-        Assert.Equal(GridAlgorithm.AStar, g.FindPath(a, b, Options(GridAlgorithm.Jps)).Algorithm);
-        Assert.Equal(GridAlgorithm.AStar, g.FindPath(a, b, Options(GridAlgorithm.JpsPlus)).Algorithm);
+        Assert.Equal(GridAlgorithm.AStar, g.FindPath(a, b, Options(GridAlgorithm.Jps), cancellationToken: TestContext.Current.CancellationToken).Algorithm);
+        Assert.Equal(GridAlgorithm.AStar, g.FindPath(a, b, Options(GridAlgorithm.JpsPlus), cancellationToken: TestContext.Current.CancellationToken).Algorithm);
     }
 
     [Fact]
@@ -139,12 +139,12 @@ public class JpsTests
     {
         var g = new Grid(5, 5);
         g.SetWalkable(2, 2, false);
-        GridPath same = g.FindPath(new Cell(1, 1), new Cell(1, 1), Options(GridAlgorithm.JpsPlus));
+        GridPath same = g.FindPath(new Cell(1, 1), new Cell(1, 1), Options(GridAlgorithm.JpsPlus), cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(same.Found);
         Assert.Equal(0.0, same.Cost);
         Assert.Single(same.Cells.ToArray());
-        Assert.Equal(PathStatus.GoalInvalid, g.FindPath(new Cell(0, 0), new Cell(2, 2), Options(GridAlgorithm.Jps)).Status);
-        Assert.Equal(PathStatus.StartInvalid, g.FindPath(new Cell(9, 0), new Cell(1, 1), Options(GridAlgorithm.Jps)).Status);
+        Assert.Equal(PathStatus.GoalInvalid, g.FindPath(new Cell(0, 0), new Cell(2, 2), Options(GridAlgorithm.Jps), cancellationToken: TestContext.Current.CancellationToken).Status);
+        Assert.Equal(PathStatus.StartInvalid, g.FindPath(new Cell(9, 0), new Cell(1, 1), Options(GridAlgorithm.Jps), cancellationToken: TestContext.Current.CancellationToken).Status);
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public class JpsTests
         {
             Grid g = BruteForce.RandomGrid(ref rng, 14, areas: false);
             GridOptions plus = Options(GridAlgorithm.JpsPlus);
-            _ = g.FindPath(new Cell(0, 0), new Cell(0, 0), plus); // builds the index
+            _ = g.FindPath(new Cell(0, 0), new Cell(0, 0), plus, cancellationToken: TestContext.Current.CancellationToken); // builds the index
             for (int e = 0; e < 5; e++)
             {
                 g.SetWalkable(rng.NextInt(g.Width), rng.NextInt(g.Height), rng.NextInt(3) != 0);
@@ -304,9 +304,8 @@ public class JpsTests
         {
             g.SetWalkable(32, y, false);
         }
-        GridOptions o = Options(GridAlgorithm.Jps);
-        o.IterationBudget = 1;
-        GridPath p = g.FindPath(new Cell(0, 0), new Cell(63, 0), o);
+        GridOptions o = new() { Algorithm = GridAlgorithm.Jps, IterationBudget = 1 };
+        GridPath p = g.FindPath(new Cell(0, 0), new Cell(63, 0), o, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.BudgetExhausted, p.Status);
     }
 
@@ -323,8 +322,8 @@ public class JpsTests
         }
         var a = new Cell(1, 1);
         var b = new Cell(126, 126);
-        GridPath astar = g.FindPath(a, b);
-        GridPath jps = g.FindPath(a, b, Options(GridAlgorithm.Jps));
+        GridPath astar = g.FindPath(a, b, cancellationToken: TestContext.Current.CancellationToken);
+        GridPath jps = g.FindPath(a, b, Options(GridAlgorithm.Jps), cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(Math.Abs(astar.Cost - jps.Cost) <= 1e-9);
         Assert.True(jps.ExpandedCount < astar.ExpandedCount);
     }
@@ -408,10 +407,10 @@ public class JpsTests
             {
                 Cell a = starts[rng.NextInt(starts.Count)];
                 Cell b = starts[rng.NextInt(starts.Count)];
-                GridPath astar = g.FindPath(a, b);
+                GridPath astar = g.FindPath(a, b, cancellationToken: TestContext.Current.CancellationToken);
                 foreach (GridAlgorithm alg in new[] { GridAlgorithm.Jps, GridAlgorithm.JpsPlus })
                 {
-                    GridPath p = g.FindPath(a, b, Options(alg));
+                    GridPath p = g.FindPath(a, b, Options(alg), cancellationToken: TestContext.Current.CancellationToken);
                     Assert.Equal(astar.Status, p.Status);
                     if (astar.Found)
                     {

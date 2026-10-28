@@ -37,10 +37,10 @@ public sealed class CompactHeightfield
     /// <summary>Link value meaning "no neighbour".</summary>
     public const int NotConnected = 0x3f;
 
-    /// <summary>x offset of each direction.</summary>
+    /// <summary>x offset, in cells, of each of the four directions (0 = -x, 1 = +z, 2 = +x, 3 = -z, as in the span links).</summary>
     public static ReadOnlySpan<int> DirX => s_dirX;
 
-    /// <summary>z offset of each direction.</summary>
+    /// <summary>z offset, in cells, of each of the four directions (see <see cref="DirX"/>).</summary>
     public static ReadOnlySpan<int> DirZ => s_dirZ;
 
     private CompactHeightfield(HeightfieldFrame frame, int walkableHeight, int walkableClimb, int[] cellFirst, int[] cellCount, CompactSpan[] spans, int spanCount = -1)
@@ -84,7 +84,7 @@ public sealed class CompactHeightfield
     /// <summary>Per column, the index of its first span in <see cref="Spans"/>.</summary>
     public ReadOnlySpan<int> CellFirst => CellFirstArray;
 
-    /// <summary>Per column, how many spans it has.</summary>
+    /// <summary>Per column, how many spans it has (0 for a column with no walkable floor).</summary>
     public ReadOnlySpan<int> CellCount => CellCountArray;
 
     /// <summary>All spans, column by column, each column from the bottom up. Modifiable: the later stages write areas and regions here.</summary>
@@ -121,7 +121,7 @@ public sealed class CompactHeightfield
         }
     }
 
-    /// <summary>The link of <paramref name="span"/> in direction <paramref name="dir"/> (0..3): the target's index within its cell, or <see cref="NotConnected"/>.</summary>
+    /// <summary>The link of <paramref name="span"/> in direction <paramref name="dir"/> (0..3, see <see cref="DirX"/>): the target's index within its cell, or <see cref="NotConnected"/>. A direction outside 0..3 is not checked and reads other bits of the link word.</summary>
     public static int GetConnection(in CompactSpan span, int dir) => (span.Connections >> (dir * 6)) & 0x3f;
 
     /// <summary>

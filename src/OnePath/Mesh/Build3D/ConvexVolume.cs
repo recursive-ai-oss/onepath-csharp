@@ -73,10 +73,10 @@ public sealed class ConvexVolume
         Area = area;
     }
 
-    /// <summary>Lowest world y included.</summary>
+    /// <summary>Lowest world y included (world units; spans whose floor is below it are not affected).</summary>
     public double MinY { get; }
 
-    /// <summary>Highest world y included.</summary>
+    /// <summary>Highest world y included (world units, inclusive).</summary>
     public double MaxY { get; }
 
     /// <summary>Smallest x of the polygon.</summary>
@@ -94,7 +94,7 @@ public sealed class ConvexVolume
     /// <summary>The corners as x, z pairs, in the order given.</summary>
     public ReadOnlySpan<double> Corners => _xz;
 
-    /// <summary>The area id assigned.</summary>
+    /// <summary>The area id assigned to the walkable spans inside the volume (0 to 63; 0 makes them non-walkable, 63 is the default walkable id).</summary>
     public byte Area { get; }
 
     /// <summary>True when the point (x, z) is inside or on the polygon.</summary>

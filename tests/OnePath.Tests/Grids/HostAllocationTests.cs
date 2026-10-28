@@ -67,7 +67,7 @@ public class HostAllocationTests
         System.Collections.Generic.List<Cell> ok = BruteForce.WalkableStarts(g, 1);
         Cell s = ok[0];
         Cell t = ok[^1];
-        Assert.True(g.FindPath(s, t).Found);
+        Assert.True(g.FindPath(s, t, cancellationToken: TestContext.Current.CancellationToken).Found);
         using GridReplanner r = g.CreateReplanner(s, t);
         var path = new int[g.CellCount];
         var cells = new Cell[g.CellCount];
@@ -107,7 +107,7 @@ public class HostAllocationTests
     {
         Grid g = HostMaps.Make("areas", 2, 64, 64);
         System.Collections.Generic.List<Cell> ok = BruteForce.WalkableStarts(g, 1);
-        GridPath p = g.FindPath(ok[0], ok[^1]);
+        GridPath p = g.FindPath(ok[0], ok[^1], cancellationToken: TestContext.Current.CancellationToken);
         Cell[] cells = p.Cells.ToArray();
         var o = new GridOptions { AgentSize = 2 };
         Assert.Equal(0, AllocationProbe.SteadyState(() =>

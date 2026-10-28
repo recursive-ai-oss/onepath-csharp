@@ -42,19 +42,19 @@ public sealed class TileCoordinates
     /// <summary>Cells along one side of the tile.</summary>
     public int TileCells { get; }
 
-    /// <summary>World size of a cell.</summary>
+    /// <summary>World size of a cell along x and z, in world units.</summary>
     public double CellSize { get; }
 
-    /// <summary>The tile size as float32.</summary>
+    /// <summary>The tile size in world units as float32 (exact: the constructor takes a value representable in float32). A grid coordinate on the far tile edge maps to exactly this.</summary>
     public float TileSize { get; }
 
-    /// <summary>World height of a row.</summary>
+    /// <summary>World height of one voxel row, in world units.</summary>
     public double CellHeight { get; }
 
     /// <summary>The row that is tile-local Y zero.</summary>
     public int MinRow { get; }
 
-    /// <summary>Tile-local X (or Z) of a grid coordinate in cells.</summary>
+    /// <summary>Tile-local X (or Z), in world units, of a grid coordinate in cells (border included). The tile's own edges map to exactly 0 and <see cref="TileSize"/>; in between the product is one float32 rounding of the exact value.</summary>
     public float Local(double cell)
     {
         double c = cell - Border;
@@ -65,6 +65,6 @@ public sealed class TileCoordinates
         return c == TileCells ? TileSize : (float)(c * CellSize);
     }
 
-    /// <summary>Tile-local Y of a row.</summary>
+    /// <summary>Tile-local Y, in world units, of a row: <c>(row - MinRow) * CellHeight</c> rounded once to float32.</summary>
     public float LocalY(double row) => (float)((row - MinRow) * CellHeight);
 }

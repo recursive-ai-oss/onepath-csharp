@@ -40,10 +40,10 @@ public class WorldAndStreamingTests
     {
         Soup s = DoorLevel();
         NavWorld w = NavWorld.Build(s.V.ToArray(), s.I.ToArray(), NavSettings.Humanoid, NavSettings.Small);
-        Assert.Equal(PathStatus.Partial, w[0].FindPath(Left, Right).Status);
-        Assert.Equal(PathStatus.Found, w[1].FindPath(Left, Right).Status);
-        Assert.Equal(PathStatus.Found, w.FindPath(Left, Right, 0.3).Status);
-        Assert.Equal(PathStatus.Partial, w.FindPath(Left, Right, 0.6).Status);
+        Assert.Equal(PathStatus.Partial, w[0].FindPath(Left, Right, cancellationToken: TestContext.Current.CancellationToken).Status);
+        Assert.Equal(PathStatus.Found, w[1].FindPath(Left, Right, cancellationToken: TestContext.Current.CancellationToken).Status);
+        Assert.Equal(PathStatus.Found, w.FindPath(Left, Right, 0.3, cancellationToken: TestContext.Current.CancellationToken).Status);
+        Assert.Equal(PathStatus.Partial, w.FindPath(Left, Right, 0.6, cancellationToken: TestContext.Current.CancellationToken).Status);
     }
 
     [Fact]
@@ -97,21 +97,21 @@ public class WorldAndStreamingTests
     {
         NavMesh m = Field();
         string before = AuthoredLinkTests.TileHashes(m.Tiles);
-        PathResult p0 = m.FindPath(new Vector3D(2, 0, 8), new Vector3D(46, 0, 8));
+        PathResult p0 = m.FindPath(new Vector3D(2, 0, 8), new Vector3D(46, 0, 8), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.Found, p0.Status);
         PolyRef oldRef = m.Tiles.GetPolyRef(m.Tiles.GetTileRef(1, 0, 0), 0);
 
         TileStreamer st = m.CreateStreamer();
         List<byte[]> out1 = st.StreamOut(1, 0);
         Assert.Single(out1);
-        Assert.Equal(PathStatus.Partial, m.FindPath(new Vector3D(2, 0, 8), new Vector3D(46, 0, 8)).Status);
+        Assert.Equal(PathStatus.Partial, m.FindPath(new Vector3D(2, 0, 8), new Vector3D(46, 0, 8), cancellationToken: TestContext.Current.CancellationToken).Status);
         Assert.False(m.Tiles.IsValid(oldRef));
 
         st.QueueAdd(out1[0]);
         Assert.Equal(1, st.PendingCount);
         Assert.Equal(1, st.Update(8, TestContext.Current.CancellationToken));
         Assert.Equal(before, AuthoredLinkTests.TileHashes(m.Tiles));
-        PathResult p1 = m.FindPath(new Vector3D(2, 0, 8), new Vector3D(46, 0, 8));
+        PathResult p1 = m.FindPath(new Vector3D(2, 0, 8), new Vector3D(46, 0, 8), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(p0.Status, p1.Status);
         Assert.Equal(p0.Points.Count, p1.Points.Count);
         for (int i = 0; i < p0.Points.Count; i++)

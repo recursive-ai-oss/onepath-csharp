@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using RecursiveAI.OnePath.Grids;
 using RecursiveAI.OnePath.Grids.Voxel;
 
@@ -44,10 +45,10 @@ public sealed class VoxelOptions
     private int _iterationBudget = int.MaxValue;
 
     /// <summary>The moves allowed. Default 26 (<see cref="VoxelConnectivity.TwentySix"/>).</summary>
-    public VoxelConnectivity Connectivity { get; set; } = VoxelConnectivity.TwentySix;
+    public VoxelConnectivity Connectivity { get; init; } = VoxelConnectivity.TwentySix;
 
     /// <summary>Corner rule. Default <see cref="VoxelCornerRule.NoCornerCutting"/>.</summary>
-    public VoxelCornerRule Corners { get; set; } = VoxelCornerRule.NoCornerCutting;
+    public VoxelCornerRule Corners { get; init; } = VoxelCornerRule.NoCornerCutting;
 
     /// <summary>
     /// The distance estimate. Default <see cref="GridHeuristic.Auto"/>: the exact empty-grid distance of the connectivity
@@ -55,7 +56,7 @@ public sealed class VoxelOptions
     /// <see cref="GridHeuristic.Octile"/> picks the same estimate explicitly, <see cref="GridHeuristic.Zero"/> gives Dijkstra,
     /// and <see cref="GridHeuristic.Manhattan"/> overestimates for 18 and 26 moves (the paths are then not always optimal).
     /// </summary>
-    public GridHeuristic Heuristic { get; set; } = GridHeuristic.Auto;
+    public GridHeuristic Heuristic { get; init; } = GridHeuristic.Auto;
 
     /// <summary>
     /// Multiplier on the estimate, 1 by default. Above 1 the search is faster and no longer optimal. Must be finite and not negative.
@@ -64,7 +65,7 @@ public sealed class VoxelOptions
     public double HeuristicWeight
     {
         get => _heuristicWeight;
-        set
+        init
         {
             if (!(value >= 0.0) || double.IsPositiveInfinity(value))
             {
@@ -79,13 +80,13 @@ public sealed class VoxelOptions
     /// Return +∞ or NaN to forbid the move. Returning less than the grid's own cost may make the estimate inadmissible.
     /// Must be deterministic. Default none.
     /// </summary>
-    public Func<VoxelCell, VoxelCell, double, double>? StepCost { get; set; }
+    public Func<VoxelCell, VoxelCell, double, double>? StepCost { get; init; }
 
     /// <summary>Optional extra blocking: voxels for which this returns true cannot be entered (nor used as start or goal). Default none.</summary>
-    public Func<VoxelCell, bool>? Blocked { get; set; }
+    public Func<VoxelCell, bool>? Blocked { get; init; }
 
     /// <summary>When true the result lists the expanded voxels in order (debug data). Default false.</summary>
-    public bool RecordExpansions { get; set; }
+    public bool RecordExpansions { get; init; }
 
     /// <summary>
     /// Most iterations (node expansions) a query may use before it gives up with <see cref="PathStatus.BudgetExhausted"/>;
@@ -95,7 +96,7 @@ public sealed class VoxelOptions
     public int IterationBudget
     {
         get => _iterationBudget;
-        set
+        init
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
             _iterationBudget = value;
@@ -218,11 +219,12 @@ internal static class VoxelSearchRunner
         VoxelCell start,
         VoxelCell goal,
         VoxelOptions options,
-        Func<VoxelCell, VoxelPoint>? centre)
+        Func<VoxelCell, VoxelPoint>? centre,
+        CancellationToken token)
         where TCost : struct, IStepCost
     {
         SearchStatus status = state.Run(topology, cost, heuristic, start, goal, options.HeuristicWeight, options.IterationBudget, options.RecordExpansions,
-            out int goalSlot, out double pathCost, out int expandedCount);
+            out int goalSlot, out double pathCost, out int expandedCount, token);
         VoxelCell[]? expanded = null;
         if (options.RecordExpansions)
         {

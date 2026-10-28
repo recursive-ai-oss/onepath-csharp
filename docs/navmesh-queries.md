@@ -110,7 +110,9 @@ occurrence is kept), so every polygon appears once. A buffer shorter than the co
 unlimited call, for every budget: slicing only decides where the same loop pauses. `UpdatePath(int)` uses the plain filter given to
 `BeginPath`; `UpdatePath<TFilter>` must be given the same filter value each time. `FindPathAsync` runs slices of
 `iterationsPerSlice` iterations, awaiting `Task.Yield()` between them, checks the cancellation token between slices (throws
-`OperationCanceledException`) and returns exactly what the synchronous call returns.
+`OperationCanceledException`) and returns exactly what the synchronous call returns. The tier-1 `NavMesh.FindPath` takes an optional
+token too (checked every 256 expansions; cancelling throws and abandons the search, which the next call on the same query object
+replaces), and `NavMesh.FindPathAsync` is `NavMeshQuery.FindPathAsync` on a fresh query object.
 
 ## Straight path (string pulling)
 

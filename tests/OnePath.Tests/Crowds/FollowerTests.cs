@@ -137,7 +137,7 @@ public class FollowerTests
         for (int i = 0; i < 400 && found < 8; i++)
         {
             Vector3D a = CorridorWorlds.RandomFieldPoint(48, rng), b = CorridorWorlds.RandomFieldPoint(48, rng);
-            PathResult r = q.FindPath(a, b);
+            PathResult r = q.FindPath(a, b, cancellationToken: TestContext.Current.CancellationToken);
             if (r.Status != PathStatus.Partial)
             {
                 continue;
@@ -183,7 +183,7 @@ public class FollowerTests
         for (int i = 0; i < 200 && done < 25; i++)
         {
             Vector3D a = CorridorWorlds.RandomFieldPoint(40, rng), b = CorridorWorlds.RandomFieldPoint(40, rng), c = CorridorWorlds.RandomFieldPoint(40, rng);
-            if (q.FindPath(a, b).Status != PathStatus.Found || q.FindPath(a, c).Status != PathStatus.Found)
+            if (q.FindPath(a, b, cancellationToken: TestContext.Current.CancellationToken).Status != PathStatus.Found || q.FindPath(a, c, cancellationToken: TestContext.Current.CancellationToken).Status != PathStatus.Found)
             {
                 continue;
             }
@@ -199,7 +199,7 @@ public class FollowerTests
                 continue;
             }
             Assert.NotEqual(QueryStatus.NoEndNearby, f.SetDestination(q, c));
-            PathResult r = q.FindPath(f.Position, c);
+            PathResult r = q.FindPath(f.Position, c, cancellationToken: TestContext.Current.CancellationToken);
             if (r.Status != PathStatus.Found)
             {
                 continue; // the pocket the walk had entered
@@ -262,7 +262,7 @@ public class FollowerTests
         {
             a = CorridorWorlds.RandomFieldPoint(30, rng);
             b = CorridorWorlds.RandomFieldPoint(30, rng);
-            r = q.FindPath(a, b);
+            r = q.FindPath(a, b, cancellationToken: TestContext.Current.CancellationToken);
         }
         while (r.Status != PathStatus.Found || r.Length < 15);
         // An acceleration this low never reaches a tenth of full speed within the window.
@@ -429,7 +429,7 @@ public class FollowerTests
                 }
                 var fq = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
                 NearestPoly ng = fq.FindNearestPoly(b, CorridorWorlds.Extents);
-                PathResult r = ng.Poly.IsSet ? fq.FindPath(f.Position, b) : null!;
+                PathResult r = ng.Poly.IsSet ? fq.FindPath(f.Position, b, cancellationToken: TestContext.Current.CancellationToken) : null!;
                 if (r is null || r.Status != PathStatus.Found)
                 {
                     continue;

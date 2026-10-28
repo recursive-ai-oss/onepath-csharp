@@ -46,7 +46,7 @@ public sealed class Mesh3DPipeline
         Detail = new DetailSettings { SampleDistance = settings.DetailSampleDistance, MaxError = settings.DetailMaxError };
     }
 
-    /// <summary>The settings.</summary>
+    /// <summary>The navigation settings (cell sizes, agent size, partition, detail) the pipeline was created from; every stage setting below derives from them.</summary>
     public NavSettings Settings { get; }
 
     /// <summary>The mesh parameters the tiles are built for.</summary>

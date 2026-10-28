@@ -302,18 +302,22 @@ public sealed partial class HexGrid
     /// <param name="start">Start cell (column, row).</param>
     /// <param name="goal">Goal cell.</param>
     /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>. Only the heuristic, weight, step cost, blocked filter, recording and iteration budget apply; the agent size must be 1.</param>
+    /// <param name="cancellationToken">Checked every 256 iterations; cancelling throws <see cref="OperationCanceledException"/> and leaves the grid unchanged. A token that is never cancelled changes nothing.</param>
     /// <returns>The result; check <see cref="GridPath.Status"/>.</returns>
     /// <exception cref="ArgumentException">The options ask for an agent size other than 1.</exception>
-    public GridPath FindPath(Cell start, Cell goal, GridOptions? options = null) => FindPathCore(start, goal, options ?? DefaultOptions, false);
+    /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
+    public GridPath FindPath(Cell start, Cell goal, GridOptions? options = null, CancellationToken cancellationToken = default) => FindPathCore(start, goal, options ?? DefaultOptions, false, cancellationToken);
 
     /// <summary>Finds a least-cost path between two world positions; the result carries world-space cell centres.</summary>
     /// <param name="start">Start position.</param>
     /// <param name="goal">Goal position.</param>
     /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
+    /// <param name="cancellationToken">Checked every 256 iterations; cancelling throws <see cref="OperationCanceledException"/> and leaves the grid unchanged. A token that is never cancelled changes nothing.</param>
     /// <returns>The result. Positions outside the grid give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN or beyond ±2^21.</exception>
     /// <exception cref="ArgumentException">The options ask for an agent size other than 1.</exception>
-    public GridPath FindPath(WorldPoint start, WorldPoint goal, GridOptions? options = null)
+    /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
+    public GridPath FindPath(WorldPoint start, WorldPoint goal, GridOptions? options = null, CancellationToken cancellationToken = default)
     {
         bool s = TryGetCell(start, out Cell sc);
         bool g = TryGetCell(goal, out Cell gc);
@@ -325,7 +329,7 @@ public sealed partial class HexGrid
         {
             return new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
         }
-        return FindPathCore(sc, gc, options ?? DefaultOptions, true);
+        return FindPathCore(sc, gc, options ?? DefaultOptions, true, cancellationToken);
     }
 
     /// <summary>Creates an incremental search that keeps the path up to date as the grid is edited and the start moves; see <see cref="Grid.CreateReplanner"/>.</summary>
@@ -337,7 +341,7 @@ public sealed partial class HexGrid
     /// <exception cref="ArgumentException">The agent size is not 1 or the heuristic weight is not 1.</exception>
     public HexReplanner CreateReplanner(Cell start, Cell goal, GridOptions? options = null) => new(this, start, goal, options ?? DefaultOptions);
 
-    private GridPath FindPathCore(Cell start, Cell goal, GridOptions o, bool world)
+    private GridPath FindPathCore(Cell start, Cell goal, GridOptions o, bool world, CancellationToken token)
     {
         if (o.AgentSize != 1)
         {
@@ -366,15 +370,15 @@ public sealed partial class HexGrid
             {
                 var cost = default(DefaultStepCost);
                 return zero
-                    ? SearchRunner.Run(topology, cost, default(ZeroHeuristic), buffers, Width, a, b, o, centre)
-                    : SearchRunner.Run(topology, cost, new HexHeuristic(Width, Layout, scale), buffers, Width, a, b, o, centre);
+                    ? SearchRunner.Run(topology, cost, default(ZeroHeuristic), buffers, Width, a, b, o, centre, token)
+                    : SearchRunner.Run(topology, cost, new HexHeuristic(Width, Layout, scale), buffers, Width, a, b, o, centre, token);
             }
             else
             {
                 var cost = new SearchRunner.DelegateStepCost { Width = Width, Step = o.StepCost, Blocked = o.Blocked };
                 return zero
-                    ? SearchRunner.Run(topology, cost, default(ZeroHeuristic), buffers, Width, a, b, o, centre)
-                    : SearchRunner.Run(topology, cost, new HexHeuristic(Width, Layout, scale), buffers, Width, a, b, o, centre);
+                    ? SearchRunner.Run(topology, cost, default(ZeroHeuristic), buffers, Width, a, b, o, centre, token)
+                    : SearchRunner.Run(topology, cost, new HexHeuristic(Width, Layout, scale), buffers, Width, a, b, o, centre, token);
             }
         }
         finally

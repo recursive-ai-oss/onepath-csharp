@@ -152,9 +152,11 @@ public sealed class NavWorld
     /// <param name="end">End (world).</param>
     /// <param name="radius">The agent's radius.</param>
     /// <param name="options">Path options; null means the defaults.</param>
+    /// <param name="cancellationToken">Checked every 256 expansions; see <see cref="NavMesh.FindPath(Vector3D, Vector3D, Mesh.Queries.PathOptions?, System.Threading.CancellationToken)"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is not finite or beyond ±2^21, or the radius is negative.</exception>
-    public Mesh.Queries.PathResult FindPath(Vector3D start, Vector3D end, double radius, Mesh.Queries.PathOptions? options = null) =>
-        MeshFor(radius).FindPath(start, end, options);
+    /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
+    public Mesh.Queries.PathResult FindPath(Vector3D start, Vector3D end, double radius, Mesh.Queries.PathOptions? options = null, System.Threading.CancellationToken cancellationToken = default) =>
+        MeshFor(radius).FindPath(start, end, options, cancellationToken);
 
     /// <summary>Creates a crowd front with one crowd per class; see <see cref="WorldCrowd"/>.</summary>
     /// <param name="options">Crowd settings for every class; null means <see cref="CrowdOptions.Default"/>.</param>

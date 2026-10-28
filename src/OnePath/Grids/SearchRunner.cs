@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 
 namespace RecursiveAI.OnePath.Grids;
 
@@ -37,7 +38,8 @@ internal static class SearchRunner
         int start,
         int goal,
         GridOptions options,
-        Func<Cell, WorldPoint>? centre)
+        Func<Cell, WorldPoint>? centre,
+        CancellationToken token)
         where TTopology : struct, IGridTopology
         where TCost : struct, IStepCost
         where THeuristic : struct, IHeuristic
@@ -48,7 +50,7 @@ internal static class SearchRunner
             HeuristicWeight = options.HeuristicWeight,
         };
         search.Begin(start, goal);
-        SearchStatus status = search.Step(options.IterationBudget);
+        SearchStatus status = token.CanBeCanceled ? SearchDrive.Run(options.IterationBudget, search.Step, token) : search.Step(options.IterationBudget);
         Cell[]? expanded = null;
         if (options.RecordExpansions)
         {
@@ -91,7 +93,8 @@ internal static class SearchRunner
         int goal,
         GridOptions options,
         Func<Cell, WorldPoint>? centre,
-        GridAlgorithm used)
+        GridAlgorithm used,
+        CancellationToken token)
         where TJumper : struct, IJumper
         where THeuristic : struct, IHeuristic
     {
@@ -99,7 +102,7 @@ internal static class SearchRunner
         buffers.RecordExpansions = options.RecordExpansions;
         var search = new JumpSearch<TJumper, THeuristic>(jumper, heuristic, unitCost, buffers);
         search.Begin(start, goal);
-        SearchStatus status = search.Step(options.IterationBudget);
+        SearchStatus status = token.CanBeCanceled ? SearchDrive.Run(options.IterationBudget, search.Step, token) : search.Step(options.IterationBudget);
         Cell[]? expanded = null;
         if (options.RecordExpansions)
         {
