@@ -83,6 +83,9 @@ public sealed class CompactHeightfield
 
     internal CompactSpan[] SpansArray { get; }
 
+    /// <summary>An independent copy: the same grid and spans, so the later stages can write areas and regions without touching this one.</summary>
+    public CompactHeightfield Clone() => new(Frame, WalkableHeight, WalkableClimb, CellFirstArray, CellCountArray, (CompactSpan[])SpansArray.Clone()) { RegionCount = RegionCount };
+
     /// <summary>The link of <paramref name="span"/> in direction <paramref name="dir"/> (0..3): the target's index within its cell, or <see cref="NotConnected"/>.</summary>
     public static int GetConnection(in CompactSpan span, int dir) => (span.Connections >> (dir * 6)) & 0x3f;
 

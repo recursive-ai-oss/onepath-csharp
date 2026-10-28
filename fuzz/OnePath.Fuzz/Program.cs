@@ -113,6 +113,7 @@ public static class Targets
         ["voxel-scen"] = VoxelTargets.ScenarioParser,
         ["voxel-query"] = VoxelTargets.Query,
         ["navmesh-snapshot"] = NavMeshSnapshotFuzz.Run,
+        ["tile-cache"] = TileCacheFuzz.Run,
         ["grid-theta"] = ThetaTarget.Run,
         ["grid-flow"] = FlowTargets.Run,
         ["grid-state"] = GridStateFuzz.Run,
