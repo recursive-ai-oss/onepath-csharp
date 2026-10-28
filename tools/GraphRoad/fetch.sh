@@ -5,7 +5,7 @@
 # Terms (https://users.diag.uniroma1.it/challenge9/download.shtml): "Unless otherwise stated, the files available at this
 # page contain data/software in the public domain and can be freely downloaded." The road graphs are derived from US Census
 # TIGER/Line data. Verdict: OK, fetch-only; cite the challenge ("The Shortest Path Problem: Ninth DIMACS Implementation
-# Challenge", DeMetrescu, Goldberg, Johnson, eds., AMS 2009) wherever results are published.
+# Challenge", Demetrescu, Goldberg, Johnson, eds., AMS 2009) wherever results are published.
 #
 # Each file's SHA-256 is checked against manifest.tsv (name<TAB>sha256) when it has an entry, and printed otherwise.
 set -euo pipefail

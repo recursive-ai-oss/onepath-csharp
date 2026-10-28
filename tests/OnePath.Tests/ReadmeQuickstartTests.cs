@@ -163,12 +163,41 @@ public class ReadmeQuickstartTests
     }
 
     [Fact]
+    public void Quickstart_navmesh_3d_and_crowd()
+    {
+        // quickstart: navmesh-3d
+        // A 40 x 40 floor from two triangles (Y is up); real levels pass their triangle soup the same way.
+        var floor = new[]
+        {
+            new Triangle3D(new Vector3D(0, 0, 0), new Vector3D(0, 0, 40), new Vector3D(40, 0, 0)),
+            new Triangle3D(new Vector3D(40, 0, 0), new Vector3D(0, 0, 40), new Vector3D(40, 0, 40)),
+        };
+        NavMesh level = NavMesh.Build(floor, NavSettings.Humanoid);
+        PathResult route3D = level.FindPath(new Vector3D(3, 0, 3), new Vector3D(36, 0, 36));
+        // end quickstart
+        Assert.True(route3D.HasPath);
+
+        // quickstart: crowd
+        Crowd crowd = level.CreateCrowd();
+        Agent walker = crowd.Add(new Vector3D(3, 0, 3), Agent.Humanoid);
+        PathStatus status = walker.SetDestination(new Vector3D(36, 0, 36));
+        for (int i = 0; i < 20; i++)
+        {
+            crowd.Step(0.05);   // fixed time step; the crowd has no clock of its own
+        }
+        // status.HasPath(), walker.HasPath, walker.RemainingDistance, walker.Velocity, walker.Position
+        // end quickstart
+        Assert.True(status.HasPath());
+        Assert.True(walker.HasPath);
+    }
+
+    [Fact]
     public void Readme_snippets_match_these_tests()
     {
         string readme = Resource("README.md");
         string source = Resource("ReadmeQuickstartTests.cs");
         var blocks = Regex.Matches(readme, "```csharp\\r?\\n// quickstart: (?<name>[\\w-]+)\\r?\\n(?<code>.*?)```", RegexOptions.Singleline);
-        Assert.Equal(8, blocks.Count);
+        Assert.Equal(10, blocks.Count);
         foreach (Match block in blocks)
         {
             string name = block.Groups["name"].Value;

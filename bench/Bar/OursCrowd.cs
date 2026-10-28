@@ -216,7 +216,19 @@ internal static class OursCrowd
         }
         // The reference harness's agent: radius 0.6, speed 3.5, acceleration 8, query range 12 radii, separation on.
         AgentOptions opt = Agent.Humanoid with { SeparationDistance = 2.4, SeparationWeight = 0.3 };
-        var crowd = new Crowd(mesh, new CrowdOptions { MaxThreads = threads, MaxAgents = Math.Max(n, 1) });
+        // ONEPATH_CROWD_NODE_MODEL=polygon|crossing picks the corridor query's node model; unset keeps the library default.
+        var crowdOptions = new CrowdOptions { MaxThreads = threads, MaxAgents = Math.Max(n, 1) };
+        string? modelName = Environment.GetEnvironmentVariable("ONEPATH_CROWD_NODE_MODEL");
+        if (!string.IsNullOrWhiteSpace(modelName))
+        {
+            crowdOptions = modelName.Trim().ToLowerInvariant() switch
+            {
+                "polygon" => crowdOptions with { QueryNodeModel = PathNodeModel.Polygon },
+                "crossing" => crowdOptions with { QueryNodeModel = PathNodeModel.Crossing },
+                _ => throw new ArgumentException("ONEPATH_CROWD_NODE_MODEL must be 'polygon' or 'crossing', got '" + modelName + "'"),
+            };
+        }
+        var crowd = new Crowd(mesh, crowdOptions);
         var agents = new List<Agent>(n);
         for (int i = 0; i < n; i++)
         {
@@ -285,6 +297,7 @@ internal static class OursCrowd
             R(row, "threads", threads, "count"),
             R(row, "peak_rss", Process.GetCurrentProcess().PeakWorkingSet64 / (1024.0 * 1024.0), "MB"),
             new Row(row.Part, row.Id, OurScenarios.Side, "mesh_source", meshSource, "text"),
+            new Row(row.Part, row.Id, OurScenarios.Side, "node_model", crowdOptions.QueryNodeModel.ToString(), "text"),
         };
         if (agents.Count <= 2000)
         {

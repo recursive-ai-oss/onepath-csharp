@@ -1,1 +1,3 @@
-# name<TAB>sha256, pinned after the first fetch
+# name<TAB>sha256, pinned after the first fetch.
+# Still unpinned: the challenge host did not answer when this was prepared. Run fetch.sh once it is reachable,
+# re-read the terms on the download page, and add one line per file from the printed hash.
