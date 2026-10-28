@@ -32,14 +32,18 @@ public sealed class TileCache
 
     private sealed class Entry
     {
-        public Entry(int tx, int tz, CompactHeightfield chf)
+        public Entry(int tx, int tz, CompactHeightfield chf, int[]? layers)
         {
+            Layers = layers;
             TileX = tx;
             TileZ = tz;
             Chf = chf;
         }
 
         public int TileX { get; }
+
+        /// <summary>The layer of every span (set with <see cref="PartitionType.Layers"/>), decided at the first build; null for the other partitions.</summary>
+        public int[]? Layers { get; }
 
         public int TileZ { get; }
 
@@ -84,11 +88,11 @@ public sealed class TileCache
 
     internal void SetMesh(TiledNavMesh mesh) => _mesh = mesh;
 
-    internal void Store(int tx, int tz, CompactHeightfield chf)
+    internal void Store(int tx, int tz, CompactHeightfield chf, int[]? layers)
     {
         // Every rebuild of the tile starts from copies of this heightfield; its links never change, so the span graph is built once here.
         chf.ShareGraph();
-        _entries[Key(tx, tz)] = new Entry(tx, tz, chf) { LastAreas = Areas(chf), BaseAreas = Areas(chf) };
+        _entries[Key(tx, tz)] = new Entry(tx, tz, chf, layers) { LastAreas = Areas(chf), BaseAreas = Areas(chf) };
     }
 
     internal void StoreBase(int tx, int tz, List<NavTileData> output, int from) => _entries[Key(tx, tz)].BaseTiles = output.GetRange(from, output.Count - from);
@@ -276,7 +280,7 @@ public sealed class TileCache
         }
         else
         {
-            _pipeline.FinishMarked(chf, e.TileX, e.TileZ, built);
+            _pipeline.FinishMarked(chf, e.TileX, e.TileZ, e.Layers, built);
         }
         chf.ReleaseScratch();
         e.LastLayers = built.Count;

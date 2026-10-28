@@ -42,6 +42,12 @@ Then only the island removal of §5 runs (minimum area; no merging).
 implementation then labels components directly (union over the −x and −z links, ids in order of first span) and skips the sweep and the merge; when a component is smaller than the minimum area it uses the general code
 instead. A test compares both on random fields.
 
+*Layer-first partition (tile builds with `PartitionType.Layers`).* A tile build decides each span's layer once, from the geometry-only heightfield (after erosion, before any obstacle or run-time volume):
+the layer partition above with every island kept, then layers assigned as in `build3d-polys.md` (overlapping regions on different layers). The tile's regions are then the connected components of "linked, same
+layer and same area" (union over the −x and −z links, ids in order of first span), followed by the island removal of §5. Because the layers stay fixed, a rebuild after an area change is one labelling pass; it
+never takes the sweep-and-merge path. A cached rebuild and a plain build use the same layers, so they give the same bytes. A pipeline whose `Regions.Partition` step was replaced uses that step instead.
+On the generated quality levels the polygon counts and walkable area under `Layers` equal the previous rule's (one level moves two polygon groups to another layer).
+
 ## 5. Filtering and numbering (`Regions.FilterRegions`)
 
 1. *Islands:* a region with fewer than `MinRegionArea` spans that has no neighbouring region of any area (no link from any of its spans to a span with a different, non-zero region) is removed: its spans get region 0.

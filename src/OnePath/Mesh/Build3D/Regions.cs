@@ -704,6 +704,60 @@ public static class Regions
         return true;
     }
 
+    /// <summary>
+    /// Layer-first partition: a region is a connected set of linked spans that share a layer (<paramref name="layerOfSpan"/>, one entry per span, from the
+    /// tile's first build) and an area. Layers hold at most one span per column, so no sweep or merge is needed: connected components by union-find, numbered
+    /// in order of first span, then islands smaller than the minimum area are removed. Unlike <see cref="BuildLayers"/> the layers are decided once per tile
+    /// and kept, so a rebuild after an area change repartitions in one pass.
+    /// </summary>
+    internal static void BuildLayerComponents(CompactHeightfield chf, ReadOnlySpan<int> layerOfSpan, RegionSettings settings)
+    {
+        var g = SpanGraph.For(chf);
+        Span<CompactSpan> spans = chf.Spans;
+        int n = g.Count;
+        int[] nbr = g.Nbr;
+        int[] parent = Scratch.Rent<int>(n);
+        for (int i = 0; i < n; i++)
+        {
+            parent[i] = i;
+        }
+        for (int i = 0; i < n; i++)
+        {
+            byte area = spans[i].Area;
+            if (area == 0)
+            {
+                continue;
+            }
+            int layer = layerOfSpan[i];
+            int t = nbr[4 * i];
+            if (t >= 0 && spans[t].Area == area && layerOfSpan[t] == layer)
+            {
+                Union(parent, i, t);
+            }
+            t = nbr[(4 * i) + 3];
+            if (t >= 0 && spans[t].Area == area && layerOfSpan[t] == layer)
+            {
+                Union(parent, i, t);
+            }
+        }
+        int[] region = Scratch.Rent<int>(n);
+        int count = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (spans[i].Area == 0)
+            {
+                region[i] = 0;
+                continue;
+            }
+            int root = Find(parent, i);
+            region[i] = root == i ? ++count : region[root];
+        }
+        Scratch.Return(parent);
+        Finish(chf, g, region, count, settings.MinRegionArea, 0);
+        g.Release();
+        Scratch.Return(region);
+    }
+
     // The root is always the smallest index of its set, so the first span of a component is its root.
     private static int Find(int[] parent, int i)
     {
