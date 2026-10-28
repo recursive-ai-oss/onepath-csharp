@@ -157,6 +157,11 @@ internal static class GridSmoke
         using GridReplanner tick = hostGrid.CreateReplanner(new Cell(0, 0), new Cell(7, 4));
         ok &= tick.TryReplan() == PathStatus.Found && tick.CopyPath(new Cell[hostGrid.CellCount]) == tick.PathLength;
         ok &= hostGrid.ContentHash() == Grid.From(hostGrid.Cells, hostGrid.Width, hostGrid.Height).ContentHash();
+        var cacheGrid = new Grid(6, 6);
+        ulong cachedHash = cacheGrid.ContentHash();
+        cacheGrid.SetArea(1, 1, 5);
+        ok &= cacheGrid.ContentHash() != cachedHash && cacheGrid.ContentHash() == Grid.From(cacheGrid.Cells, 6, 6).ContentHash();
+        ok &= NavMesh.Build2D(cacheGrid, new NavSettings { AgentRadius = 0.1f, CellSize = 0.25, TileSize = 8 }).Tiles.TileCount > 0;
         ok &= hostGrid.TryFindNearestWalkable(new Cell(1, 1), out Cell snapped) && snapped == new Cell(1, 0) && hostGrid.CanFit(new Cell(2, 2), 1) && !hostGrid.CanFit(new Cell(2, 2), 2);
         ok &= hostGrid.TryGetFixedCost(hostGrid.FindPath(new Cell(0, 0), new Cell(0, 4)).Cells, out long fixedCost) && fixedCost == 4L << 32;
         var hexOpen = new HexGrid(6, 6);

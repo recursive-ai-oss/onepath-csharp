@@ -94,6 +94,7 @@ public sealed partial class Grid
         {
             GridStateIO.Diff(_cells, cells, Width, _changedScratch, out int bx0, out int by0, out int bx1, out int by1);
             Version = version;
+            _hashValid = false;
             Space = space;
             Areas.Restore(multipliers, areasVersion);
             // Derived caches are rebuilt on demand: versions can repeat after a rollback, so none of them may be trusted.

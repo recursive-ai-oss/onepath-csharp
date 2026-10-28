@@ -4,6 +4,14 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- **`NavMesh.Build2D(Grid, NavSettings?)`** builds a navigation mesh from a square grid: non-wall cells are walkable, cell size and origin come from `Grid.Space`, and the result equals the tile-map overload on the same walkability. Area ids and costs are not carried into the mesh (the 2D builder has one area per mesh); the agent radius comes from `NavSettings`.
+
+### Changed
+
+- `Grid.ContentHash()` caches its value: the first call after an edit, restore or area-cost change is O(cells) as before, repeated calls are O(1). The value is unchanged for every grid state.
+
 ## [1.0.0-rc.1]
 
 Release candidate for 1.0: the public API is frozen from here unless a release candidate finds a defect. Every part measures within its speed target against the native references on x64 and arm64 (see the README table); results are bit-identical across x64, arm64, WebAssembly, SIMD and scalar, and any thread count.

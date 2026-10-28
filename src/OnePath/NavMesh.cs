@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using RecursiveAI.OneMath;
+using RecursiveAI.OnePath.Grids;
 using RecursiveAI.OnePath.Mesh;
 using RecursiveAI.OnePath.Mesh.Build2D;
 
@@ -52,6 +53,36 @@ public sealed partial class NavMesh
         settings ??= NavSettings.Humanoid;
         Region r = Region.FromTileMap(cells, width, height, cellSize, origin, Mesh2DPipeline.GeometryOptions(settings));
         return Build2D(r, settings);
+    }
+
+    /// <summary>
+    /// Builds a mesh from a square <see cref="Grid"/>: every cell that is not a wall is walkable. The mesh equals
+    /// <see cref="Build2D(ReadOnlySpan{bool}, int, int, double, Vector2D, NavSettings?)"/> called with the grid's walkability, the cell size
+    /// <see cref="GridSpace.CellSize"/> and the origin (<see cref="GridSpace.OriginX"/>, <see cref="GridSpace.OriginY"/>) of <see cref="Grid.Space"/>:
+    /// grid column x is world X, grid row y is world Z, and the floor is at <see cref="NavSettings.Height"/>.
+    /// <para>
+    /// Clearance: the walkable cells are shrunk by <see cref="NavSettings.AgentRadius"/> like every 2D build, so an agent's centre may
+    /// stand where its disc fits inside the walkable cells; the grid's own agent-size clearance is not used.
+    /// Areas: the 2D builder gives every polygon of a mesh one area (<see cref="NavSettings.Area"/>), so the grid's area ids and
+    /// <see cref="Grid.Areas"/> multipliers are not carried over; only wall versus not-wall is. Use a query filter for per-area costs.
+    /// A grid with no walkable cell gives a mesh with no polygons (paths fail with a status, they do not throw).
+    /// </para>
+    /// </summary>
+    /// <param name="grid">The grid; <see cref="Grid.Space"/> gives cell size and origin (default: unit cells at the origin).</param>
+    /// <param name="settings">Build settings; null means <see cref="NavSettings.Humanoid"/>.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A grid line is beyond ±2^21, or a setting is out of range.</exception>
+    public static NavMesh Build2D(Grid grid, NavSettings? settings = null)
+    {
+        ArgumentNullException.ThrowIfNull(grid);
+        ReadOnlySpan<byte> areas = grid.Cells;
+        var walkable = new bool[areas.Length];
+        for (int i = 0; i < walkable.Length; i++)
+        {
+            walkable[i] = areas[i] != AreaCosts.Wall;
+        }
+        GridSpace space = grid.Space;
+        return Build2D(walkable, grid.Width, grid.Height, space.CellSize, new Vector2D(space.OriginX, space.OriginY), settings);
     }
 
     /// <summary>Builds a mesh from an already resolved walkable region (for example after boolean operations with obstacles).</summary>

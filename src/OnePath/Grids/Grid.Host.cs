@@ -27,7 +27,7 @@ public sealed partial class Grid
     /// <summary>
     /// A 64-bit hash of what decides search results: the dimensions, every cell's area id and the 255 area multipliers. It does not
     /// include <see cref="Version"/>, <see cref="Space"/>, edit history or any option, so two grids with the same cells and area
-    /// costs hash equal wherever and however they were built. Costs O(cells), allocates nothing.
+    /// costs hash equal wherever and however they were built. The first call after an edit costs O(cells); repeated calls with no edit in between return a cached value in O(1). Allocates nothing.
     /// <para>
     /// Definition (normative, stable across platforms and versions of this package; docs/grids.md): feed 64-bit little-endian words
     /// <c>w</c> into <c>h = rotl(h ^ (w · P2), 31) · P1 + P3</c> starting from <c>h = P1 ^ P2</c>, with
@@ -39,6 +39,20 @@ public sealed partial class Grid
     /// </summary>
     /// <returns>The hash.</returns>
     public ulong ContentHash()
+    {
+        // The result is kept until a cell edit, a restore or an area-cost change; those are the only inputs to the hash.
+        if (_hashValid && _hashAreasVersion == Areas.Version)
+        {
+            return _hashCache;
+        }
+        ulong result = ComputeContentHash();
+        _hashCache = result;
+        _hashAreasVersion = Areas.Version;
+        _hashValid = true;
+        return result;
+    }
+
+    private ulong ComputeContentHash()
     {
         ulong h = HashP1 ^ HashP2;
         h = HashWord(h, (uint)Width | ((ulong)(uint)Height << 32));
