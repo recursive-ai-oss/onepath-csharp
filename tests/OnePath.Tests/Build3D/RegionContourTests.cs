@@ -476,7 +476,7 @@ public class ContourTests
             float maxErr = rng.Int(3) == 0 ? 0f : (rng.Int(2) + 1) * 0.65f;
             var rs = new RegionSettings { Partition = types[n % 3], MinRegionArea = rng.Int(2) * 4, MergeRegionArea = (types[n % 3] == PartitionType.Layers) ? 0 : rng.Int(3) * 25 };
             Regions.Build(c, rs);
-            var set = Contours.Build(c, new ContourSettings { MaxError = maxErr, MaxEdgeLength = rng.Int(3) * 4, KeepRawVertices = true });
+            var set = Contours.Build(c, new ContourSettings { MaxError = maxErr, MaxEdgeLength = rng.Int(3) * 4, KeepRawVertices = true, StraightRegionBorders = false });
             fallbacks += set.RawFallbacks;
             dropped += set.DroppedContours;
             int cat = (single ? 2 : 0) + (maxErr == 0f ? 1 : 0);
@@ -491,6 +491,84 @@ public class ContourTests
         // regions so small that simplification would erase them: those are re-simplified more strictly, so their neighbours' edges no longer line up.
         Assert.True(rev[1] == pairs[1] && rev[3] == pairs[3], stats);
         Assert.True(rev[0] >= pairs[0] * 0.8 && rev[2] >= pairs[2] * 0.8, stats);
+    }
+
+    // Borders shared with a region of the same area stay straight chords between their ends: walls keep the error bound, nothing crosses, both
+    // sides of a border agree, and the loops never have more vertices than with every border refined.
+    [Fact]
+    public void StraightRegionBordersKeepWallsExact()
+    {
+        var rng = new TestRng(733);
+        long straightVerts = 0, refinedVerts = 0;
+        int pairs = 0, matching = 0, loops = 0, pairsRefined = 0, matchingRefined = 0;
+        for (int n = 0; n < 300; n++)
+        {
+            var c = Fields.Random(rng, 8, 24, n % 2 == 0);
+            Regions.Build(c, new RegionSettings { Partition = PartitionType.Watershed, MinRegionArea = 0, MergeRegionArea = 0 });
+            const float maxErr = 1.3f;
+            ContourSet s = Contours.Build(c, new ContourSettings { MaxError = maxErr, MaxEdgeLength = 0, KeepRawVertices = true, StraightRegionBorders = true });
+            ContourSet f = Contours.Build(c, new ContourSettings { MaxError = maxErr, MaxEdgeLength = 0, KeepRawVertices = true, StraightRegionBorders = false });
+            straightVerts += s.Contours.Sum(k => k.Vertices.Length);
+            refinedVerts += f.Contours.Sum(k => k.Vertices.Length);
+            var edges = new HashSet<(int, int, int, int, int, int)>();
+            foreach (Contour k in s.Contours)
+            {
+                loops++;
+                ContourVertex[] v = k.Vertices;
+                Assert.True(Contours_Area2(v) > 0);
+                for (int i = 0; i < v.Length; i++)
+                {
+                    for (int j = i + 2; j < v.Length; j++)
+                    {
+                        if (i == 0 && j == v.Length - 1)
+                        {
+                            continue;
+                        }
+                        Assert.False(ProperlyCross(v[i], v[(i + 1) % v.Length], v[j], v[(j + 1) % v.Length]));
+                    }
+                    ContourVertex a = v[i], b = v[(i + 1) % v.Length];
+                    if (a.Neighbor > 0 && a.Neighbor != k.Region)
+                    {
+                        edges.Add((a.X, a.Z, b.X, b.Z, k.Region, a.Neighbor));
+                    }
+                }
+                // Wall vertices stay within the error bound of the simplified outline.
+                foreach (ContourVertex p in k.RawVertices!.Where(q => q.Neighbor <= 0))
+                {
+                    double best = double.MaxValue;
+                    for (int i = 0; i < v.Length; i++)
+                    {
+                        best = Math.Min(best, DistToSegment(v[i], v[(i + 1) % v.Length], p));
+                    }
+                    Assert.True(best <= maxErr + 1e-9, $"wall vertex {p} is {best} from the simplified contour");
+                }
+            }
+            foreach (var (x0, z0, x1, z1, a, b) in edges)
+            {
+                pairs++;
+                matching += edges.Contains((x1, z1, x0, z0, b, a)) ? 1 : 0;
+            }
+            var fe = new HashSet<(int, int, int, int, int, int)>();
+            foreach (Contour k in f.Contours)
+            {
+                for (int i = 0; i < k.Vertices.Length; i++)
+                {
+                    ContourVertex a = k.Vertices[i], b = k.Vertices[(i + 1) % k.Vertices.Length];
+                    if (a.Neighbor > 0 && a.Neighbor != k.Region)
+                    {
+                        fe.Add((a.X, a.Z, b.X, b.Z, k.Region, a.Neighbor));
+                    }
+                }
+            }
+            foreach (var (x0, z0, x1, z1, a, b) in fe)
+            {
+                pairsRefined++;
+                matchingRefined += fe.Contains((x1, z1, x0, z0, b, a)) ? 1 : 0;
+            }
+        }
+        Assert.True(loops > 500, $"{loops} loops");
+        Assert.True(straightVerts <= refinedVerts, $"{straightVerts} straight vs {refinedVerts} refined");
+        Assert.True(pairs > 300 && (double)matching * pairsRefined >= (double)matchingRefined * pairs * 0.95, $"{matching}/{pairs} shared edges match, refined {matchingRefined}/{pairsRefined}");
     }
 
     // The layer partition takes a shortcut (union-find over linked same-area spans) when no column holds two walkable spans; it must give exactly the

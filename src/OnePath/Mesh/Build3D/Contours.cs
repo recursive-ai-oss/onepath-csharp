@@ -189,7 +189,7 @@ public static class Contours
             var rawOf = new List<ContourVertex[]>();
             foreach (var (raw, area) in outers[r]!)
             {
-                List<ContourVertex>? p = Simplify(raw, settings, ref fallbacks);
+                List<ContourVertex>? p = Simplify(raw, settings, ref fallbacks, regionArea, r);
                 if (p == null)
                 {
                     dropped++;
@@ -203,7 +203,7 @@ public static class Contours
             {
                 foreach (ContourVertex[] rawHole in holes[r]!)
                 {
-                    List<ContourVertex>? h = Simplify(rawHole, settings, ref fallbacks);
+                    List<ContourVertex>? h = Simplify(rawHole, settings, ref fallbacks, regionArea, r);
                     if (h == null)
                     {
                         // A hole too small to survive simplification: the outline stays solid there.
@@ -364,12 +364,14 @@ public static class Contours
     // ---- simplification ----
 
     // A loop that simplifies to nothing (a tiny region) is retried without the error allowance, then kept raw: a region never disappears.
-    private static List<ContourVertex>? Simplify(ContourVertex[] raw, ContourSettings st, ref int fallbacks)
+    // Straight region borders can make a loop cross itself; it is then simplified again with every stretch refined before the raw loop is used.
+    private static List<ContourVertex>? Simplify(ContourVertex[] raw, ContourSettings st, ref int fallbacks, byte[] regionArea, int region)
     {
-        List<ContourVertex>? p = SimplifyCore(raw, st.MaxError, st.MaxEdgeLength, ref fallbacks);
+        bool straight = st.StraightRegionBorders;
+        List<ContourVertex>? p = SimplifyCore(raw, st.MaxError, st.MaxEdgeLength, ref fallbacks, straight ? regionArea : null, region, st.BorderRegion);
         if (p == null && st.MaxError > 0f)
         {
-            p = SimplifyCore(raw, 0f, st.MaxEdgeLength, ref fallbacks);
+            p = SimplifyCore(raw, 0f, st.MaxEdgeLength, ref fallbacks, straight ? regionArea : null, region, st.BorderRegion);
         }
         if (p == null)
         {
@@ -380,9 +382,13 @@ public static class Contours
     }
 
     // Returns null when the loop degenerates.
-    private static List<ContourVertex>? SimplifyCore(ContourVertex[] raw, float maxError, int maxEdgeLength, ref int fallbacks)
+    private static List<ContourVertex>? SimplifyCore(ContourVertex[] raw, float maxError, int maxEdgeLength, ref int fallbacks, byte[]? straightAreas, int region, int borderRegion)
     {
         int n = raw.Length;
+        if (maxError <= 0f)
+        {
+            straightAreas = null;
+        }
         var keep = new bool[n];
         bool portal = false;
         for (int i = 0; i < n; i++)
@@ -486,7 +492,10 @@ public static class Contours
             }
             // Split where the outline deviates too much, or (wall edges only) where the edge is too long: at the raw vertex halfway along it.
             long cdx = pb.X - pa.X, cdz = pb.Z - pa.Z;
-            if (bestD > maxErr2)
+            // Douglas & Peucker refinement. A stretch shared with another region of the same area is left as the straight chord between its ends: both
+            // regions see the same chord, nothing is lost at a wall, and it saves the vertices a staircase-shaped border would otherwise keep.
+            bool straight = straightAreas != null && pa.Neighbor > 0 && pa.Neighbor != borderRegion && straightAreas[pa.Neighbor] == straightAreas[region];
+            if (bestD > maxErr2 && !straight)
             {
                 keep[best % n] = true;
                 stack.Push((ia, best));
@@ -527,6 +536,10 @@ public static class Contours
         }
         if (HasProperCrossing(outLoop))
         {
+            if (straightAreas != null)
+            {
+                return SimplifyCore(raw, maxError, maxEdgeLength, ref fallbacks, null, region, borderRegion);
+            }
             fallbacks++;
             return new List<ContourVertex>(raw);
         }

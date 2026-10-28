@@ -15,6 +15,7 @@ internal static class Build3DRegionScenarios
         Scenarios.Register("build3d/regions-layers", ctx => Regions(ctx, PartitionType.Layers));
         Scenarios.Register("build3d/contours", Contours);
         Scenarios.Register("build3d/regions-contours-terrain", Terrain);
+        Scenarios.Register("build3d/contours-straight-borders", StraightBorders);
     }
 
     private static ulong s_seed;
@@ -92,6 +93,47 @@ internal static class Build3DRegionScenarios
             CompactHeightfield chf = Field(24 + (n % 5), 22 + (n % 11));
             Mesh.Build3D.Regions.Build(chf, new RegionSettings { Partition = (PartitionType)(n % 3), MinRegionArea = 4, MergeRegionArea = (n % 3 == 2) ? 0 : 30 });
             WriteContours(ctx, Mesh.Build3D.Contours.Build(chf, new ContourSettings { MaxError = (n % 4) * 0.65f, MaxEdgeLength = (n % 3) * 6 }));
+        }
+    }
+
+    // A wide plane with pillars: the watershed splits it into large regions with long diagonal borders, where straight borders save vertices.
+    private static void StraightBorders(ScenarioContext ctx)
+    {
+        s_seed = 14;
+        const int W = 120;
+        var hf = new SolidHeightfield(new HeightfieldFrame(0, 0, 0, 1f, 1f, W, W, 24));
+        var blocked = new bool[W * W];
+        for (int p = 0; p < 14; p++)
+        {
+            int px = 6 + Next(W - 14), pz = 6 + Next(W - 14);
+            for (int dz = 0; dz < 3; dz++)
+            {
+                for (int dx = 0; dx < 3; dx++)
+                {
+                    blocked[((pz + dz) * W) + px + dx] = true;
+                }
+            }
+        }
+        for (int c = 0; c < W * W; c++)
+        {
+            if (!blocked[c])
+            {
+                hf.AddSpan(c, 0, 1, (c / W) < W / 2 ? (byte)63 : (byte)10, 0);
+            }
+        }
+        CompactHeightfield chf = CompactHeightfield.Build(hf, 3, 1);
+        Mesh.Build3D.Regions.Build(chf, new RegionSettings { Partition = PartitionType.Watershed, MinRegionArea = 4, MergeRegionArea = 0 });
+        WriteRegions(ctx, chf);
+        foreach (bool straight in new[] { false, true })
+        {
+            ContourSet set = Mesh.Build3D.Contours.Build(chf, new ContourSettings { MaxError = 1.3f, MaxEdgeLength = 12, StraightRegionBorders = straight });
+            WriteContours(ctx, set);
+            int total = 0;
+            foreach (Contour k in set.Contours)
+            {
+                total += k.Vertices.Length;
+            }
+            ctx.Write(total);
         }
     }
 

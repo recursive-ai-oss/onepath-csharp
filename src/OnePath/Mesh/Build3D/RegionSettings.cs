@@ -55,6 +55,12 @@ public sealed class ContourSettings
     /// <summary>Wall edges longer than this many cells are split. Default 12. 0 disables.</summary>
     public int MaxEdgeLength { get; set; } = 12;
 
+    /// <summary>Region id of a tile's border band, or 0 for none. Stretches next to it are simplified like walls: their ends meet the neighbouring tile's polygons. Default 0.</summary>
+    public int BorderRegion { get; set; }
+
+    /// <summary>Leave a border shared with a region of the same area as the straight chord between its two ends (no refinement; walls and borders between areas are always refined). Default true. A loop that crosses itself because of this is simplified again with every border refined.</summary>
+    public bool StraightRegionBorders { get; set; } = true;
+
     /// <summary>Keep the unsimplified loops in <see cref="Contour.RawVertices"/> (for checking and debugging). Default false.</summary>
     public bool KeepRawVertices { get; set; }
 

@@ -72,10 +72,13 @@ A loop with positive signed area (counter-clockwise) is an outline of the region
 1. *Kept vertices.* Every vertex whose neighbour differs from its predecessor's is kept (the *portals*). If there is none (one neighbour value all round), keep the lexicographically smallest and largest `(x, z)` vertices (lowest index on ties).
 2. *Refinement.* Each stretch between consecutive kept vertices `a → b` is handled by a work stack, as in Douglas & Peucker (1973): among the raw vertices strictly inside the stretch, find the one farthest from the segment `a b`
    (distance to the *segment*: the perpendicular distance, or the distance to the nearer end when the foot falls outside; computed from integers, compared as `double`; ties go to the lexicographically smaller `(x, z)`, so the two sides of a shared boundary agree).
-   If its squared distance exceeds `MaxError²` it is kept and both halves are refined. Otherwise, if `MaxEdgeLength > 0`, the stretch is a wall (neighbour value 0) and the squared chord length exceeds `MaxEdgeLength²`, the raw vertex halfway along the stretch (index `(ia + ib) / 2`) is kept and both halves are refined.
+   If its squared distance exceeds `MaxError²` it is kept and both halves are refined.
+   *Straight region borders* (`StraightRegionBorders`, default on, and only while `MaxError > 0`): a stretch whose neighbour value is a region `N > 0` that is not `BorderRegion` and has the same area id as the contour's region is not refined at all: it stays the single chord between its two ends.
+   Walls, tile-grid borders (−1), the band `BorderRegion` and borders between regions of different areas are always refined. Both regions see the same chord, so shared borders still agree, and the border is only a seam between two walkable regions:
+   it carries no obstacle, so its exact shape is free (the same freedom lets the polygon stage merge across fewer vertices). Region borders otherwise keep a vertex for every staircase step that strays more than `MaxError`. Otherwise, if `MaxEdgeLength > 0`, the stretch is a wall (neighbour value 0) and the squared chord length exceeds `MaxEdgeLength²`, the raw vertex halfway along the stretch (index `(ia + ib) / 2`) is kept and both halves are refined.
    Portal and border edges are never length-split.
-3. Consecutive kept vertices at the same position are merged (the first stays). If fewer than 3 vertices remain, the area is 0 or its sign differs from the raw loop's, the loop is simplified again with `MaxError = 0`; if that fails too the raw loop is used. If the simplified loop has two edges that cross properly (strictly), the raw loop is used. Both cases count in `RawFallbacks`.
-   Therefore every raw vertex lies within `MaxError` of the simplified outline (except in fallbacks, where the loop is raw), every portal vertex survives, and a region never disappears.
+3. Consecutive kept vertices at the same position are merged (the first stays). If fewer than 3 vertices remain, the area is 0 or its sign differs from the raw loop's, the loop is simplified again with `MaxError = 0`; if that fails too the raw loop is used. If the simplified loop has two edges that cross properly (strictly) and straight region borders were in effect, the loop is simplified again with every stretch refined; if it still crosses, the raw loop is used. Both cases count in `RawFallbacks`.
+   Therefore every raw vertex of a wall stretch lies within `MaxError` of the simplified outline (every raw vertex, with straight region borders off; fallbacks keep the raw loop), every portal vertex survives, and a region never disappears.
 
 With `MaxError = 0` both sides of every shared boundary keep exactly the same vertices. With a positive error they do too, except around regions so small that simplification would erase them.
 
@@ -89,7 +92,7 @@ Because every loop is simplified on its own, a simplified hole may cross the sim
 
 ## 7. Defaults
 
-`RegionSettings`: watershed, `MinRegionArea` 64, `MergeRegionArea` 400 (spans; 8² and 20², the usual reference values). `ContourSettings`: `MaxError` 1.3, `MaxEdgeLength` 12 cells.
+`RegionSettings`: watershed, `MinRegionArea` 64, `MergeRegionArea` 400 (spans; 8² and 20², the usual reference values). `ContourSettings`: `MaxError` 1.3, `MaxEdgeLength` 12 cells, `StraightRegionBorders` true, `BorderRegion` 0 (the tile pipeline sets it to its border band's id).
 
 ## 8. Determinism
 
