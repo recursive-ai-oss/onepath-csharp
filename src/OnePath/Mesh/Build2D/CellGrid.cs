@@ -52,6 +52,19 @@ internal sealed class CellGrid
         }
     }
 
+    /// <summary>
+    /// The cells covering a bounding box, clamped to the grid, when there are at most <paramref name="maxCells"/> of them
+    /// (the box may extend past the grid: nothing is stored there).
+    /// </summary>
+    public bool BoxCells(long x0, long y0, long x1, long y1, int maxCells, out int c0, out int c1, out int r0, out int r1)
+    {
+        c0 = (int)Math.Max(0, Math.Min(Cols - 1, (x0 - MinX) >> Shift));
+        c1 = (int)Math.Max(0, Math.Min(Cols - 1, (x1 - MinX) >> Shift));
+        r0 = (int)Math.Max(0, Math.Min(Rows - 1, (y0 - MinY) >> Shift));
+        r1 = (int)Math.Max(0, Math.Min(Rows - 1, (y1 - MinY) >> Shift));
+        return (long)(c1 - c0 + 1) * (r1 - r0 + 1) <= maxCells;
+    }
+
     public int ColOf(long x) => (int)((x - MinX) >> Shift);
 
     public int RowOf(long y) => (int)((y - MinY) >> Shift);

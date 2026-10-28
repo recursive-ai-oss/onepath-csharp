@@ -2,7 +2,7 @@
 
 Normative. A port must reproduce the same expansion order, costs and paths from this text. Code lives in
 `src/OnePath/Grids/`. The tier-1 types (`Grid`, `HexGrid`, `VoxelGrid`, their options and results, `Cell`, `WorldPoint`, `VoxelCell`,
-`VoxelPoint`, `GridSpace`, `VoxelSpace`, `AreaCosts`, `HexCoord`, `GridAlgorithm`, `PathOutcome`, `GridFlowField` and the replanners) live in
+`VoxelPoint`, `GridSpace`, `VoxelSpace`, `AreaCosts`, `HexCoord`, `GridAlgorithm`, `PathStatus`, `GridFlowField` and the replanners) live in
 the root namespace `RecursiveAI.OnePath`; the search cores, topologies, heuristics, buffers and indexes (tiers 2 and 3) live in
 `RecursiveAI.OnePath.Grids` and `.Grids.Voxel`.
 
@@ -97,7 +97,7 @@ admissible and consistent for the default cost model; hooks that lower costs, or
 **Sliced search.** `AStar.Step(n)` performs at most `n` iterations and returns `Running` while work remains;
 `Run()` is `Step(int.MaxValue)` with cooperative cancellation; time is never consulted. Any sequence of budgets gives
 the same expansion order, path and cost as one unsliced run. The tier-1 `GridOptions.IterationBudget` ends the query with
-`PathOutcome.BudgetExhausted` after that many iterations.
+`PathStatus.BudgetExhausted` after that many iterations.
 
 ## API tiers
 
@@ -116,7 +116,7 @@ the same expansion order, path and cost as one unsliced run. The tier-1 `GridOpt
    Tier 1 picks them with `GridOptions.Algorithm`.
 
 Debug data: `GridOptions.RecordExpansions` / `GridSearchBuffers.RecordExpansions` record the expanded nodes in order
-(`GridPath.ExpandedCells`, `GridSearchBuffers.ExpandedNodes`); the path is `GridPath.Cells` / `WorldPoints`.
+(`GridPath.ExpandedCells`, `GridSearchBuffers.ExpandedNodes`); the path is `GridPath.Cells` / `Points`.
 
 ## Jump point search (JPS, JPS+)
 
@@ -163,8 +163,9 @@ set bit (lowest bit forwards, highest backwards) is the stop; a goal on the line
 grid edits immediately (a bit per edit in each orientation). It finds exactly the cells the cell-by-cell scan
 (`OnlineJumper`) finds.
 
-**JPS+ tables** (`JpsPlusIndex`). Per cell and direction one signed 16-bit value, layout `table[direction * cellCount +
-cell]`, direction order as above, cells row-major. Value `d > 0`: the next jump point is `d` steps away; `d <= 0`: no
+**JPS+ tables** (`JpsPlusIndex`). Per cell and direction one signed 16-bit value, stored cell by cell (`table[cell * 8 +
+direction]`, so the eight values of a cell share a cache line; `Tables` returns the same numbers as a direction-major copy,
+`[direction * cellCount + cell]`), direction order as above, cells row-major. Value `d > 0`: the next jump point is `d` steps away; `d <= 0`: no
 jump point before a wall, and `-d` is the number of walkable cells before it. A wall cell has all zeros. Straight direction:
 look at the next cell `q`; if `q` is a wall, 0; if `q` has a forced neighbour for this arrival, 1; else the value of `q`
 moved one step further (`v + 1` if `v > 0`, else `v - 1`). Diagonal: if the step is illegal (side cell or target a wall), 0; if
@@ -188,6 +189,53 @@ table index is independent of costs, so changing a multiplier needs no rebuild.
 
 **Cost model of preprocessing.** O(8 · cells) time to build, 16 bytes per cell; the block map takes cells/4 bytes.
 
+## The specialised octile searches (one-line A*, JPS, JPS+; `Grids/Fast/`)
+
+`Grid.FindPath` runs these when the query qualifies for JPS above (eight moves, no corner cutting, agent size 1, one cost for every
+area, no callbacks, weight 1, octile or zero estimate) with `GridAlgorithm.AStar`, `Jps` or `JpsPlus`. Everything else, sliced
+searches (`AStar<,,>`, `JumpSearch<,>`), snapshots and replanning use the generic cores, which are unchanged. Costs are optimal
+and equal to the generic cores'; the returned path may be another path of that cost.
+
+**Exact costs.** A path costs `a + b·√2` for `a` straight and `b` diagonal steps. The searches keep the integer pair `(a, b)` per
+node. Keys are computed from pairs: `g = a + b·√2`, `f = (a + (max − min)) + (b + min)·√2` with `min`/`max` of the absolute
+column and row distance to the goal, each evaluated as one product and sums of doubles. Equal pairs give identical doubles, so
+nodes with equal `f` in exact arithmetic tie exactly (cell-by-cell double sums would differ in the last bit and break ties by
+noise); distinct pairs differ by more than 1e-6 for any grid that fits in memory, far above rounding, so double comparison orders
+them exactly. A path's reported cost is `m · (a + b·√2)` for the cell cost `m`. The estimate is consistent, so a closed node is
+final and never reopened.
+
+**Open list order.** Smaller `f`; on equal `f` larger `g` (rounded to float32, which is IEEE-exact), then smaller node index
+(A*, with decrease-key in a 4-ary heap). The jump point searches use a 4-ary heap without decrease-key (an improved node is
+pushed again; the older entry is skipped when it pops, the node being closed) with one addition: entries whose `f` equals the `f`
+of the entry popped last go on a stack and pop first, last in first out, before the heap resumes (a heap entry with a smaller `f`
+than the current level wins). The order is therefore fully determined by the sequence of pushes. With this tie-break A*
+expands exactly the nodes that a (g descending) open list does: 3 594 911 expansions on dao-brc000d.
+
+**A\*** pads the map with a wall all round and keeps wall cells in the node array as permanently closed records, so a neighbour
+test is a load of the record the relaxation needs anyway. Node record 16 bytes: the pair, the heap slot, and a tag
+`generation << 4 | arrival direction << 1 | closed`; the generation increases per search so nothing is cleared between queries.
+
+**Jump point searches** (`OctileJump<TFinder>`, finders `BitFinder` and `TableFinder`). Node record 16 bytes (pair, parent, tag).
+A neighbour byte per cell (`OctileMap.Neighbors`, bit d = neighbour in direction d walkable) and a table of 8 × 256 entries
+(`OctileMap.Successors`, `JumpRules.Successors` evaluated once for every arrival direction and neighbour byte) give the pruned
+successor set without cell lookups; a diagonal step is allowed when the neighbour byte has the step's two components and the
+diagonal itself. The bit rows and columns of `OctileMap` are padded with 64 blocked positions before each line and a blocked word
+after it, so scans never leave the array and the carry between words needs no test. A goal on the scan line is a stop bit of its own.
+The JPS+ finder reads `JpsPlusIndex` with the goal bounding above.
+
+**Improved pruning** (`BitFinder`/`TableFinder` with `improvedPruning`; Harabor & Grastien 2014, section "Improved Pruning
+Rules"; not reachable from the one-line API). Without corner cutting every diagonal jump point is an intermediate turning point.
+A diagonal run from a node therefore does not stop at such cells: at each cell of the run it offers the straight jump points
+(or the goal) reached from it, with the node as their parent and the straight direction as their arrival direction, and it
+continues until a wall; the run's last cell is not a node. A hop from a node to such a successor is walked diagonal steps first, then
+straight, when the path is written out, which is obstacle free because it is the run followed by the scan. In a test on dao-brc000d
+this expands 83 678 nodes against 210 340 for JPS and 83 501 for the black-box reference's improved JPS.
+
+**Bar driver.** `bench/Bar/OursGrid.cs` loads the map and builds the bit maps and tables outside `search_time` (`preprocess_time`
+reports them), runs 40 untimed warm-up instances, then times one pass over the scenario (`ONEPATH_GRID_PASSES=N` takes the
+best of N passes in the process). The search loops are marked `AggressiveOptimization` so that short queries run fully optimised
+code from the first call.
+
 ## Any-angle search (Theta*, Lazy Theta*)
 
 Papers: Nash, Daniel, Koenig & Felner 2007 (*Theta\*: Any-Angle Path Planning on Grids*; JAIR 2010) and Nash, Koenig & Tovey 2010
@@ -210,7 +258,7 @@ Integers only. With `dx = x1-x0`, `dy = y1-y0`, `nx = |dx|`, `ny = |dy|`, steps 
 one cost multiplier `m` for every area, no `StepCost`/`Blocked` callbacks, heuristic `Auto`, `Euclidean` or `Zero`.
 The cost of a segment is `m * sqrt(dx*dx + dy*dy)` (`dx`, `dy` integer, the sum exact in 64 bits, one correctly rounded square root),
 so a straight cell step costs `m`, a diagonal one `m * Sqrt2` as in A*. A path's cost is the sum of its segment costs added in path order
-from 0 (`GridPath.Cost`; `Cells` and `WorldPoints` list the waypoints only). Heuristic: `m * sqrt(dx*dx + dy*dy)` to the goal
+from 0 (`GridPath.Cost`; `Cells` and `Points` list the waypoints only). Heuristic: `m * sqrt(dx*dx + dy*dy)` to the goal
 (`EuclideanHeuristic`), weight `GridOptions.HeuristicWeight`.
 
 **Search** (`ThetaSearch<THeuristic>`, tier 2). The open set is the grid core's `OpenSet` (smaller f, larger g, smaller cell index); one

@@ -96,7 +96,7 @@ internal static class ReplanScenarios
         {
             p = r.Replan(budget);
         }
-        while (p.Status == PathOutcome.BudgetExhausted);
+        while (p.Status == PathStatus.BudgetExhausted);
         return p;
     }
 

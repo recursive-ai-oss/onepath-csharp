@@ -37,7 +37,7 @@ grid search's loop transplanted onto CSR, and it uses the grid core's `OpenSet` 
   `(g' + h, g')`, reopening `v` if it was closed. Equal-cost alternatives keep the first parent found.
 - `ExpandedCount` counts expansions (the goal's pop is not one); `Iterations` counts pops.
 - Sliced search: `Step(n)` does at most `n` iterations; any sequence of budgets gives the same result as one run.
-  Tier-1 `GraphOptions.IterationBudget` ends the query with `PathOutcome.BudgetExhausted` after that many iterations.
+  Tier-1 `GraphOptions.IterationBudget` ends the query with `PathStatus.BudgetExhausted` after that many iterations.
   `Run(token)` checks cancellation every 256 iterations.
 
 ### Estimates

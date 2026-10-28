@@ -292,7 +292,7 @@ public class TileSliceTests
         Array.Fill(cells, true);
         NavMesh nav = NavMesh.Build2D(cells, 40, 10, 1.0, new Vector2D(0, 0), NavSettings.Humanoid with { TileSize = 8 });
         PathResult r = nav.FindPath(new Vector3D(2, 0, 5), new Vector3D(38, 0, 5));
-        Assert.Equal(PathStatus.Success, r.Status);
+        Assert.Equal(PathStatus.Found, r.Status);
         Assert.True(r.Points.Count >= 2);
         Assert.Equal(36.0, r.Points[^1].Position.X - r.Points[0].Position.X, 2);
     }

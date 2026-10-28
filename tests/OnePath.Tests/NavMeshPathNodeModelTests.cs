@@ -67,10 +67,10 @@ public class NavMeshPathNodeModelTests
         {
             pairs.Add((polys[rng.Int(polys.Count)], polys[rng.Int(polys.Count)]));
         }
-        PathStatus Run(NavMeshQuery q, PolyRef s, PolyRef e, PolyRef[] buffer, out int count)
+        QueryStatus Run(NavMeshQuery q, PolyRef s, PolyRef e, PolyRef[] buffer, out int count)
         {
-            PathStatus st = q.BeginPath(s, e, Centre(m, s), Centre(m, e), filter);
-            if (st != PathStatus.InProgress)
+            QueryStatus st = q.BeginPath(s, e, Centre(m, s), Centre(m, e), filter);
+            if (st != QueryStatus.InProgress)
             {
                 count = 0;
                 return st;
@@ -90,8 +90,8 @@ public class NavMeshPathNodeModelTests
                 {
                     continue;
                 }
-                PathStatus sa = Run(reused, s, e, a, out int na);
-                PathStatus sb = Run(fresh, s, e, b, out int nb);
+                QueryStatus sa = Run(reused, s, e, a, out int na);
+                QueryStatus sb = Run(fresh, s, e, b, out int nb);
                 Assert.Equal(sb, sa);
                 Assert.Equal(nb, na);
                 Assert.True(a.AsSpan(0, na).SequenceEqual(b.AsSpan(0, nb)));
@@ -126,21 +126,21 @@ public class NavMeshPathNodeModelTests
                 QueryFilter f = MixedFilter(r);
                 PolyRef a = all[r.Int(all.Count)], b = all[r.Int(all.Count)];
                 Vector3D pa = Centre(m, a), pb = Centre(m, b);
-                PathStatus s1 = cross.BeginPath(a, b, pa, pb, f);
-                PathStatus s2 = poly.BeginPath(a, b, pa, pb, f);
+                QueryStatus s1 = cross.BeginPath(a, b, pa, pb, f);
+                QueryStatus s2 = poly.BeginPath(a, b, pa, pb, f);
                 Assert.Equal(s1, s2);
-                if (s1 != PathStatus.InProgress)
+                if (s1 != QueryStatus.InProgress)
                 {
                     continue;
                 }
                 s1 = cross.UpdatePath(int.MaxValue);
                 s2 = poly.UpdatePath(int.MaxValue);
                 Assert.Equal(s1, s2);
-                PathStatus f1 = cross.FinishPath(c1, out int n1, out _, out double cost1);
-                PathStatus f2 = poly.FinishPath(c2, out int n2, out _, out double cost2);
+                QueryStatus f1 = cross.FinishPath(c1, out int n1, out _, out double cost1);
+                QueryStatus f2 = poly.FinishPath(c2, out int n2, out _, out double cost2);
                 Assert.Equal(f1, f2);
                 Assert.Equal(a, c2[0]);
-                if (s2 == PathStatus.Success)
+                if (s2 == QueryStatus.Success)
                 {
                     reachable++;
                     Assert.Equal(b, c2[n2 - 1]);
@@ -152,7 +152,7 @@ public class NavMeshPathNodeModelTests
                     {
                         Assert.True(seen.Add(c2[i].Value));
                     }
-                    Assert.Equal(PathStatus.Success, poly.FindStraightPath(pa, pb, c2.AsSpan(0, n2), new StraightPathPoint[4096], out _, out _));
+                    Assert.Equal(QueryStatus.Success, poly.FindStraightPath(pa, pb, c2.AsSpan(0, n2), new StraightPathPoint[4096], out _, out _));
                     // The cheapest-route search over crossings is the exact optimum of its own cost model; the
                     // polygon model's route is a real route too, never cheaper than the shortest possible walk.
                     Assert.True(cost1 > 0 || a == b);
@@ -180,24 +180,24 @@ public class NavMeshPathNodeModelTests
             PolyRef a = all[r.Int(all.Count)], b = all[r.Int(all.Count)];
             Vector3D pa = Centre(m, a), pb = Centre(m, b);
             var want = new PolyRef[4096];
-            if (q.BeginPath(a, b, pa, pb, f) != PathStatus.InProgress)
+            if (q.BeginPath(a, b, pa, pb, f) != QueryStatus.InProgress)
             {
                 continue;
             }
             q.UpdatePath(int.MaxValue);
-            PathStatus wf = q.FinishPath(want, out int wc, out _, out double wcost);
+            QueryStatus wf = q.FinishPath(want, out int wc, out _, out double wcost);
             int wIter = q.Iterations;
             foreach (int budget in new[] { 1, 2, 3, 7, 50, 1000 })
             {
                 q.BeginPath(a, b, pa, pb, f);
-                PathStatus s;
+                QueryStatus s;
                 do
                 {
                     s = q.UpdatePath(budget);
                 }
-                while (s == PathStatus.InProgress);
+                while (s == QueryStatus.InProgress);
                 var got = new PolyRef[4096];
-                PathStatus gf = q.FinishPath(got, out int gc, out _, out double gcost);
+                QueryStatus gf = q.FinishPath(got, out int gc, out _, out double gcost);
                 Assert.Equal(wf, gf);
                 Assert.Equal(wc, gc);
                 Assert.Equal(wcost, gcost);
@@ -219,9 +219,9 @@ public class NavMeshPathNodeModelTests
             PolyRef a = all[0], b = all[^1];
             var c1 = new PolyRef[4096];
             var c2 = new PolyRef[4096];
-            PathStatus s1 = q.FindPath(a, b, Centre(m, a), Centre(m, b), new PlainAll(), c1, out int n1);
+            QueryStatus s1 = q.FindPath(a, b, Centre(m, a), Centre(m, b), new PlainAll(), c1, out int n1);
             int it1 = q.Iterations;
-            PathStatus s2 = q.FindPath(a, b, Centre(m, a), Centre(m, b), new PlainAll(), c2, out int n2);
+            QueryStatus s2 = q.FindPath(a, b, Centre(m, a), Centre(m, b), new PlainAll(), c2, out int n2);
             Assert.Equal(s1, s2);
             Assert.Equal(n1, n2);
             Assert.Equal(it1, q.Iterations);

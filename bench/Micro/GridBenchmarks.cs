@@ -96,7 +96,7 @@ public class GridAStarBenchmarks
 /// incremental repair after one cell edit. Table builds are reported separately from the searches, as the reference drivers do.
 /// </summary>
 [MemoryDiagnoser]
-public sealed class GridJpsBenchmarks : IDisposable
+public class GridJpsBenchmarks : IDisposable
 {
     private readonly GridAStarBenchmarks _inputs = new();
     private Grid _grid = null!;
@@ -124,7 +124,11 @@ public sealed class GridJpsBenchmarks : IDisposable
     }
 
     [GlobalCleanup]
-    public void Dispose() => _index?.Dispose();
+    public void Dispose()
+    {
+        _index?.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     [Benchmark]
     public double AllScenariosJps()

@@ -143,14 +143,14 @@ public sealed partial class HexReplanner : IGridBatchListener, IDisposable
         {
             _search = Build(Start, Goal);
         }
-        PathOutcome status;
+        PathStatus status;
         if (_options.Blocked?.Invoke(Start) == true)
         {
-            status = PathOutcome.StartInvalid;
+            status = PathStatus.StartInvalid;
         }
         else if (_options.Blocked?.Invoke(Goal) == true)
         {
-            status = PathOutcome.GoalInvalid;
+            status = PathStatus.GoalInvalid;
         }
         else
         {
@@ -167,7 +167,7 @@ public sealed partial class HexReplanner : IGridBatchListener, IDisposable
                 expandedCells[i] = SearchRunner.ToCell(e[i], _grid.Width);
             }
         }
-        if (status != PathOutcome.Found)
+        if (status != PathStatus.Found)
         {
             return new GridPath(status, double.PositiveInfinity, null, expanded, expandedCells, null) { Algorithm = _algorithm };
         }
@@ -181,7 +181,7 @@ public sealed partial class HexReplanner : IGridBatchListener, IDisposable
         {
             cells[i] = SearchRunner.ToCell(nodes[i], _grid.Width);
         }
-        return new GridPath(PathOutcome.Found, cost, cells, expanded, expandedCells, null) { Algorithm = _algorithm };
+        return new GridPath(PathStatus.Found, cost, cells, expanded, expandedCells, null) { Algorithm = _algorithm };
     }
 
     /// <inheritdoc/>

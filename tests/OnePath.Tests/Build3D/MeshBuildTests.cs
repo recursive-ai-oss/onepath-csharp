@@ -112,7 +112,7 @@ public class MeshBuildTests
         // The walkable area is the floor shrunk by the radius (0.5 -> two 0.25 cells), about (39)(29) minus corner effects.
         Assert.InRange(area, 36.0 * 26.0, 40.0 * 30.0);
         PathResult r = m.FindPath(new Vector3D(2, 0, 2), new Vector3D(38, 0, 28));
-        Assert.True(r.Status == PathStatus.Success, r.Status.ToString());
+        Assert.True(r.Status == PathStatus.Found, r.Status.ToString());
     }
 
     private static void AssertValid(NavMesh m)
@@ -137,11 +137,11 @@ public class MeshBuildTests
         NavMesh m = new Soup().Floor(0, 0, 40, 30, 0).Box(15, 0, 10, 25, 3, 20).Build(Fine);
         AssertValid(m);
         PathResult r = m.FindPath(new Vector3D(5, 0, 15), new Vector3D(35, 0, 15));
-        Assert.Equal(PathStatus.Success, r.Status);
+        Assert.Equal(PathStatus.Found, r.Status);
         Assert.InRange(PathLength(r), 31.0, 45.0);
         // The box top is a walkable island the agent cannot step onto: no path reaches it.
         PathResult top = m.FindPath(new Vector3D(5, 0, 15), new Vector3D(20, 3, 15));
-        Assert.NotEqual(PathStatus.Success, top.Status);
+        Assert.NotEqual(PathStatus.Found, top.Status);
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public class MeshBuildTests
         }
         Assert.True(checkedPoints > 20);
         PathResult r = m.FindPath(new Vector3D(2, 0.2, 6), new Vector3D(28, 2.8, 6));
-        Assert.Equal(PathStatus.Success, r.Status);
+        Assert.Equal(PathStatus.Found, r.Status);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public class MeshBuildTests
         AssertValid(a);
         Assert.Equal(NavMeshSerializer.WriteMesh(a.Tiles), NavMeshSerializer.WriteMesh(b.Tiles));
         PathResult r = a.FindPath(new Vector3D(-8, 0, -8), new Vector3D(48, 0, 38));
-        Assert.Equal(PathStatus.Success, r.Status);
+        Assert.Equal(PathStatus.Found, r.Status);
         Assert.InRange(PathLength(r), 72.0, 90.0);
     }
 
@@ -194,7 +194,7 @@ public class MeshBuildTests
         NavMesh m = soup.Build(Fine);
         AssertValid(m);
         PathResult r = m.FindPath(new Vector3D(-4, 0, 3), new Vector3D(11, 2.4, 3));
-        Assert.Equal(PathStatus.Success, r.Status);
+        Assert.Equal(PathStatus.Found, r.Status);
     }
 
     [Fact]
@@ -238,7 +238,7 @@ public class MeshBuildTests
         NavMesh m = NavMesh.Build(VoxelChunk.FromDense(64, 64, 4, voxels), s);
         AssertValid(m);
         Assert.InRange(Area(m.Tiles), 13.0 * 13.0, 16.0 * 16.0);
-        Assert.Equal(PathStatus.Success, m.FindPath(new Vector3D(2, 0.2, 2), new Vector3D(14, 0.2, 14)).Status);
+        Assert.Equal(PathStatus.Found, m.FindPath(new Vector3D(2, 0.2, 2), new Vector3D(14, 0.2, 14)).Status);
 
         var hf = new SolidHeightfield(new HeightfieldFrame(0, 0, 0, 0.25f, 0.1f, 64, 64, 30));
         for (int c = 0; c < 64 * 64; c++)
@@ -380,7 +380,7 @@ public class MeshBuildTests
         for (double x = 1.5; x < 47; x += 3)
         {
             PathResult r = m.FindPath(new Vector3D(x, 0, 2), new Vector3D(47 - x, 0, 46));
-            if (r.Status == PathStatus.Success)
+            if (r.Status == PathStatus.Found)
             {
                 linked++;
             }

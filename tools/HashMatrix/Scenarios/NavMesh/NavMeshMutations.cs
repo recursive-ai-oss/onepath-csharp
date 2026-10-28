@@ -137,7 +137,7 @@ internal static class NavMeshMutations
                 o.Filter = new QueryFilter { ExcludeFlags = 2 }.SetAreaCost(1, 3).SetAreaCost(9, 2);
             }
             PathResult pr = q.FindPath(a, b, o);
-            sink((int)pr.Status);
+            sink((int)pr.Detail);
             sink(BitConverter.DoubleToInt64Bits(pr.Cost));
             foreach (PolyRef c in pr.Corridor)
             {

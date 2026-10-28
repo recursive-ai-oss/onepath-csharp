@@ -23,9 +23,9 @@ public sealed partial class NavMeshQuery
     /// <param name="result">Receives the points.</param>
     /// <param name="count">Number of points written.</param>
     /// <param name="truncated">True if <paramref name="result"/> was too small; the points written are a prefix.</param>
-    /// <returns>Success, or <see cref="PathStatus.InvalidCorridor"/> (nothing written).</returns>
+    /// <returns>Success, or <see cref="QueryStatus.InvalidCorridor"/> (nothing written).</returns>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
-    public PathStatus FindStraightPath(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, out int count, out bool truncated) =>
+    public QueryStatus FindStraightPath(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, out int count, out bool truncated) =>
         StraightCore(start, end, corridor, result, int.MaxValue, out count, out truncated);
 
     /// <summary>
@@ -40,16 +40,16 @@ public sealed partial class NavMeshQuery
     /// <param name="result">Receives the points.</param>
     /// <param name="count">Number of points written.</param>
     /// <param name="truncated">True when the limit or the size of <paramref name="result"/> was reached.</param>
-    /// <returns>Success, or <see cref="PathStatus.InvalidCorridor"/> (nothing written).</returns>
+    /// <returns>Success, or <see cref="QueryStatus.InvalidCorridor"/> (nothing written).</returns>
     /// <param name="maxCorners">Most points to find, at least 1; also limited by the length of <paramref name="result"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21, or <paramref name="maxCorners"/> is below 1.</exception>
-    public PathStatus FindStraightPath(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, int maxCorners, out int count, out bool truncated)
+    public QueryStatus FindStraightPath(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, int maxCorners, out int count, out bool truncated)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxCorners, 1);
         return StraightCore(start, end, corridor, result, maxCorners, out count, out truncated);
     }
 
-    private PathStatus StraightCore(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, int limit, out int count, out bool truncated)
+    private QueryStatus StraightCore(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, int limit, out int count, out bool truncated)
     {
         CheckPos(start, nameof(start));
         CheckPos(end, nameof(end));
@@ -57,7 +57,7 @@ public sealed partial class NavMeshQuery
         truncated = false;
         if (corridor.Length == 0 || !ClosestPointOnPoly(corridor[0], start, out Vector3D s, out _) || !ClosestPointOnPoly(corridor[^1], end, out Vector3D e, out _))
         {
-            return PathStatus.InvalidCorridor;
+            return QueryStatus.InvalidCorridor;
         }
         // First pass: find how every consecutive pair connects (this also validates the whole corridor, so nothing is
         // half-written). Connection i is stored at _portals[6i..6i+6): left and right for an edge, entry and exit for an off-mesh link.
@@ -75,7 +75,7 @@ public sealed partial class NavMeshQuery
             Connection c;
             if (!_mesh.IsValid(corridor[i + 1]) || (c = Connect(corridor[i], corridor[i + 1], out Vector3D first, out Vector3D second, out Vector3D offStart, out Vector3D offEnd)) == Connection.None)
             {
-                return PathStatus.InvalidCorridor;
+                return QueryStatus.InvalidCorridor;
             }
             if (c == Connection.OffMesh)
             {
@@ -113,7 +113,7 @@ public sealed partial class NavMeshQuery
         w.AddDistinct(new StraightPathPoint(e, StraightPathMarks.End, corridor[^1]));
         count = w.Count;
         truncated = w.Truncated;
-        return PathStatus.Success;
+        return QueryStatus.Success;
     }
 
     private ref struct Writer

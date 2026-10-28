@@ -65,7 +65,7 @@ internal static class GraphTargets
                     GraphPath p = g.FindPath(s, t, new GraphOptions { Algorithm = a, Landmarks = lm });
                     if (double.IsPositiveInfinity(best[s, t]))
                     {
-                        if (p.Status != PathOutcome.NoPath)
+                        if (p.Status != PathStatus.NoPath)
                         {
                             throw new InvalidOperationException($"{a} {s}->{t}: expected no path, got {p.Status}");
                         }

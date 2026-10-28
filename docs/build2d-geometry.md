@@ -139,10 +139,18 @@ swept:
   `a + r·n_in`. The tips are rounded by the same expression as the rectangles' corners, so a sector's straight sides
   coincide exactly with the rectangles' end sides; the m-gon is the one used for round offsets above.
 
-Collinear and left-turning vertices have no sector. The removed set equals the round offset's in exact arithmetic;
+Collinear and left-turning vertices have no sector. The pieces are fed to the arrangement as edges, not as closed
+polygons, and only the edges that can matter are fed: a rectangle's side `a→b` is the region's own edge, so that edge
+is added once, counting for both operands (`Op` 2); where a sector exists its two straight sides run over the same
+points as the end sides of the two rectangles they meet, in opposite directions, so all four are left out (they
+would cancel in the arrangement). What remains per reflex vertex is the arc between the two tips. The removed set equals the round offset's in exact arithmetic;
 the polygonal arcs stay within the arc tolerance of the circle, and the rings can differ from `Region.Offset` by that
 much (about 0.2% of the area on a dense noisy tile map). The pipeline passes `arcTolerance =
-CellSize / 4` (the mesh cannot resolve finer), so a circle of radius two to four cells has 8 or 16 vertices. `Region.Offset` itself is unchanged.
+max(CellSize / 4, min(0.0825 × AgentRadius, CellSize / 2))`: a quarter cell (the mesh cannot resolve finer), raised to the
+octagon's tolerance so that radii up to six cells use 8 vertices per circle (more vertices at those radii only add small
+triangles), and never above half a cell, so a larger circle gets more vertices. On the noisy tile map (cell 0.25) the octagon at radius
+1.0, where the quarter-cell rule used 16 vertices, takes the polygon count from 12.6k to 5.0k and leaves coverage within
++0.005% of the exact eroded area. `Region.Offset` itself is unchanged.
 
 **Equal-area arcs.** A circumscribed polygon removes more than the disc, by the same amount at every round corner
 (`m tan(π/m) − π` times r², about 4% of a disc for m = 16, 10% for m = 8). Across many corners, or around a small leftover
@@ -172,7 +180,14 @@ On the pillar-room shapes this brings coverage from −1.14% and −4.7% (cusps)
 Input: distinct grid points sorted by (x, y), and noded constraints (segments meeting only at endpoints).
 
 1. A bounding triangle with corners (−2^45, −2^45), (3·2^45, −2^45), (−2^45, 3·2^45) grid units encloses everything.
-2. Points are inserted in sorted order into the Delaunay triangulation by Lawson's incremental algorithm: locate by a
+2. Points are inserted into the Delaunay triangulation by Lawson's incremental algorithm in **biased randomised order**
+   (Amenta, Choi & Rote 2003). Vertex `i` (its index in the sorted input) belongs to round `min(top, tz(h(i)))`, where `h` is
+   SplitMix64's output function applied to `i + 0x9E3779B97F4A7C15`, `tz` counts trailing zero bits and
+   `top = max(0, floor(log2 n) − 3)`; the rounds are inserted from the highest to round 0. Within a round points follow the
+   Hilbert curve of order 12 over the cells `(x − minX) >> s, (y − minY) >> s` (`s` the least shift that gives cells below
+   4096 per axis), ties by index. With fewer than 64 points the order is the sorted order. The order only matters where
+   points are cocircular (which of two diagonals survives), so it is part of the result. Sorted order walked across whole
+   columns of the triangulation for every point (20 flips per point on a tile map; this order needs about 3). Locate by a
    visibility walk from the last triangle (edge order 0, 1, 2; exact orientation), split the containing triangle (or
    the two triangles sharing the edge the point lies on), then flip edges opposite the new point while the opposite
    vertex lies strictly inside the circumcircle (exact in-circle). Cocircular points are not flipped.

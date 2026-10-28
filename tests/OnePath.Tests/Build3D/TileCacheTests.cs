@@ -114,17 +114,17 @@ public class TileCacheTests
         var q = new NavMeshQuery(c.Mesh);
         var a = new Vector3D(2, 0, 3);
         var b = new Vector3D(38, 0, 3);
-        Assert.Equal(PathStatus.Success, FindPath(q, a, b));
+        Assert.Equal(PathStatus.Found, FindPath(q, a, b));
 
         int wall = c.AddObstacle(TileObstacle.Box(19, 0, -1, 21, 3, 7));
-        Assert.Equal(PathStatus.Success, FindPath(q, a, b)); // not rebuilt yet: the old mesh is still in force
+        Assert.Equal(PathStatus.Found, FindPath(q, a, b)); // not rebuilt yet: the old mesh is still in force
         All(c);
-        Assert.NotEqual(PathStatus.Success, FindPath(q, a, b));
+        Assert.NotEqual(PathStatus.Found, FindPath(q, a, b));
 
         Assert.True(c.RemoveObstacle(wall));
         Assert.False(c.RemoveObstacle(wall));
         All(c);
-        Assert.Equal(PathStatus.Success, FindPath(q, a, b));
+        Assert.Equal(PathStatus.Found, FindPath(q, a, b));
         AssertSame(new Mesh3DPipeline(Settings).BuildSoup(s.V.ToArray(), s.I.ToArray()), c.Mesh);
         Assert.Equal(before.Length, NavMeshSerializer.WriteMesh(c.Mesh).Length);
     }

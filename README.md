@@ -39,7 +39,7 @@ GridPath path = grid.FindPath(new Cell(0, 0), new Cell(4, 3));
 if (path.Found)
 {
     // path.Cost is exact for eight-connected octile moves and path.Cells lists the cells; query with
-    // WorldPoint arguments (after setting grid.Space) to also get path.WorldPoints.
+    // WorldPoint arguments (after setting grid.Space) to also get path.Points.
 }
 ```
 

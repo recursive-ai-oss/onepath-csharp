@@ -13,6 +13,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The bar runner and the micro-benchmarks time the specialised searches directly. -->
+    <InternalsVisibleTo Include="OnePath.Bar" />
+    <InternalsVisibleTo Include="Micro" />
+    <InternalsVisibleTo Include="OnePath.Tests" />
+    <InternalsVisibleTo Include="GridOptima" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />
     <!-- The one runtime dependency. Until it is published it restores from the folder in ONEMATH_FEED. -->
     <PackageReference Include="RecursiveAI.OneMath" />

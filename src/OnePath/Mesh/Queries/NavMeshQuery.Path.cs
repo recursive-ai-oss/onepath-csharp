@@ -61,7 +61,7 @@ public sealed partial class NavMeshQuery
     private enum SearchState { None, Active, Done }
 
     private SearchState _state;
-    private PathStatus _beginStatus;
+    private QueryStatus _beginStatus;
     private PolyRef _startPoly;
     private PolyRef _endPoly;
     private Vector3D _endPos;
@@ -97,9 +97,9 @@ public sealed partial class NavMeshQuery
     /// Starts a path search between two polygons with the plain filter (null accepts everything), keeping the filter for
     /// <see cref="UpdatePath(int)"/>. The positions must lie on (or near) their polygons; they are not snapped.
     /// </summary>
-    /// <returns><see cref="PathStatus.InProgress"/> when the search can run; otherwise the reason it cannot.</returns>
+    /// <returns><see cref="QueryStatus.InProgress"/> when the search can run; otherwise the reason it cannot.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
-    public PathStatus BeginPath(PolyRef startPoly, PolyRef endPoly, Vector3D startPos, Vector3D endPos, QueryFilter? filter = null)
+    public QueryStatus BeginPath(PolyRef startPoly, PolyRef endPoly, Vector3D startPos, Vector3D endPos, QueryFilter? filter = null)
     {
         _plain = new PlainFilter(filter ?? s_defaultFilter);
         _plainStored = true;
@@ -107,7 +107,7 @@ public sealed partial class NavMeshQuery
     }
 
     /// <summary>Starts a path search with a struct filter. Pass the same filter to every <see cref="UpdatePath{TFilter}"/> call.</summary>
-    public PathStatus BeginPath<TFilter>(PolyRef startPoly, PolyRef endPoly, Vector3D startPos, Vector3D endPos, in TFilter filter)
+    public QueryStatus BeginPath<TFilter>(PolyRef startPoly, PolyRef endPoly, Vector3D startPos, Vector3D endPos, in TFilter filter)
         where TFilter : struct, IQueryFilter
     {
         CheckPos(startPos, nameof(startPos));
@@ -122,11 +122,11 @@ public sealed partial class NavMeshQuery
         }
         if (!_mesh.TryGetPoly(startPoly, out NavTile st, out int sp) || !filter.Passes(st.PolyFlags[sp], st.PolyAreas[sp]))
         {
-            return _beginStatus = PathStatus.InvalidStartPoly;
+            return _beginStatus = QueryStatus.InvalidStartPoly;
         }
         if (!_mesh.TryGetPoly(endPoly, out NavTile et, out int ep) || !filter.Passes(et.PolyFlags[ep], et.PolyAreas[ep]))
         {
-            return _beginStatus = PathStatus.InvalidEndPoly;
+            return _beginStatus = QueryStatus.InvalidEndPoly;
         }
         if (_polygonNodes)
         {
@@ -170,13 +170,13 @@ public sealed partial class NavMeshQuery
         _nodes[root].H = h0;
         Push(filter.MinAreaCost * h0, root);
         _state = SearchState.Active;
-        return _beginStatus = PathStatus.InProgress;
+        return _beginStatus = QueryStatus.InProgress;
     }
 
     /// <summary>Runs up to <paramref name="maxIterations"/> expansions of the search started with the plain-filter <see cref="BeginPath(PolyRef, PolyRef, Vector3D, Vector3D, QueryFilter?)"/>.</summary>
     /// <returns>InProgress while unfinished, then Success or Partial; or the failure from Begin.</returns>
     /// <exception cref="InvalidOperationException">The search was started with a struct filter; use the generic overload.</exception>
-    public PathStatus UpdatePath(int maxIterations)
+    public QueryStatus UpdatePath(int maxIterations)
     {
         if (!_plainStored)
         {
@@ -190,7 +190,7 @@ public sealed partial class NavMeshQuery
     /// Runs up to <paramref name="maxIterations"/> expansions (one pop of the open list is one iteration). The result
     /// after any sequence of calls adding up to the same work equals the result of one unlimited call.
     /// </summary>
-    public PathStatus UpdatePath<TFilter>(int maxIterations, in TFilter filter)
+    public QueryStatus UpdatePath<TFilter>(int maxIterations, in TFilter filter)
         where TFilter : struct, IQueryFilter
     {
         if (_state == SearchState.None)
@@ -199,7 +199,7 @@ public sealed partial class NavMeshQuery
         }
         if (_state == SearchState.Done)
         {
-            return _terminal >= 0 ? PathStatus.Success : PathStatus.Partial;
+            return _terminal >= 0 ? QueryStatus.Success : QueryStatus.Partial;
         }
         int budget = maxIterations;
         while (budget > 0 && _heapCount > 0)
@@ -216,7 +216,7 @@ public sealed partial class NavMeshQuery
             {
                 _terminal = node;
                 _state = SearchState.Done;
-                return PathStatus.Success;
+                return QueryStatus.Success;
             }
             if (_polygonNodes)
             {
@@ -230,9 +230,9 @@ public sealed partial class NavMeshQuery
         if (_heapCount == 0)
         {
             _state = SearchState.Done;
-            return PathStatus.Partial;
+            return QueryStatus.Partial;
         }
-        return PathStatus.InProgress;
+        return QueryStatus.InProgress;
     }
 
     private int _terminalNodeIndex = -1;
@@ -245,7 +245,7 @@ public sealed partial class NavMeshQuery
     /// <param name="count">Number of polygons written.</param>
     /// <param name="truncated">True if the corridor was longer than <paramref name="path"/>.</param>
     /// <param name="cost">The search cost of the full route.</param>
-    public PathStatus FinishPath(Span<PolyRef> path, out int count, out bool truncated, out double cost)
+    public QueryStatus FinishPath(Span<PolyRef> path, out int count, out bool truncated, out double cost)
     {
         count = 0;
         truncated = false;
@@ -256,7 +256,7 @@ public sealed partial class NavMeshQuery
         }
         bool done = _state == SearchState.Done;
         int target = _terminal >= 0 ? _terminal : _best;
-        PathStatus status = _terminal >= 0 ? PathStatus.Success : (done ? PathStatus.Partial : PathStatus.InProgress);
+        QueryStatus status = _terminal >= 0 ? QueryStatus.Success : (done ? QueryStatus.Partial : QueryStatus.InProgress);
         cost = _nodes[target].G;
         int len = 0;
         int cur = target;
@@ -344,11 +344,11 @@ public sealed partial class NavMeshQuery
     /// <summary>
     /// Finds the cheapest corridor between two polygons in one call (begin, run to completion, finish).
     /// </summary>
-    public PathStatus FindPath<TFilter>(PolyRef startPoly, PolyRef endPoly, Vector3D startPos, Vector3D endPos, in TFilter filter, Span<PolyRef> path, out int count)
+    public QueryStatus FindPath<TFilter>(PolyRef startPoly, PolyRef endPoly, Vector3D startPos, Vector3D endPos, in TFilter filter, Span<PolyRef> path, out int count)
         where TFilter : struct, IQueryFilter
     {
-        PathStatus s = BeginPath(startPoly, endPoly, startPos, endPos, in filter);
-        if (s != PathStatus.InProgress)
+        QueryStatus s = BeginPath(startPoly, endPoly, startPos, endPos, in filter);
+        if (s != QueryStatus.InProgress)
         {
             count = 0;
             return s;

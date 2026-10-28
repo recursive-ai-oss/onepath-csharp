@@ -108,7 +108,7 @@ command line.
 | DotRecast | 2026.3.1 (NuGet) | `bench/Harness/RefHarness` (C#), compiled against the package | same settings as Recast; per-polygon areas set after the build as in the native driver; tiled builds hand the library the bounds of the whole input and the tile's grid position (it offsets the box itself) |
 | DotRecast tile cache | 2026.3.1 (NuGet `DotRecast.Detour.TileCache`) | `bench/Harness/RefHarness/DotRecastTileCache.cs` | its own layer builder over the whole tile grid on one thread, the same pass-through storage and the same scenario as the native driver |
 | RVO2-CS | 2.0.1 | `bench/Harness/RefHarness`, library sources compiled as shipped by `bench/Harness/Rvo2CsLib` | not on NuGet; its own projects target an old .NET Framework. It spreads each step over all cores by default (about 5 cores busy at 5000 agents on an 8-core machine: 2.9 s of CPU in 0.57 s of wall time), so its rows run our side with `--threads auto` (every core); the single-thread comparison is the RVO2 C++ row |
-| Warthog (core, JPS) | 0.6.2 | the documented `warthog` and `warthog-jps` command lines on Moving AI scenario files; on macOS built with a private LLVM 22.1.5 toolchain (below) | `search_time` sums the per-instance times the program prints; JPS+ preprocessing is not in it, so `wall_time` is reported too |
+| Warthog (core, JPS) | 0.6.2 | the documented `warthog` and `warthog-jps` command lines on Moving AI scenario files; on macOS built with a private LLVM 22.1.5 toolchain (below) | `search_time` sums the per-instance times the program prints; JPS+ preprocessing is not in it, so `wall_time` is reported too; maps with swamp or water (the wc3 set) are given as a converted copy through the documented `--map` option (swamp as free ground, water as blocked, the reading of the published optimal costs), since the programs otherwise stop at the first instance crossing one |
 
 **Warthog on macOS.** Warthog's logger calls `std::chrono::current_zone`, which Apple's C++ library does not have.
 `refs.sh` therefore builds a private toolchain under `$ONEPATH_HOME/tools` on macOS and compiles Warthog, unmodified,
@@ -141,7 +141,9 @@ own `next() < 0.6`), extruded to two flat up-facing triangles per floor tile at 
 square. The reference builds it from the triangles (`--cell 0.25 --agent-radius 0.5`, tiled rows with `--tile-size 128`
 cells = 32 units, a solo row without); ours is `NavMesh.Build2D` from the tiles, which `bench/Shared/TileMapWorld.cs`
 recovers from the OBJ (each triangle belongs to the tile its centroid is in; `OnePath.Micro --check-tilemap` checks
-this against its own generator) and times from tiles to mesh (best of `--reps` builds in one process). Ours builds at the nominal agent radius.
+this against its own generator) and times from tiles to mesh (best of `--reps` builds in one process). Ours builds at the nominal agent radius, after untimed
+builds until three in a row are within 5% of each other (at most 40): the first builds run the runtime's unoptimized code, which
+the native reference never pays and the warm method excludes (the first build of a process takes about 300 ms against 75 ms warm).
 
 **The gate.** The 2D builder is judged against the exact eroded area of the same tile map, not against Recast: the area of the floor
 points at least the agent radius away from every wall (solid tiles and everything outside the map), with round joins at convex corners.
@@ -152,7 +154,7 @@ two adjacent sides border floor and whose diagonal neighbour is a wall, and thes
 meet: lost = 2 r S - r^2 C + (pi r^2 / 4) D for S wall sides, C wall-side pairs meeting at a corner and D discs. The only inexact step is
 the double rounding of pi, so the result is within 1e-9 relative of the true area; it agrees with the point-sampling in
 `tools/geom/gen_shapes.py` (`exact.tsv`, sampled at 1/200 unit) to 0.03% on the shape rows. Our rows print `exact_area` and
-`delta_vs_exact_pct`, and the report's "2D gate" table lists, per row, the exact area, ours, ours against exact (pass within 1%, or within 0.02 world units² where the exact area is a sliver of a few cells and 1% is below a vertex's rounding), then
+`delta_vs_exact_pct`, and the report's "2D gate" table lists, per row, the exact area, ours, ours against exact (pass within 1%), then
 the reference's coverage, its delta against exact and ours against it, as information. Recast's coverage equals the exact area at
 radius + one cell (its ledge filter and minimum region area), so it falls below the exact area by construction: on the 256 tile map at
 radius 0.5 and cell 0.25, exact 23819, ours 23761 (-0.25%), Recast 16407 (-31%).

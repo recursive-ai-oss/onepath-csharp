@@ -350,7 +350,7 @@ public class CrowdTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new Crowd(mesh, new CrowdOptions { MaxThreads = 0 }));
         Agent a = crowd.Add(new Vector3D(5, 0, 5));
         Assert.Throws<ArgumentOutOfRangeException>(() => a.Priority = 0);
-        Assert.Equal(PathStatus.NoEndNearby, a.SetDestination(new Vector3D(900, 0, 900)));
+        Assert.Equal(PathStatus.GoalInvalid, a.SetDestination(new Vector3D(900, 0, 900)));
         var small = new Crowd(mesh, new CrowdOptions { MaxAgents = 1 });
         small.Add(new Vector3D(5, 0, 5));
         Assert.Throws<InvalidOperationException>(() => small.Add(new Vector3D(6, 0, 6)));
@@ -520,7 +520,7 @@ public class CrowdTests
                     continue;
                 }
                 var path = new PolyRef[256];
-                if (q.FindPath(na.Poly, nb.Poly, na.Point, nb.Point, new CorridorWorlds.AllPass(), path, out int pc) != PathStatus.Success)
+                if (q.FindPath(na.Poly, nb.Poly, na.Point, nb.Point, new CorridorWorlds.AllPass(), path, out int pc) != QueryStatus.Success)
                 {
                     continue;
                 }
@@ -529,7 +529,7 @@ public class CrowdTests
                 for (int limit = 1; limit <= fullCount + 1; limit++)
                 {
                     var part = new StraightPathPoint[128];
-                    Assert.Equal(PathStatus.Success, q.FindStraightPath(na.Point, nb.Point, path.AsSpan(0, pc), part, limit, out int c, out bool trunc));
+                    Assert.Equal(QueryStatus.Success, q.FindStraightPath(na.Point, nb.Point, path.AsSpan(0, pc), part, limit, out int c, out bool trunc));
                     Assert.Equal(Math.Min(limit, fullCount), c);
                     for (int i = 0; i < c; i++)
                     {

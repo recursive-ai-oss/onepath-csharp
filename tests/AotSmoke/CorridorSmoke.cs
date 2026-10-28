@@ -22,7 +22,7 @@ internal static class CorridorSmoke
         NavMesh nm = NavMesh.Build2D(cells, 20, 20, 1.0, new Vector2D(0, 0), NavSettings.Humanoid with { AgentRadius = 0, CellSize = 0.5, TileSize = 16 });
         var q = new NavMeshQuery(nm.Tiles);
         var f = new PathFollower();
-        if (!f.Place(q, new Vector3D(1.5, 0, 1.5)) || f.SetDestination(q, new Vector3D(17.5, 0, 18.5)) != PathStatus.Success)
+        if (!f.Place(q, new Vector3D(1.5, 0, 1.5)) || f.SetDestination(q, new Vector3D(17.5, 0, 18.5)) != QueryStatus.Success)
         {
             return false;
         }

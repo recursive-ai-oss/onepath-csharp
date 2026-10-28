@@ -48,6 +48,7 @@ internal static class OursBuild2D
         NavSettings settings = SettingsFor(t, extent);
         var times = new List<double>();
         NavMesh? mesh = null;
+        WarmUp(cells, tiles, settings);
         for (int rep = 0; rep < reps; rep++)
         {
             long start = Stopwatch.GetTimestamp();
@@ -74,6 +75,27 @@ internal static class OursBuild2D
             R("peak_rss", Process.GetCurrentProcess().PeakWorkingSet64 / (1024.0 * 1024.0), "MB"),
             new Row(row.Part, row.Id, side, "settings", $"cell={settings.CellSize:R} r={settings.AgentRadius:R} tile={settings.TileSize:R} nvp={settings.MaxVertsPerPoly}; tile map {tiles}x{tiles}", "text"),
         };
+    }
+
+    /// <summary>
+    /// Untimed builds until the runtime has finished optimizing the builder: the first builds run unoptimized code (tiered
+    /// compilation promotes methods in the background after they have been called many times), which the native reference
+    /// never pays and which the "warm" method excludes. Stops when three builds in a row are within 5% of each other,
+    /// after at most 40.
+    /// </summary>
+    private static void WarmUp(bool[] cells, int tiles, NavSettings settings)
+    {
+        var last = new double[3];
+        for (int i = 0; i < 40; i++)
+        {
+            long start = Stopwatch.GetTimestamp();
+            _ = NavMesh.Build2D(cells, tiles, tiles, TileMapWorld.TileUnits, new Vector2D(0, 0), settings);
+            last[i % 3] = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
+            if (i >= 4 && last.Max() <= last.Min() * 1.05)
+            {
+                return;
+            }
+        }
     }
 
     /// <summary>Polygon, vertex and tile counts and the walkable area (sum of polygon areas projected on the ground plane).</summary>
