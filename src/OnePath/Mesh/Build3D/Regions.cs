@@ -11,8 +11,7 @@ namespace RecursiveAI.OnePath.Mesh.Build3D;
 internal sealed class SpanGraph
 {
     private readonly CompactHeightfield _chf;
-    private int[]? _cellX;
-    private int[]? _cellZ;
+    private int[]? _col;
 
     public SpanGraph(CompactHeightfield chf)
         : this(chf, SpanLinks.Rent(chf))
@@ -53,10 +52,9 @@ internal sealed class SpanGraph
     public void Release()
     {
         Scratch.Return(Nbr);
-        if (_cellX != null)
+        if (_col != null)
         {
-            Scratch.Return(_cellX);
-            Scratch.Return(_cellZ!);
+            Scratch.Return(_col);
         }
     }
 
@@ -68,54 +66,44 @@ internal sealed class SpanGraph
 
     public int[] Nbr { get; }
 
-    public int[] CellX
+    /// <summary>Column x of a span.</summary>
+    public int CellX(int span)
     {
-        get
-        {
-            EnsureCells();
-            return _cellX!;
-        }
+        EnsureCells();
+        return _col![span] % Width;
     }
 
-    public int[] CellZ
+    /// <summary>Column z of a span.</summary>
+    public int CellZ(int span)
     {
-        get
-        {
-            EnsureCells();
-            return _cellZ!;
-        }
+        EnsureCells();
+        return _col![span] / Width;
     }
 
     private void EnsureCells()
     {
-        if (_cellX != null)
+        if (_col != null)
         {
             return;
         }
-        int w = Width;
-        int[] cx = Scratch.Rent<int>(Count);
-        int[] cz = Scratch.Rent<int>(Count);
+        int[] col = Scratch.Rent<int>(Count);
         ReadOnlySpan<int> first = _chf.CellFirst;
         ReadOnlySpan<int> count = _chf.CellCount;
-        for (int z = 0, c = 0; z < Depth; z++)
+        for (int c = 0; c < count.Length; c++)
         {
-            for (int x = 0; x < w; x++, c++)
+            int end = first[c] + count[c];
+            for (int i = first[c]; i < end; i++)
             {
-                for (int i = first[c]; i < first[c] + count[c]; i++)
-                {
-                    cx[i] = x;
-                    cz[i] = z;
-                }
+                col[i] = c;
             }
         }
-        _cellX = cx;
-        _cellZ = cz;
+        _col = col;
     }
 
     public bool OutsideGrid(int span, int dir)
     {
-        int x = CellX[span] + CompactHeightfield.DirX[dir];
-        int z = CellZ[span] + CompactHeightfield.DirZ[dir];
+        int x = CellX(span) + CompactHeightfield.DirX[dir];
+        int z = CellZ(span) + CompactHeightfield.DirZ[dir];
         return x < 0 || z < 0 || x >= Width || z >= Depth;
     }
 }
@@ -364,6 +352,7 @@ public static class Regions
         int count = Sweep(chf, g, out int[] region);
         Finish(chf, g, region, count, settings.MinRegionArea, settings.MergeRegionArea);
         g.Release();
+        Scratch.Return(region);
     }
 
     /// <summary>
@@ -379,6 +368,14 @@ public static class Regions
         Span<CompactSpan> spans = chf.Spans;
         int count = Sweep(chf, g, out int[] region);
         int n = g.Count;
+        if (count <= MaxMatrixRegions)
+        {
+            MergeLayersDense(chf, g, region, count);
+            Finish(chf, g, region, count, settings.MinRegionArea, 0);
+            g.Release();
+            Scratch.Return(region);
+            return;
+        }
 
         // overlap[r]: regions that share a column with r. adjacent[r]: regions linked to r.
         var overlap = new SortedSet<int>[count + 1];
@@ -478,6 +475,151 @@ public static class Regions
         }
         Finish(chf, g, region, count, settings.MinRegionArea, 0);
         g.Release();
+        Scratch.Return(region);
+    }
+
+    // Up to this many regions the layer merge keeps its two relations as bit matrices (count² bits each); beyond, as sorted sets.
+    private const int MaxMatrixRegions = 2048;
+
+    // The layer merge of BuildLayers on bit matrices: the same relations, the same visiting order (ascending ids; ascending neighbours inside), so the same merges.
+    private static void MergeLayersDense(CompactHeightfield chf, SpanGraph g, int[] region, int count)
+    {
+        Span<CompactSpan> spans = chf.Spans;
+        int n = g.Count;
+        int words = (count + 64) >> 6;
+        ulong[] overlap = Scratch.RentZeroed<ulong>((count + 1) * words);
+        ulong[] adjacent = Scratch.RentZeroed<ulong>((count + 1) * words);
+        var area = new byte[count + 1];
+        var alias = new int[count + 1];
+        for (int r = 0; r <= count; r++)
+        {
+            alias[r] = r;
+        }
+        ReadOnlySpan<int> first = chf.CellFirst;
+        ReadOnlySpan<int> cellCount = chf.CellCount;
+        for (int c = 0; c < cellCount.Length; c++)
+        {
+            int b = first[c] + cellCount[c];
+            for (int i = first[c]; i + 1 < b; i++)
+            {
+                int ri = region[i];
+                if (ri <= 0)
+                {
+                    continue;
+                }
+                for (int j = i + 1; j < b; j++)
+                {
+                    int rj = region[j];
+                    if (rj > 0 && ri != rj)
+                    {
+                        overlap[(ri * words) + (rj >> 6)] |= 1UL << (rj & 63);
+                        overlap[(rj * words) + (ri >> 6)] |= 1UL << (ri & 63);
+                    }
+                }
+            }
+        }
+        int[] nbr = g.Nbr;
+        for (int i = 0; i < n; i++)
+        {
+            int ri = region[i];
+            if (ri == 0)
+            {
+                continue;
+            }
+            area[ri] = spans[i].Area;
+            for (int d = 0; d < 4; d++)
+            {
+                int t = nbr[(4 * i) + d];
+                if (t >= 0)
+                {
+                    int rt = region[t];
+                    if (rt > 0 && rt != ri)
+                    {
+                        adjacent[(ri * words) + (rt >> 6)] |= 1UL << (rt & 63);
+                    }
+                }
+            }
+        }
+        bool changed = true;
+        while (changed)
+        {
+            changed = false;
+            for (int a = 1; a <= count; a++)
+            {
+                if (alias[a] != a)
+                {
+                    continue;
+                }
+                int b = FindMergeTarget(adjacent, overlap, words, alias, area, a);
+                if (b == 0)
+                {
+                    continue;
+                }
+                // Merge the higher id into the lower one.
+                int keep = Math.Min(a, b);
+                int gone = Math.Max(a, b);
+                alias[gone] = keep;
+                for (int w = 0; w < words; w++)
+                {
+                    ulong bits = overlap[(gone * words) + w];
+                    overlap[(keep * words) + w] |= bits;
+                    while (bits != 0)
+                    {
+                        int o = (w << 6) + System.Numerics.BitOperations.TrailingZeroCount(bits);
+                        bits &= bits - 1;
+                        overlap[(o * words) + (gone >> 6)] &= ~(1UL << (gone & 63));
+                        overlap[(o * words) + (keep >> 6)] |= 1UL << (keep & 63);
+                    }
+                }
+                for (int w = 0; w < words; w++)
+                {
+                    ulong bits = adjacent[(gone * words) + w];
+                    while (bits != 0)
+                    {
+                        int o = (w << 6) + System.Numerics.BitOperations.TrailingZeroCount(bits);
+                        bits &= bits - 1;
+                        if (o != keep)
+                        {
+                            adjacent[(keep * words) + (o >> 6)] |= 1UL << (o & 63);
+                            adjacent[(o * words) + (gone >> 6)] &= ~(1UL << (gone & 63));
+                            adjacent[(o * words) + (keep >> 6)] |= 1UL << (keep & 63);
+                        }
+                    }
+                }
+                adjacent[(keep * words) + (gone >> 6)] &= ~(1UL << (gone & 63));
+                adjacent[(keep * words) + (keep >> 6)] &= ~(1UL << (keep & 63));
+                changed = true;
+            }
+        }
+        for (int i = 0; i < n; i++)
+        {
+            if (region[i] > 0)
+            {
+                region[i] = Resolve(alias, region[i]);
+            }
+        }
+        Scratch.Return(overlap);
+        Scratch.Return(adjacent);
+    }
+
+    // The lowest neighbour b of a (in ascending order) that is live, has a's area and shares no column with a; 0 when there is none.
+    private static int FindMergeTarget(ulong[] adjacent, ulong[] overlap, int words, int[] alias, byte[] area, int a)
+    {
+        for (int w = 0; w < words; w++)
+        {
+            ulong bits = adjacent[(a * words) + w];
+            while (bits != 0)
+            {
+                int b = (w << 6) + System.Numerics.BitOperations.TrailingZeroCount(bits);
+                bits &= bits - 1;
+                if (b == a || alias[b] != b || area[b] != area[a] || (overlap[(a * words) + (b >> 6)] & (1UL << (b & 63))) != 0)
+                {
+                    continue;
+                }
+                return b;
+            }
+        }
+        return 0;
     }
 
     /// <summary>
@@ -514,49 +656,58 @@ public static class Regions
         return r;
     }
 
+    // The monotone sweep. region is a pooled array (zeroed up to the span count) that the caller returns.
     private static int Sweep(CompactHeightfield chf, SpanGraph g, out int[] region)
     {
         Span<CompactSpan> spans = chf.Spans;
         HeightfieldFrame f = chf.Frame;
-        region = new int[g.Count];
-        var sweepOf = new int[g.Count];
+        ReadOnlySpan<int> first = chf.CellFirst;
+        ReadOnlySpan<int> cellCount = chf.CellCount;
+        int n = g.Count;
+        int[] nbr = g.Nbr;
+        region = Scratch.RentZeroed<int>(n);
+        int[] arena = Scratch.Rent<int>(6 * (n + 2));
+        int stride = n + 2;
+        Span<int> sweepOf = arena.AsSpan(0, stride);
+        Span<int> sweepNei = arena.AsSpan(stride, stride);
+        Span<int> sweepRegion = arena.AsSpan(2 * stride, stride);
+        Span<int> hitStamp = arena.AsSpan(3 * stride, stride);   // per region: row in which it was last counted
+        Span<int> hitSweep = arena.AsSpan(4 * stride, stride);   // per region: last sweep that hit it
+        Span<int> hitCount = arena.AsSpan(5 * stride, stride);   // per region: sweeps of the current row that hit it
         int nextRegion = 0;
-        var sweepNei = new List<int>();
-        var sweepRegion = new List<int>();
-        var hitStamp = new List<int>();   // per region: row in which it was last counted
-        var hitSweep = new List<int>();   // per region: last sweep that hit it
-        var hitCount = new List<int>();   // per region: sweeps of the current row that hit it
-        hitStamp.Add(-1);
-        hitSweep.Add(-1);
-        hitCount.Add(0);
+        hitStamp[0] = -1;
+        hitSweep[0] = -1;
+        hitCount[0] = 0;
+        int width = f.Width;
         for (int z = 0; z < f.Depth; z++)
         {
-            sweepNei.Clear();
-            sweepRegion.Clear();
-            for (int x = 0; x < f.Width; x++)
+            int sweeps = 0;
+            int rowStart = z * width;
+            for (int x = 0; x < width; x++)
             {
-                int c = f.Column(x, z);
-                for (int i = chf.CellFirst[c]; i < chf.CellFirst[c] + chf.CellCount[c]; i++)
+                int c = rowStart + x;
+                int end = first[c] + cellCount[c];
+                for (int i = first[c]; i < end; i++)
                 {
-                    if (spans[i].Area == 0)
+                    byte area = spans[i].Area;
+                    if (area == 0)
                     {
                         continue;
                     }
-                    int left = g.Nbr[4 * i];
+                    int left = nbr[4 * i];
                     int sweep;
-                    if (left >= 0 && spans[left].Area == spans[i].Area)
+                    if (left >= 0 && spans[left].Area == area)
                     {
                         sweep = sweepOf[left];
                     }
                     else
                     {
-                        sweep = sweepNei.Count;
-                        sweepNei.Add(0);
-                        sweepRegion.Add(0);
+                        sweep = sweeps++;
+                        sweepNei[sweep] = 0;
                     }
                     sweepOf[i] = sweep;
-                    int down = g.Nbr[(4 * i) + 3];
-                    if (down >= 0 && region[down] > 0 && spans[down].Area == spans[i].Area)
+                    int down = nbr[(4 * i) + 3];
+                    if (down >= 0 && region[down] > 0 && spans[down].Area == area)
                     {
                         int r = region[down];
                         if (sweepNei[sweep] == 0)
@@ -581,7 +732,11 @@ public static class Regions
                     }
                 }
             }
-            for (int s = 0; s < sweepNei.Count; s++)
+            if (sweeps == 0)
+            {
+                continue;
+            }
+            for (int s = 0; s < sweeps; s++)
             {
                 int r = sweepNei[s];
                 if (r > 0 && hitStamp[r] == z && hitCount[r] == 1)
@@ -591,15 +746,16 @@ public static class Regions
                 else
                 {
                     sweepRegion[s] = ++nextRegion;
-                    hitStamp.Add(-1);
-                    hitSweep.Add(-1);
-                    hitCount.Add(0);
+                    hitStamp[nextRegion] = -1;
+                    hitSweep[nextRegion] = -1;
+                    hitCount[nextRegion] = 0;
                 }
             }
-            for (int x = 0; x < f.Width; x++)
+            for (int x = 0; x < width; x++)
             {
-                int c = f.Column(x, z);
-                for (int i = chf.CellFirst[c]; i < chf.CellFirst[c] + chf.CellCount[c]; i++)
+                int c = rowStart + x;
+                int end = first[c] + cellCount[c];
+                for (int i = first[c]; i < end; i++)
                 {
                     if (spans[i].Area != 0)
                     {
@@ -608,6 +764,7 @@ public static class Regions
                 }
             }
         }
+        Scratch.Return(arena);
         return nextRegion;
     }
 

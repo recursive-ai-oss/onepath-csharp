@@ -43,7 +43,7 @@ public sealed class CompactHeightfield
     /// <summary>z offset of each direction.</summary>
     public static ReadOnlySpan<int> DirZ => s_dirZ;
 
-    private CompactHeightfield(HeightfieldFrame frame, int walkableHeight, int walkableClimb, int[] cellFirst, int[] cellCount, CompactSpan[] spans)
+    private CompactHeightfield(HeightfieldFrame frame, int walkableHeight, int walkableClimb, int[] cellFirst, int[] cellCount, CompactSpan[] spans, int spanCount = -1)
     {
         Frame = frame;
         WalkableHeight = walkableHeight;
@@ -51,7 +51,11 @@ public sealed class CompactHeightfield
         CellFirstArray = cellFirst;
         CellCountArray = cellCount;
         SpansArray = spans;
+        _spanCount = spanCount < 0 ? spans.Length : spanCount;
     }
+
+    private int _spanCount;
+    private bool _pooled;
 
     /// <summary>The grid.</summary>
     public HeightfieldFrame Frame { get; }
@@ -66,7 +70,7 @@ public sealed class CompactHeightfield
     public int RegionCount { get; set; }
 
     /// <summary>Total number of spans.</summary>
-    public int SpanCount => SpansArray.Length;
+    public int SpanCount => _spanCount;
 
     /// <summary>Per column, the index of its first span in <see cref="Spans"/>.</summary>
     public ReadOnlySpan<int> CellFirst => CellFirstArray;
@@ -75,7 +79,7 @@ public sealed class CompactHeightfield
     public ReadOnlySpan<int> CellCount => CellCountArray;
 
     /// <summary>All spans, column by column, each column from the bottom up. Modifiable: the later stages write areas and regions here.</summary>
-    public Span<CompactSpan> Spans => SpansArray;
+    public Span<CompactSpan> Spans => new(SpansArray, 0, _spanCount);
 
     internal int[] CellFirstArray { get; }
 
@@ -84,7 +88,29 @@ public sealed class CompactHeightfield
     internal CompactSpan[] SpansArray { get; }
 
     /// <summary>An independent copy: the same grid and spans, so the later stages can write areas and regions without touching this one.</summary>
-    public CompactHeightfield Clone() => new(Frame, WalkableHeight, WalkableClimb, CellFirstArray, CellCountArray, (CompactSpan[])SpansArray.Clone()) { RegionCount = RegionCount };
+    public CompactHeightfield Clone() => new(Frame, WalkableHeight, WalkableClimb, CellFirstArray, CellCountArray, SpansArray.AsSpan(0, _spanCount).ToArray()) { RegionCount = RegionCount };
+
+    /// <summary>
+    /// A copy for short-lived work (a rebuild that modifies areas and regions and then drops the copy): its span storage comes from a pool, so a
+    /// steady stream of rebuilds does not allocate large arrays. Give it back with <see cref="ReleaseScratch"/>; a copy that is never released is
+    /// just garbage collected.
+    /// </summary>
+    internal CompactHeightfield CloneScratch()
+    {
+        CompactSpan[] copy = Scratch.Rent<CompactSpan>(_spanCount);
+        Array.Copy(SpansArray, copy, _spanCount);
+        return new CompactHeightfield(Frame, WalkableHeight, WalkableClimb, CellFirstArray, CellCountArray, copy, _spanCount) { RegionCount = RegionCount, _pooled = true };
+    }
+
+    /// <summary>Returns the span storage of a <see cref="CloneScratch"/> copy to the pool; the copy must not be used afterwards.</summary>
+    internal void ReleaseScratch()
+    {
+        if (_pooled)
+        {
+            _pooled = false;
+            Scratch.Return(SpansArray);
+        }
+    }
 
     /// <summary>The link of <paramref name="span"/> in direction <paramref name="dir"/> (0..3): the target's index within its cell, or <see cref="NotConnected"/>.</summary>
     public static int GetConnection(in CompactSpan span, int dir) => (span.Connections >> (dir * 6)) & 0x3f;
