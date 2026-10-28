@@ -208,6 +208,7 @@ internal static class GridTargets
         var b = new Cell(Next(data, ref pos) % w, Next(data, ref pos) % h);
         using GridReplanner r = g.CreateReplanner(a, b, options);
         using GridReplanner sliced = g.CreateReplanner(a, b, options);
+        using GridReplanner viaTry = g.CreateReplanner(a, b, options);
         GridOptions plain = options.Clone();
         plain.Algorithm = GridAlgorithm.AStar;
         for (int round = 0; round < 8; round++)
@@ -239,6 +240,25 @@ internal static class GridTargets
             {
                 throw new InvalidOperationException("sliced replan differs from the unsliced one");
             }
+            PathStatus ts = viaTry.TryReplan(1 + (Next(data, ref pos) % 7));
+            while (ts == PathStatus.BudgetExhausted)
+            {
+                ts = viaTry.TryReplan(1 + (Next(data, ref pos) % 7));
+            }
+            if (ts != p.Status || (ts == PathStatus.Found && (viaTry.PathCost != p.Cost || viaTry.PathLength != p.Cells.Length)))
+            {
+                throw new InvalidOperationException("TryReplan differs from Replan");
+            }
+            if (ts == PathStatus.Found)
+            {
+                var tried = new Cell[viaTry.PathLength];
+                viaTry.CopyPath(tried);
+                if (!p.Cells.SequenceEqual(tried))
+                {
+                    throw new InvalidOperationException("TryReplan path differs from Replan");
+                }
+            }
+            CheckSearchHandle(g, r.Start, r.Goal, plain, data, ref pos);
             GridPath fresh = g.FindPath(r.Start, r.Goal, plain);
             if (fresh.Status != p.Status || (fresh.Found && Math.Abs(fresh.Cost - p.Cost) > 1e-9 * Math.Max(1.0, fresh.Cost)))
             {
@@ -252,6 +272,49 @@ internal static class GridTargets
             {
                 r.MoveStart(p.Cells[1]);
                 sliced.MoveStart(p.Cells[1]);
+                viaTry.MoveStart(p.Cells[1]);
+            }
+        }
+    }
+
+    // The resumable handle, sliced by decoded budgets, against FindPath: same status, same cells; and a save taken part-way restored
+    // into a second handle finishes the same way.
+    private static void CheckSearchHandle(Grid g, Cell a, Cell b, GridOptions plain, byte[] data, ref int pos)
+    {
+        GridPath expected = g.FindPath(a, b, plain);
+        GridSearch search = g.CreateSearch(plain);
+        PathStatus begin = search.TryBegin(a, b);
+        if (begin != PathStatus.InProgress)
+        {
+            if (begin != expected.Status)
+            {
+                throw new InvalidOperationException("TryBegin and FindPath disagree about an invalid end cell");
+            }
+            return;
+        }
+        PathStatus st = search.Step(1 + (Next(data, ref pos) % 9));
+        byte[] saved = search.SaveState();
+        GridSearch other = g.CreateSearch(plain);
+        other.RestoreState(saved);
+        foreach (GridSearch h in new[] { search, other })
+        {
+            PathStatus s = h == search ? st : other.Status == SearchStatus.Found ? PathStatus.Found : PathStatus.InProgress;
+            while (s == PathStatus.InProgress)
+            {
+                s = h.Step(1 + (Next(data, ref pos) % 11));
+            }
+            if (s != expected.Status)
+            {
+                throw new InvalidOperationException("GridSearch and FindPath disagree about the status");
+            }
+            if (s == PathStatus.Found)
+            {
+                var cells = new Cell[h.PathLength];
+                h.CopyPath(cells);
+                if (!cells.AsSpan().SequenceEqual(expected.Cells))
+                {
+                    throw new InvalidOperationException("GridSearch and FindPath returned different paths");
+                }
             }
         }
     }

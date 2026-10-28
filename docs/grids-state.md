@@ -13,6 +13,7 @@ what is *not* saved and why, and what each family counts as one iteration of a b
 | `Graph` | node count and every edge ever added in id order (from, to, weight, alive) | the compiled CSR graph, on demand |
 | `GridReplanner`, `HexReplanner` (LPA\*, D\* Lite) | start, goal, g and rhs of every planned node, the queue in heap order, km, pending edits and the overflow flag, counters, the area version it was built against | the search object itself (so heuristic scale follows the restored area table) |
 | `GridFlowField` (square and hex) | goals, integration costs, direction steps, the open heap of an unfinished run or repair, the touched list of a repair in progress, `Settled`, status, pending edits, area version | repair scratch stamps |
+| `GridSearch` (the non-generic A\* handle) | the engine in use and, for the specialised engine, the visited cells with their exact cost pair, direction and closed flag; for the generic engine the embedded `AStar` state | the open list (the specialised engine rebuilds it from the visited cells), the engine's wall tags |
 | `AStar`, `JumpSearch`, `ThetaSearch`, `GraphAStar` (the sliced `Begin`/`Step` forms) | status, goal (and start for A\*), counters, path cost, every visited node (closed flag, g, parent), the open heap in heap order, the recorded expansion list | the heuristic's goal, the jumper's index |
 
 Not covered, and why: **HPA\*** and **bidirectional** sliced searches (an HPA\* search works on temporary abstract nodes of the
@@ -66,6 +67,7 @@ Header (8 bytes): `u32 magic = 0x5347504F` (the bytes `4F 50 47 53`, "OPGS"), `u
 | 9 | JumpSearch |
 | 10 | ThetaSearch |
 | 11 | GraphAStar |
+| 12 | GridSearch |
 
 After the payload nothing may follow.
 
@@ -101,6 +103,11 @@ After the payload nothing may follow.
 * **GridFlowField** (7): `i32 width, i32 height, i32 areaVersion, i32 goalCount` and the goal nodes in the order given at creation (must equal the field's own), `i32 pendingCount` and the pending edited cells, then the flow field search.
 * **A\*, jump point, Theta\*, graph A\*** (8–11): `i32 nodeCount, u8 status (SearchStatus), f64 heuristicWeight, i32 start (−1 if unused), i32 goal, i32 expanded, i32 iterations, f64 pathCost`;
   unless the status is NotStarted, the search buffers. The weight must equal the restoring search's (A\* and Theta\*; 1.0 for the others). Every visited node's parent must be -1 or a visited node that costs no more, with no cycles.
+
+* **GridSearch** (12): `u8 mode (0 not begun, 1 specialised, 2 generic), i32 width, i32 height`. Mode 1: `u8 status, u8 zeroEstimate, i32 start, i32 goal` (cell indexes), `i32 expanded, i32 iterations, i32 pathA, i32 pathB, i32 visited`, then per visited cell in increasing index `i32 cell, i32 a, i32 b, u8 flags`
+  (a, b: straight and diagonal steps so far; flags bit 0 closed, bits 1–3 the direction to the parent: 0 south, 1 west, 2 north, 3 east, 4 south-west, 5 north-west, 6 north-east, 7 south-east). Restore checks that every cell but the start has a closed visited parent whose pair differs by exactly one step, that the start has cost 0, and that a found search has its goal closed
+  with the reported pair; the open list is the visited cells that are not closed. Mode 2: `i32 startX, startY, goalX, goalY, i32 length` and an embedded AStar (8) state. The restoring search must pick the same engine from its options and the (restored) grid.
+  Restoring a grid and then a search needs no extra step: the search compares the grid's version and restore count, not its own cache.
 
 ## What one iteration is
 

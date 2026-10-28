@@ -541,6 +541,55 @@ allocated.
   unsliced for budgets 1, 2, 7 and 50. Fuzz targets `voxel-map`, `voxel-scen`, `voxel-query`; hash scenarios `grids/voxel/*`;
   the Warframe set via `tools/GridOptima/voxel-sweep.sh` (`GridOptima --voxel`).
 
+## Host API: resumable handle, tick-path calls, hash, snapping, exact costs
+
+For a lockstep or rollback host whose simulation ticks must not allocate.
+
+**`GridSearch`** (`Grid.CreateSearch(options)`) is a non-generic resumable A\*: `TryBegin(start, goal)` returns
+`InProgress`, `StartInvalid` or `GoalInvalid` (the checks `FindPath` makes: inside the grid, clearance for `AgentSize`, `Blocked`; a refusal leaves the
+running search alone; `Begin` is the throwing twin), `Step(n)` pops at most `n` times and returns `InProgress`, `Found` or `NoPath`, `CopyPath(Span<Cell>)` /
+`CopyPath(Span<int>)` write the path, `SaveState`/`RestoreState` snapshot it (`grids-state.md`, kind 12). It supports `GridAlgorithm.AStar` only. It
+chooses its engine exactly as `FindPath` does: the specialised octile engine when the options allow it, otherwise the generic
+`AStar<SquareTopology, ...>` instantiation `FindPath` would build. `FindPath(start, goal, o)` is `TryBegin` then
+`Step(o.IterationBudget)`, so for every slicing the handle returns cell for cell the path `FindPath` returns, with the same
+`ExpandedCount` and cost bits (tested on generated random, room, maze, cave and area-cost maps and eight option variants). The grid must not be edited
+while a search is in progress (`Step` throws `InvalidOperationException`). After the first search `TryBegin`, `Step`, `CopyPath`, and (specialised engine) `SaveState(Span<byte>)`
+and `RestoreState` allocate nothing; a state save costs a pass over the cells plus the visited cells.
+
+**Which engine breaks ties how.** The specialised engine (`Grids/Fast`) keeps costs as exact integer pairs
+(straight steps, diagonal steps), orders its open list by `f`, then larger `g` rounded to float32, then smaller cell index, and
+relaxes neighbours in the order N, E, S, W, NE, SE, SW, NW. The generic engine sums double step costs and orders by `f`, then
+larger double `g`, then smaller node index, in the same neighbour order. Both are optimal, but on a tie between equal-cost paths they can
+choose different cells. We did not make the generic engine reproduce the pairs: its cost type is an arbitrary `double`
+(hooks, area multipliers), so no exact pair exists, and the specialised engine's speed depends on them. Instead
+**`GridOptions.SpecializedEngines = false`** forces the generic engine in `FindPath` and `CreateSearch`, and that is then
+cell for cell what a hand-built `AStar<SquareTopology, DefaultStepCost, OctileHeuristic>(topology, default, new OctileHeuristic(width, Areas.MinCost))` returns (tested). A host that mixes tier-1 and tier-2
+searches and needs one answer per request sets it for all of them; otherwise use one entry point per request kind.
+JPS and JPS+ honour the switch too (off means the generic jump search).
+
+**`AStar.TryBegin(start, goal)`** (generic form) returns the same statuses as an integer-node check instead of throwing; `AStar.Topology`, `Start` and `Goal` are read-only views.
+
+**`GridReplanner.TryReplan(budget)`** repairs like `Replan(budget)` but returns a `PathStatus`; on `Found` read `PathLength`, `PathCost` (summed from the start in
+path order, bit-equal to `Replan().Cost`) and `CopyPath`. Path buffers are reused, so a steady-state call allocates nothing. `RecordExpansions` is not kept by this form.
+
+**`Grid.ContentHash()`** (64 bit): feed words `w` into `h = rotl(h ^ (w * P2), 31) * P1 + P3`, from `h = P1 ^ P2`, with
+`P1 = 0x9E3779B185EBCA87`, `P2 = 0xC2B2AE3D27D4EB4F`, `P3 = 0x165667B19E3779F9` (all arithmetic mod 2^64). Words, in order:
+`width | height << 32`; the cells row-major, eight per little-endian word, the last zero-padded; the 255 area multipliers 0..254 as binary64 bit patterns.
+Finish: `h ^= h >> 33; h *= P2; h ^= h >> 29; h *= P3; h ^= h >> 32`. Version, world mapping and edit history are not part of it. Known answers are in the tests.
+The definition changes only with a note in the changelog.
+
+**Large agents.** An agent of side *s* occupies the *s* × *s* block whose top-left cell is the position. `CanFit(cell, s)` is `clearance >= s`, the test
+`FindPath` applies to its end cells; `MaxAgentSizeAt(cell)` is the clearance without exceptions (0 outside the grid).
+
+**`Grid.TryFindNearestWalkable(cell | world point, out cell, options)`** returns the cell that fits `AgentSize` and is not refused by `Blocked`, nearest by squared Euclidean
+distance between cell indexes, ties to the smaller row and then smaller column. The query may be outside the grid. `NearestRadius` bounds the search in Chebyshev rings.
+It scans rings outward and stops once a ring is farther than the best hit.
+
+**Exact integer costs.** `Grid.TryGetFixedCost(cells, out long)` prices a path of adjacent cells in Q31.32: every step is the double the default search charges
+(the mean of the two cells' area multipliers; times `1.4142135623730951` for a diagonal), multiplied by 2^32 (exact) and rounded half to even, and the integers are added.
+`GridPath.TryGetStepCounts` gives the exact numbers of straight and diagonal steps. Both refuse a path with a non-adjacent step (any-angle, abstract) and
+`StepCost` hooks are not priced.
+
 ## Host hooks
 
 Snapshot and restore of grids, voxel grids, graphs, replanners, flow fields and sliced searches, the byte format, what one

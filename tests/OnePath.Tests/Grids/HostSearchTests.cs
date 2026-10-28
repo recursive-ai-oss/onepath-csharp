@@ -397,4 +397,19 @@ public class HostSearchTests
             }
         }
     }
+
+    [Fact]
+    public void FoundStateWhoseGoalWasNeverClosedIsRejected()
+    {
+        // Found asks for the path by following parent links from the goal. A goal the search never closed still holds links from
+        // earlier searches in the same buffers, which can chain into a loop; the reader must refuse such a state (fuzz regression).
+        var g = new Grid(10, 6);
+        var search = new AStar<SquareTopology, DefaultStepCost, OctileHeuristic>(g.CreateTopology(), default, new OctileHeuristic(g.Width));
+        search.Begin(0, g.CellCount - 1);
+        search.Step(3);
+        byte[] state = search.SaveState();
+        Assert.Equal((byte)SearchStatus.Running, state[12]);
+        state[12] = (byte)SearchStatus.Found;
+        Assert.Throws<GridStateException>(() => search.RestoreState(state));
+    }
 }

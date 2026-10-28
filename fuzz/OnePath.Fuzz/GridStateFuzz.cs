@@ -16,7 +16,7 @@ namespace RecursiveAI.OnePath.Fuzz;
 /// </summary>
 internal static class GridStateFuzz
 {
-    private const int Kinds = 10;
+    private const int Kinds = 12;
 
     private static Grid Square()
     {
@@ -88,15 +88,31 @@ internal static class GridStateFuzz
                     s.Step(11);
                     return s.SaveState();
                 }
-            default:
+            case 9:
                 {
                     var s = MakeSearch(g);
                     s.Begin(0, 59);
                     s.Run();
                     return s.SaveState();
                 }
+            case 10:
+                {
+                    GridSearch s = g.CreateSearch(SearchOptions(false));
+                    s.TryBegin(new Cell(0, 0), new Cell(9, 5));
+                    s.Step(13);
+                    return s.SaveState();
+                }
+            default:
+                {
+                    GridSearch s = g.CreateSearch(SearchOptions(true));
+                    s.TryBegin(new Cell(0, 0), new Cell(9, 5));
+                    s.Step(13);
+                    return s.SaveState();
+                }
         }
     }
+
+    private static GridOptions SearchOptions(bool generic) => new() { SpecializedEngines = !generic };
 
     public static void Run(byte[] data)
     {
@@ -211,6 +227,23 @@ internal static class GridStateFuzz
                     catch (InvalidOperationException)
                     {
                         // A restored cost field is trusted to be consistent (docs/grids-state.md); an inconsistent one can have steps that cycle.
+                    }
+                    break;
+                }
+            case 10:
+            case 11:
+                {
+                    GridSearch s = g.CreateSearch(SearchOptions(kind == 11));
+                    s.RestoreState(state);
+                    Again(s.SaveState, s.RestoreState);
+                    var span = new byte[s.GetStateSize()];
+                    if (s.SaveState(span) != span.Length || !span.AsSpan().SequenceEqual(s.SaveState()))
+                    {
+                        throw new InvalidOperationException("The span save differs from the array save.");
+                    }
+                    if (s.Status != SearchStatus.NotStarted && s.Step(500) == PathStatus.Found)
+                    {
+                        _ = s.CopyPath(new Cell[s.PathLength]);
                     }
                     break;
                 }

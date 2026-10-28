@@ -121,7 +121,11 @@ public sealed partial class Grid
         long outX = cx < 0 ? -cx : (cx >= Width ? cx - (Width - 1) : 0);
         long outY = cy < 0 ? -cy : (cy >= Height ? cy - (Height - 1) : 0);
         long first = Math.Max(outX, outY);
-        long last = Math.Min((long)o.NearestRadius, first + Math.Max(Width, Height));
+        long last = first + Math.Max(Width, Height);
+        if (o.NearestRadius != int.MaxValue)
+        {
+            last = Math.Min(last, o.NearestRadius); // int.MaxValue means the whole grid, even for a query cell 2^31 away
+        }
         bool found = false;
         long bestD2 = long.MaxValue;
         long bestX = 0;
