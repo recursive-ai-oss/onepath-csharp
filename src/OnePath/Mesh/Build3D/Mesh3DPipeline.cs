@@ -543,7 +543,7 @@ public sealed class Mesh3DPipeline
             return;
         }
         chf.RegionCount = borderId;
-        ContourSet contours = Regions.Trace(chf, Regions.ContourOptions);
+        ContourSet contours = Regions.Trace(chf, new ContourSettings { MaxError = Regions.ContourOptions.MaxError, MaxEdgeLength = Regions.ContourOptions.MaxEdgeLength, KeepRawVertices = Regions.ContourOptions.KeepRawVertices, StraightRegionBorders = Regions.ContourOptions.StraightRegionBorders, BorderRegion = borderId });
         PolyMesh mesh = Polygonize(contours, Settings.MaxVertsPerPoly, borderId, new TileCoordinates(Border, TileCells, CellSize, Params.TileSize, Settings.CellHeight, 0));
         if (mesh.PolygonCount == 0)
         {
