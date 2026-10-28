@@ -96,6 +96,18 @@ public static class Contours
         ArgumentNullException.ThrowIfNull(settings);
         settings.Validate();
         var g = new SpanGraph(chf);
+        try
+        {
+            return BuildCore(chf, settings, g);
+        }
+        finally
+        {
+            g.Release();
+        }
+    }
+
+    private static ContourSet BuildCore(CompactHeightfield chf, ContourSettings settings, SpanGraph g)
+    {
         Span<CompactSpan> spans = chf.Spans;
         int n = g.Count;
         var region = new int[n];
@@ -119,6 +131,7 @@ public static class Contours
         }
 
         var visited = new byte[n];
+        var traceBuffer = new List<ContourVertex>(256);
         var outers = new List<(ContourVertex[] Raw, long Area)>[maxRegion + 1];
         var holes = new List<ContourVertex[]>[maxRegion + 1];
         int guard = (4 * n) + 8;
@@ -135,7 +148,7 @@ public static class Contours
                 {
                     continue;
                 }
-                ContourVertex[] loop = Trace(chf, g, region, visited, i, d, guard);
+                ContourVertex[] loop = Trace(chf, g, region, visited, i, d, guard, traceBuffer);
                 long area = SignedArea2(loop);
                 if (area > 0)
                 {
@@ -261,10 +274,10 @@ public static class Contours
     }
 
     // Walks one boundary loop with the region on the left. State (span, dir) is "at the start of edge dir of span".
-    private static ContourVertex[] Trace(CompactHeightfield chf, SpanGraph g, int[] region, byte[] visited, int start, int startDir, int guard)
+    private static ContourVertex[] Trace(CompactHeightfield chf, SpanGraph g, int[] region, byte[] visited, int start, int startDir, int guard, List<ContourVertex> loop)
     {
         Span<CompactSpan> spans = chf.Spans;
-        var loop = new List<ContourVertex>();
+        loop.Clear();
         int s = start;
         int dir = startDir;
         int r = region[start];
@@ -279,8 +292,8 @@ public static class Contours
             if (nv != r)
             {
                 visited[s] |= (byte)(1 << dir);
-                int x = g.CellX[s];
-                int z = g.CellZ[s];
+                int x = g.CellX(s);
+                int z = g.CellZ(s);
                 // Start corner of the edge: bottom (3) at (x,z), right (2) at (x+1,z), top (1) at (x+1,z+1), left (0) at (x,z+1).
                 int cx = dir == 2 || dir == 1 ? x + 1 : x;
                 int cz = dir == 1 || dir == 0 ? z + 1 : z;

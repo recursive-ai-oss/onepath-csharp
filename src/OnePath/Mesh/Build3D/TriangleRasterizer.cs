@@ -33,8 +33,7 @@ internal sealed class TriangleRasterizer
     private P[] _tmp = new P[Cap];
     private P[] _row = new P[Cap];
     private P[] _cell = new P[Cap];
-    private readonly P[] _crest = new P[Cap];
-    private readonly P[] _ctmp = new P[Cap];
+    private P[] _crest = new P[Cap];
 
     private float _ny;
     private byte _area;
@@ -92,15 +91,21 @@ internal sealed class TriangleRasterizer
 
         // Restrict to the grid rectangle [0, W] x [0, D].
         int n = 3;
-        n = Clip(poly, n, 0, 0f, false, _b);
-        n = Clip(_b, n, 0, _width, true, _a);
-        n = Clip(_a, n, 2, 0f, false, _b);
-        n = Clip(_b, n, 2, _depth, true, _a);
-        if (n == 0)
+        // A triangle that lies wholly inside the rectangle is unchanged by the four clips (they keep points on the plane and cut nothing).
+        bool inside = u0 >= 0f && u0 <= _width && u1 >= 0f && u1 <= _width && u2 >= 0f && u2 <= _width
+            && w0 >= 0f && w0 <= _depth && w1 >= 0f && w1 <= _depth && w2 >= 0f && w2 <= _depth;
+        if (!inside)
         {
-            return false;
+            n = Clip(poly, n, 0, 0f, false, _b);
+            n = Clip(_b, n, 0, _width, true, _a);
+            n = Clip(_a, n, 2, 0f, false, _b);
+            n = Clip(_b, n, 2, _depth, true, _a);
+            if (n == 0)
+            {
+                return false;
+            }
+            poly = _a;
         }
-        poly = _a;
 
         float minW = poly[0].W;
         float maxW = minW;
@@ -119,8 +124,7 @@ internal sealed class TriangleRasterizer
             int rowN;
             if (j < j1)
             {
-                rowN = Clip(_rest, restN, 2, j + 1, true, _row);
-                restN = Clip(_rest, restN, 2, j + 1, false, _tmp);
+                SplitW(_rest, restN, j + 1, _row, out rowN, _tmp, out restN);
                 (_rest, _tmp) = (_tmp, _rest);
             }
             else
@@ -141,8 +145,7 @@ internal sealed class TriangleRasterizer
     {
         if (fixedCol >= 0)
         {
-            Array.Copy(_row, _cell, rowN);
-            Emit(fixedCol, j, rowN);
+            Emit(_row, fixedCol, j, rowN);
             return;
         }
         float minU = _row[0].U;
@@ -154,41 +157,43 @@ internal sealed class TriangleRasterizer
         }
         int i0 = Math.Clamp((int)Math.Floor(minU), 0, _width - 1);
         int i1 = Math.Clamp((int)Math.Ceiling(maxU) - 1, i0, _width - 1);
-        // Walk the row left to right, splitting off one cell at a time.
-        P[] rest = _crest;
-        P[] spare = _ctmp;
-        Array.Copy(_row, rest, rowN);
+        // Walk the row left to right, splitting off one cell at a time. The row polygon is consumed: its array is scratch from here on.
+        P[] rest = _row;
+        P[] spare = _crest;
         int restN = rowN;
         for (int i = i0; i <= i1; i++)
         {
+            P[] cell;
             int cellN;
             if (i < i1)
             {
-                cellN = Clip(rest, restN, 0, i + 1, true, _cell);
-                restN = Clip(rest, restN, 0, i + 1, false, spare);
+                SplitU(rest, restN, i + 1, _cell, out cellN, spare, out restN);
                 (rest, spare) = (spare, rest);
+                cell = _cell;
             }
             else
             {
-                Array.Copy(rest, _cell, restN);
+                cell = rest;
                 cellN = restN;
             }
-            if (cellN == 0 || !Positive(_cell, cellN))
+            if (cellN == 0 || !Positive(cell, cellN))
             {
                 continue;
             }
-            Emit(i, j, cellN);
+            Emit(cell, i, j, cellN);
         }
+        _crest = spare;
+        _row = rest;
     }
 
-    private void Emit(int i, int j, int n)
+    private void Emit(P[] cell, int i, int j, int n)
     {
-        float vmin = _cell[0].V;
+        float vmin = cell[0].V;
         float vmax = vmin;
         for (int k = 1; k < n; k++)
         {
-            vmin = Math.Min(vmin, _cell[k].V);
-            vmax = Math.Max(vmax, _cell[k].V);
+            vmin = Math.Min(vmin, cell[k].V);
+            vmax = Math.Max(vmax, cell[k].V);
         }
         double lo = Math.Floor((double)vmin);
         double hi = Math.Ceiling((double)vmax);
@@ -211,7 +216,8 @@ internal sealed class TriangleRasterizer
         }
         int smin = lo < 0.0 ? 0 : (int)lo;
         int smax = hi > _height ? _height : (int)hi;
-        _hf.AddSpan(i + (j * _width), smin, smax, _area, _threshold);
+        // The column is inside the grid (i, j are clamped to it) and 0 <= smin < smax <= height (lo < hi after the tie rule, hi > 0, lo < height).
+        _hf.AddSpanUnchecked(i + (j * _width), smin, smax, _area, _threshold);
         _touched = true;
     }
 
@@ -297,5 +303,86 @@ internal sealed class TriangleRasterizer
             dp = dc;
         }
         return m;
+    }
+
+    // Both halves of Clip in one pass: low gets the part with U <= c, high the part with U >= c, points on the plane in both. Same points, same order,
+    // same arithmetic as two Clip calls, so results are bit-equal.
+    private static void SplitU(P[] src, int n, float c, P[] low, out int lowN, P[] high, out int highN)
+    {
+        int ml = 0, mh = 0;
+        if (n > 0)
+        {
+            P prev = src[n - 1];
+            float dp = prev.U - c;
+            for (int i = 0; i < n; i++)
+            {
+                P cur = src[i];
+                float dc = cur.U - c;
+                if ((dp < 0f && dc > 0f) || (dp > 0f && dc < 0f))
+                {
+                    float t = dp / (dp - dc);
+                    var x = new P
+                    {
+                        U = c,
+                        V = prev.V + ((cur.V - prev.V) * t),
+                        W = prev.W + ((cur.W - prev.W) * t),
+                    };
+                    low[ml++] = x;
+                    high[mh++] = x;
+                }
+                if (dc <= 0f)
+                {
+                    low[ml++] = cur;
+                }
+                if (dc >= 0f)
+                {
+                    high[mh++] = cur;
+                }
+                prev = cur;
+                dp = dc;
+            }
+        }
+        lowN = ml;
+        highN = mh;
+    }
+
+    // As SplitU on the W axis.
+    private static void SplitW(P[] src, int n, float c, P[] low, out int lowN, P[] high, out int highN)
+    {
+        int ml = 0, mh = 0;
+        if (n > 0)
+        {
+            P prev = src[n - 1];
+            float dp = prev.W - c;
+            for (int i = 0; i < n; i++)
+            {
+                P cur = src[i];
+                float dc = cur.W - c;
+                if ((dp < 0f && dc > 0f) || (dp > 0f && dc < 0f))
+                {
+                    float t = dp / (dp - dc);
+                    var x = new P
+                    {
+                        U = prev.U + ((cur.U - prev.U) * t),
+                        V = prev.V + ((cur.V - prev.V) * t),
+                        W = c,
+                    };
+                    low[ml++] = x;
+                    high[mh++] = x;
+                }
+                if (dc <= 0f)
+                {
+                    low[ml++] = cur;
+                }
+                if (dc >= 0f)
+                {
+                    high[mh++] = cur;
+                }
+                prev = cur;
+                dp = dc;
+            }
+        }
+        lowN = ml;
+        highN = mh;
     }
 }
