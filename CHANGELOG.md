@@ -18,6 +18,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 ### Fixed
 
 - A crowd whose settings (speed, horizon, wall clearance) were huge but valid, for example restored from a saved state, could ask the wall query for a radius beyond its limit; the radius is now bounded.
+- Restoring a sliced search whose open list named a node the search never reached is now a `GridStateException` (it would have popped the node with stale parent links, and `PathLength` could loop). A state saved before `Begin` restores as `NotStarted`; check `Status` before `Step`.
 - Restoring a sliced search (`AStar`, jump point, Theta\*, graph A\*) from a state that claimed *found* with a goal the search never closed could be accepted and then hang in `PathLength`/`CopyPath` by following leftover parent links in a loop; it is now a `GridStateException`.
 
 ## [0.4.0-preview.1]

@@ -89,6 +89,7 @@ public sealed partial class AStar<TTopology, TCost, THeuristic>
     /// <summary>
     /// Restores a state written by <see cref="SaveState"/> into this search, which must be built over the same grid and
     /// options (same node count and <see cref="HeuristicWeight"/>). Later steps give exactly what the saved search would have.
+    /// A state saved before <see cref="Begin"/> restores as <see cref="SearchStatus.NotStarted"/>: check <see cref="Status"/>, because <c>Step</c> and <c>Run</c> throw <see cref="InvalidOperationException"/> until the search has begun.
     /// </summary>
     /// <param name="state">The bytes.</param>
     /// <exception cref="GridStateException">The bytes are truncated, of another kind or version, or inconsistent with this search; the search is then unusable until restored again or <see cref="Begin"/> is called.</exception>
