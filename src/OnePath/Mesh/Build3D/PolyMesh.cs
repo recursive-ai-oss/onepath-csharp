@@ -102,13 +102,11 @@ public static class Polygonizer
             {
                 continue;
             }
-            ContourVertex[] v = c.Vertices;
+            ContourVertex[] v = DropStraightWallVertices(c.Vertices);
             if (v.Length < 3)
             {
                 continue;
             }
-            tris.Clear();
-            degenerate += EarClip(v, tris);
             // Weld by position: bridge duplicates collapse, and neighbouring regions share vertices on their common boundary. Corners at the same
             // (x, z) whose floor rows differ by at most one are one vertex (a contour that touches itself at a corner would otherwise give a polygon
             // two vertices at one place); the first vertex created there wins.
@@ -150,6 +148,8 @@ public static class Polygonizer
                     walls.Add((global[i], global[j]));
                 }
             }
+            tris.Clear();
+            degenerate += EarClip(v, tris);
             var polys = new List<int[]>();
             for (int t = 0; t < tris.Count; t += 3)
             {
@@ -161,6 +161,7 @@ public static class Polygonizer
                 polys.Add(new[] { a, b, d });
             }
             MergeConvex(polys, verts, maxVertsPerPoly, map, walls);
+            RecutTriples(polys, verts, maxVertsPerPoly, map);
             foreach (int[] p in polys)
             {
                 counts.Add(p.Length);
@@ -170,6 +171,69 @@ public static class Polygonizer
             }
         }
         return new PolyMesh(contours.Frame, maxVertsPerPoly, verts.ToArray(), counts.ToArray(), indices.ToArray(), areas.ToArray(), regions.ToArray(), degenerate);
+    }
+
+    // A vertex in the middle of a straight wall (both edges walls, exactly collinear, same direction) is dropped before ear clipping. Such vertices are
+    // left by the edge-length split of simplification; a polygon spends one of its vertex slots on each, so keeping them raises the polygon count for
+    // nothing: the wall they sit on is the same line either way. Portals, bridge ends and corners are never touched. A loop that would fall below
+    // three vertices is returned as it was.
+    private static ContourVertex[] DropStraightWallVertices(ContourVertex[] v)
+    {
+        int n = v.Length;
+        var keep = new bool[n];
+        Array.Fill(keep, true);
+        int kept = n;
+        bool changed = true;
+        while (changed && kept > 3)
+        {
+            changed = false;
+            for (int i = 0; i < n && kept > 3; i++)
+            {
+                if (!keep[i])
+                {
+                    continue;
+                }
+                int pi = (i + n - 1) % n;
+                while (!keep[pi])
+                {
+                    pi = (pi + n - 1) % n;
+                }
+                int ni = (i + 1) % n;
+                while (!keep[ni])
+                {
+                    ni = (ni + 1) % n;
+                }
+                if (v[pi].Neighbor != 0 || v[i].Neighbor != 0)
+                {
+                    continue;
+                }
+                long cr = ((long)(v[i].X - v[pi].X) * (v[ni].Z - v[pi].Z)) - ((long)(v[i].Z - v[pi].Z) * (v[ni].X - v[pi].X));
+                long dot = ((long)(v[i].X - v[pi].X) * (v[ni].X - v[i].X)) + ((long)(v[i].Z - v[pi].Z) * (v[ni].Z - v[i].Z));
+                long span = ((long)(v[ni].X - v[pi].X) * (v[ni].X - v[pi].X)) + ((long)(v[ni].Z - v[pi].Z) * (v[ni].Z - v[pi].Z));
+                // The floor row must stay within one row of the straight line between the neighbours, so slopes along a wall keep their height.
+                long dy = Math.Abs(((long)(v[i].Y - v[pi].Y) * span) - ((long)(v[ni].Y - v[pi].Y) * (dot + ((long)(v[i].X - v[pi].X) * (v[i].X - v[pi].X)) + ((long)(v[i].Z - v[pi].Z) * (v[i].Z - v[pi].Z)))));
+                if (cr == 0 && dot > 0 && dy <= span)
+                {
+                    keep[i] = false;
+                    kept--;
+                    changed = true;
+                }
+            }
+        }
+        if (kept == n)
+        {
+            return v;
+        }
+        var r = new ContourVertex[kept];
+        int k = 0;
+        for (int i = 0; i < n; i++)
+        {
+            if (keep[i])
+            {
+                r[k++] = v[i];
+            }
+        }
+        return r;
     }
 
     // Twice the signed area of (a, b, c) with x right, z up; exact in long for coordinates below 2^20.
@@ -330,6 +394,206 @@ public static class Polygonizer
     private static int FloatOrient(List<int> verts, TileCoordinates map, int a, int b, int c) =>
         OneMath.Predicates.ExactPredicates.Orient2D(
             map.Local(verts[3 * a]), map.Local(verts[(3 * a) + 2]), map.Local(verts[3 * b]), map.Local(verts[(3 * b) + 2]), map.Local(verts[3 * c]), map.Local(verts[(3 * c) + 2]));
+
+    // Re-cuts three neighbouring polygons (a middle one and two that touch it on different edges) into two when their union has a diagonal that leaves two
+    // convex polygons within the vertex limit. Greedy merging only ever joins two polygons, so it cannot see this. Each pass takes improvements that do
+    // not share a polygon, in polygon order, then rebuilds the edge map; passes repeat until none is found.
+    private static void RecutTriples(List<int[]> polys, List<int> verts, int maxVerts, TileCoordinates map)
+    {
+        if (maxVerts < 4)
+        {
+            return;
+        }
+        for (int pass = 0; pass < 16; pass++)
+        {
+            var owner = new Dictionary<(int, int), (int Poly, int Edge)>();
+            for (int p = 0; p < polys.Count; p++)
+            {
+                int[] pv = polys[p];
+                for (int e = 0; e < pv.Length; e++)
+                {
+                    owner[(pv[e], pv[(e + 1) % pv.Length])] = (p, e);
+                }
+            }
+            var used = new bool[polys.Count];
+            var removed = new bool[polys.Count];
+            bool any = false;
+            for (int q = 0; q < polys.Count; q++)
+            {
+                if (used[q])
+                {
+                    continue;
+                }
+                int[] Q = polys[q];
+                bool done = false;
+                for (int e1 = 0; e1 < Q.Length && !done; e1++)
+                {
+                    if (!owner.TryGetValue((Q[(e1 + 1) % Q.Length], Q[e1]), out var op) || used[op.Poly] || op.Poly == q)
+                    {
+                        continue;
+                    }
+                    for (int e2 = e1 + 1; e2 < Q.Length && !done; e2++)
+                    {
+                        if (!owner.TryGetValue((Q[(e2 + 1) % Q.Length], Q[e2]), out var or) || used[or.Poly] || or.Poly == q || or.Poly == op.Poly)
+                        {
+                            continue;
+                        }
+                        int[] P = polys[op.Poly], R = polys[or.Poly];
+                        if (!HasOneSharedEdge(Q, P) || !HasOneSharedEdge(Q, R))
+                        {
+                            continue;
+                        }
+                        int[] ring1 = Join(Q, e1, P, op.Edge);
+                        int k = -1;
+                        int ra = Q[e2], rb = Q[(e2 + 1) % Q.Length];
+                        for (int i = 0; i < ring1.Length; i++)
+                        {
+                            if (ring1[i] == ra && ring1[(i + 1) % ring1.Length] == rb)
+                            {
+                                k = i;
+                                break;
+                            }
+                        }
+                        if (k < 0)
+                        {
+                            continue;
+                        }
+                        int[] ring = Join(ring1, k, R, or.Edge);
+                        if (!Distinct(ring))
+                        {
+                            continue;
+                        }
+                        if (TrySplit(ring, verts, maxVerts, map, out int[]? part1, out int[]? part2))
+                        {
+                            polys[q] = part1!;
+                            polys[op.Poly] = part2!;
+                            removed[or.Poly] = true;
+                            used[q] = used[op.Poly] = used[or.Poly] = true;
+                            any = true;
+                            done = true;
+                        }
+                    }
+                }
+            }
+            if (!any)
+            {
+                return;
+            }
+            var next = new List<int[]>(polys.Count);
+            for (int i = 0; i < polys.Count; i++)
+            {
+                if (!removed[i])
+                {
+                    next.Add(polys[i]);
+                }
+            }
+            polys.Clear();
+            polys.AddRange(next);
+        }
+    }
+
+    private static bool Distinct(int[] ring)
+    {
+        for (int i = 0; i < ring.Length; i++)
+        {
+            for (int j = i + 1; j < ring.Length; j++)
+            {
+                if (ring[i] == ring[j])
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    // Exactly one directed edge of a has its reverse in b (the polygons meet along a single edge).
+    private static bool HasOneSharedEdge(int[] a, int[] b)
+    {
+        int shared = 0;
+        for (int i = 0; i < a.Length; i++)
+        {
+            int x = a[i], y = a[(i + 1) % a.Length];
+            for (int j = 0; j < b.Length; j++)
+            {
+                if (b[j] == y && b[(j + 1) % b.Length] == x)
+                {
+                    shared++;
+                }
+            }
+        }
+        return shared == 1;
+    }
+
+    // Number of right turns of the ring in cells. A ring that is to be cut into k convex polygons by k - 1 diagonals has at most 2 (k - 1) of them.
+    private static int ReflexCount(int[] ring, List<int> verts)
+    {
+        int r = 0;
+        for (int i = 0; i < ring.Length; i++)
+        {
+            if (Cross(verts, ring[(i + ring.Length - 1) % ring.Length], ring[i], ring[(i + 1) % ring.Length]) < 0)
+            {
+                r++;
+            }
+        }
+        return r;
+    }
+
+    private static bool TrySplit(int[] ring, List<int> verts, int maxVerts, TileCoordinates map, out int[]? first, out int[]? second)
+    {
+        int m = ring.Length;
+        if (ReflexCount(ring, verts) > 2)
+        {
+            first = null;
+            second = null;
+            return false;
+        }
+        for (int i = 0; i < m; i++)
+        {
+            for (int j = i + 2; j < m; j++)
+            {
+                if (i == 0 && j == m - 1)
+                {
+                    continue;
+                }
+                int n1 = j - i + 1, n2 = m - (j - i) + 1;
+                if (n1 > maxVerts || n2 > maxVerts)
+                {
+                    continue;
+                }
+                var a = new int[n1];
+                for (int t = 0; t < n1; t++)
+                {
+                    a[t] = ring[i + t];
+                }
+                var b = new int[n2];
+                for (int t = 0; t < n2; t++)
+                {
+                    b[t] = ring[(j + t) % m];
+                }
+                if (Area2(a, verts) > 0 && Area2(b, verts) > 0 && IsConvex(a, verts, map) && IsConvex(b, verts, map))
+                {
+                    first = a;
+                    second = b;
+                    return true;
+                }
+            }
+        }
+        first = null;
+        second = null;
+        return false;
+    }
+
+    private static long Area2(int[] ring, List<int> verts)
+    {
+        long s = 0;
+        for (int i = 0; i < ring.Length; i++)
+        {
+            int a = ring[i], b = ring[(i + 1) % ring.Length];
+            s += ((long)verts[3 * a] * verts[(3 * b) + 2]) - ((long)verts[3 * b] * verts[(3 * a) + 2]);
+        }
+        return s;
+    }
 
     private static void MergeConvex(List<int[]> polys, List<int> verts, int maxVerts, TileCoordinates map, HashSet<(int, int)> walls)
     {

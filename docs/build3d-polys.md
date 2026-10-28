@@ -40,6 +40,10 @@ Tiles are built one after the other in row-major order (tile row, then column), 
 
 Per contour, in contour order; all tests use `long` cross products on cell coordinates (exact below 2^20 cells) or the exact orientation of the stored float32 positions.
 
+**Straight wall vertices.** Before anything else, a contour vertex is removed when both its edges are wall edges (neighbour 0), it is exactly collinear with the previous and next kept vertices (cross 0, same direction),
+and its floor row is within one row of the straight line between those neighbours (`|(yᵥ−yₚ)·D − (yₙ−yₚ)·T| ≤ D`, with `D = |n−p|²`, `T = (n−p)·(v−p)`, all in `long`). Removal repeats until none is left,
+unless the loop would drop below three vertices (then it is kept as it was). These vertices come from the edge-length split of simplification; each costs a polygon one of its vertex slots and removing it leaves the wall on the same line.
+
 **Ear clipping** (O'Rourke, *Computational Geometry in C*, ch. 1). The loop is a doubly linked ring. A vertex `i` with neighbours `p`, `q` is a *valid ear* when `cross(p, i, q) > 0` and `(p, q)` is a diagonal:
 it lies in the cone at `p` and at `q` (ring neighbours decide the cone, so hole bridges, which visit a vertex twice, are handled), and no ring edge that has no endpoint at the position of `p` or `q` touches it
 (proper crossing, or an endpoint of either segment on the other). Among all valid ears the one with the shortest squared diagonal is clipped, ties to the lowest vertex index; the triangle `(p, i, q)` is emitted
@@ -54,6 +58,11 @@ A merge is valid when the two joint vertices `a` (neighbours `x`, `w`) and `b` (
 Exception: a joint that is collinear in cells and whose both incident edges are *wall edges* (contour edges with neighbour 0, or edges created by an earlier drop) is removed from the polygon instead; the turns at its neighbours must then still be `≥ 0` in float32.
 (Float32 rounding can tip collinear points to the wrong side, and the format rejects that; wall-collinear vertices exist only because long wall edges are split.)
 Merging never crosses contours. The polygon's area and region are the contour's.
+
+**Re-cutting** (after merging, per contour). Merging only joins pairs, so three neighbours that fit into one fewer polygon are looked for explicitly. In passes (at most 16) over polygons `q` in index order,
+for each pair of edges `e1 < e2` of `q` (edge order) that have neighbours `p` and `r` (distinct, not yet used in this pass, each sharing exactly one edge with `q`), the ring `q ∪ p ∪ r` is formed (joined as in merging, no convexity tests; its vertices must be distinct).
+A ring with more than 2 right turns (in cells) is skipped. Otherwise it is cut by the first diagonal `(i, j)` (`i` ascending, then `j`; ring indices) whose two sides have positive area, at most `MaxVertsPerPoly` vertices, and are convex in cells and in float32 positions (the same test as merging).
+The two sides replace `q` and `p`, `r` is deleted, and the three are marked used for the pass. After a pass the edge table is rebuilt; passes stop when none finds anything. Polygons are visited in index order and nothing depends on hashing.
 
 ## 4. Height detail (`DetailMeshBuilder`)
 
