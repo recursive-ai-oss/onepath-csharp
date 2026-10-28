@@ -178,8 +178,8 @@ Warm-up: our 3D build and tile-cache rows run untimed builds (obstacle cycles fo
 (at most 40, or 30 s; the clock bounds only the warm-up). Setting `ONEPATH_PROFILE=1` adds per-stage rows to our side: `stage_*_ms` is the
 time spent in each replaceable stage of `Mesh3DPipeline` (the public hooks, wrapped with a clock; summed over tiles, best of several
 runs), `stage_other_ms` the rest (triangle binning, voxelizing, tile data, stitching) and `stage_voxelize_standalone_ms` the voxelize step
-timed alone. Setting `ONEPATH_TC_VARIANT=layers` makes the `tilecache` rows use the partition and detail work DetourTileCache does on a
-rebuild (layer partition, no detail sampling) instead of watershed with detail sampling; the settings row says which one ran.
+timed alone. Our `tilecache` rows use the partition and detail work DetourTileCache does on a rebuild (layer partition, no detail sampling) by
+default; `ONEPATH_TC_VARIANT=watershed` uses watershed with detail sampling instead. The settings row says which one ran.
 
 ## Running the full reference rows
 
