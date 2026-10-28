@@ -155,7 +155,7 @@ internal static class CrowdWorlds
         TiledNavMesh mesh = Field2(size, seed);
         CrowdSim sim = Make(mesh, threads, options, constraints);
         var rng = new NavMeshWorlds.Rng(seed + 1);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         double side = size * 2.0;
         int tries = 0;
         while (sim.Agents.Count < n && tries++ < n * 40)
@@ -208,7 +208,7 @@ internal static class CrowdWorlds
         CrowdSim sim = Make(mesh, threads, options);
         var rng = new NavMeshWorlds.Rng(seed + 5);
         List<PolyRef> polys = CorridorWorlds.AllPolys(mesh);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         int tries = 0;
         while (sim.Agents.Count < n && tries++ < n * 40)
         {

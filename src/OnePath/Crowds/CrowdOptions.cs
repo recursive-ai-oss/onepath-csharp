@@ -145,6 +145,13 @@ public sealed record CrowdOptions
     public int QueryNodes { get; init; } = 16384;
 
     /// <summary>
+    /// What one search node stands for in the crowd's path searches (corridors and replans). Default <see cref="Mesh.Queries.PathNodeModel.Crossing"/>:
+    /// its corridors keep agents off door jambs. With <see cref="Mesh.Queries.PathNodeModel.Polygon"/> (the default of a bare query object)
+    /// a lone agent can stall beside a jamb in a narrow doorway, steered at the corner and pushed off it by the wall.
+    /// </summary>
+    public Mesh.Queries.PathNodeModel QueryNodeModel { get; init; } = Mesh.Queries.PathNodeModel.Crossing;
+
+    /// <summary>
     /// Wall pieces kept near each agent. The walls are looked up when the agent has moved farther than
     /// <see cref="WallRefreshDistance"/> from where they were looked up, or the mesh changed. Default 48; 4 to 1024.
     /// </summary>
@@ -165,6 +172,7 @@ public sealed record CrowdOptions
         Check(nameof(MaxAgents), MaxAgents is >= 1 and <= 4_000_000, MaxAgents);
         Check(nameof(MaxThreads), MaxThreads >= 1, MaxThreads);
         Check(nameof(QueryNodes), QueryNodes is >= 64 and <= 4_000_000, QueryNodes);
+        Check(nameof(QueryNodeModel), QueryNodeModel is Mesh.Queries.PathNodeModel.Crossing or Mesh.Queries.PathNodeModel.Polygon, QueryNodeModel);
         Check(nameof(MaxWallsPerAgent), MaxWallsPerAgent is >= 4 and <= 1024, MaxWallsPerAgent);
         Check(nameof(WallRefreshDistance), WallRefreshDistance > 0 && double.IsFinite(WallRefreshDistance), WallRefreshDistance);
         Check(nameof(MaxWallsAvoided), MaxWallsAvoided is >= 1 and <= 64, MaxWallsAvoided);

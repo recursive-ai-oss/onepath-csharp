@@ -31,8 +31,8 @@ public class CorridorTests
         for (ulong seed = 1; seed <= 6; seed++)
         {
             TiledNavMesh mesh = CorridorWorlds.Maze(10, seed, out List<Vector3D> rooms);
-            var q = new NavMeshQuery(mesh);
-            var fresh = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
+            var fresh = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var rng = new NavMeshWorlds.Rng(seed * 31);
             var buf = new PolyRef[512];
             var f = new CorridorWorlds.AllPass();
@@ -84,8 +84,8 @@ public class CorridorTests
     public void TargetMoves_EqualFreshQuery_OnMazes()
     {
         TiledNavMesh mesh = CorridorWorlds.Maze(10, 7, out List<Vector3D> rooms);
-        var q = new NavMeshQuery(mesh);
-        var fresh = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
+        var fresh = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(5);
         var buf = new PolyRef[512];
         var f = new CorridorWorlds.AllPass();
@@ -114,7 +114,7 @@ public class CorridorTests
         for (ulong seed = 1; seed <= 6; seed++)
         {
             TiledNavMesh mesh = CorridorWorlds.Layered(seed);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var rng = new NavMeshWorlds.Rng(seed + 500);
             List<PolyRef> polys = CorridorWorlds.AllPolys(mesh);
             var corners = new StraightPathPoint[64];
@@ -164,7 +164,7 @@ public class CorridorTests
             for (int trial = 0; trial < 12; trial++)
             {
                 TiledNavMesh mesh = CorridorWorlds.Layered(world);
-                var q = new NavMeshQuery(mesh);
+                var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
                 var rng = new NavMeshWorlds.Rng((seed * 100) + (ulong)trial);
                 List<PolyRef> polys = CorridorWorlds.AllPolys(mesh);
                 Vector3D goal = CorridorWorlds.PointIn(mesh, polys[rng.Int(polys.Count)], rng);
@@ -209,7 +209,7 @@ public class CorridorTests
                 }
                 Assert.Null(CorridorWorlds.Check(c, q));
                 // The fresh query from the same polygon and position to the nearest polygon of the goal.
-                var fq = new NavMeshQuery(mesh);
+                var fq = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
                 NearestPoly ng = fq.FindNearestPoly(goal, Ext);
                 if (!ng.Poly.IsSet)
                 {
@@ -246,7 +246,7 @@ public class CorridorTests
             for (int trial = 0; trial < 6; trial++)
             {
                 TiledNavMesh mesh = CorridorWorlds.Layered(world);
-                var q = new NavMeshQuery(mesh);
+                var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
                 var rng = new NavMeshWorlds.Rng((seed * 100) + (ulong)trial);
                 List<PolyRef> polys = CorridorWorlds.AllPolys(mesh);
                 Vector3D goal = CorridorWorlds.PointIn(mesh, polys[rng.Int(polys.Count)], rng);
@@ -267,12 +267,12 @@ public class CorridorTests
                 byte[] start = c.ToBytes();
                 // Unsliced.
                 PathCorridor whole = PathCorridor.Read(start, out _);
-                var qa = new NavMeshQuery(mesh);
+                var qa = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
                 PathStatus ws = whole.Replan(qa, null, int.MaxValue);
                 foreach (int budget in new[] { 1, 2, 3, 5, 17, 100 })
                 {
                     PathCorridor part = PathCorridor.Read(start, out _);
-                    var qb = new NavMeshQuery(mesh);
+                    var qb = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
                     var session = new CorridorReplan();
                     PathStatus bs = session.Begin(qb, part, null);
                     PathStatus ps = bs;
@@ -313,7 +313,7 @@ public class CorridorTests
     public void BudgetedReplan_ContinuesToTheTarget()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(40, 3);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(9);
         int done = 0, partial = 0, stalled = 0;
         for (int trial = 0; trial < 60; trial++)
@@ -364,7 +364,7 @@ public class CorridorTests
         for (ulong seed = 1; seed <= 6; seed++)
         {
             TiledNavMesh mesh = CorridorWorlds.Field(40, seed);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var rng = new NavMeshWorlds.Rng(seed);
             var corners = new StraightPathPoint[64];
             for (int trial = 0; trial < 25; trial++)
@@ -408,7 +408,7 @@ public class CorridorTests
     {
         // A ray can cross more polygons than the corridor part it replaces; the corridor must refuse, not overflow.
         TiledNavMesh mesh = CorridorWorlds.Field(30, 6);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(4);
         int refused = 0;
         for (int trial = 0; trial < 400; trial++)
@@ -450,7 +450,7 @@ public class CorridorTests
     public void VisibilityBudget_CutsTheRayDeterministically()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(30, 11);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(1);
         for (int trial = 0; trial < 30; trial++)
         {
@@ -479,7 +479,7 @@ public class CorridorTests
     public void HostileInputs_AreRejectedWithNamedErrors()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(10, 1);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var c = new PathCorridor(8);
         Assert.Throws<ArgumentOutOfRangeException>(() => new PathCorridor(1));
         Assert.Throws<ArgumentOutOfRangeException>(() => new PathCorridor(PathCorridor.MaxCapacity + 1));
@@ -504,7 +504,7 @@ public class CorridorTests
     public void StateBytes_RoundTrip_AndRejectDamage()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(30, 5);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(3);
         PathCorridor c = null!;
         while (c is null || c.Count < 5)
@@ -542,7 +542,7 @@ public class CorridorTests
     public void Validate_FindsEachKindOfDamage()
     {
         TiledNavMesh mesh = CorridorWorlds.Layered(2);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(8);
         List<PolyRef> polys = CorridorWorlds.AllPolys(mesh);
         PathCorridor c = null!;

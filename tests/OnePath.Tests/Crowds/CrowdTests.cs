@@ -27,7 +27,7 @@ public class CrowdTests
     // stands on the mesh. Overlap = how far inside each other two agents are (sum of radii minus the distance), worst over the run.
     private static RunStats Run(CrowdSim sim, int budget, bool checkPairs = true, Action<int>? onStep = null, bool removeOnArrival = false)
     {
-        var q = new NavMeshQuery(sim.Mesh);
+        var q = new NavMeshQuery(sim.Mesh, 65536, PathNodeModel.Crossing);
         double worst = 0;
         int offMesh = 0, crossings = 0, steps = 0;
         var crossed = new HashSet<long>();
@@ -142,12 +142,8 @@ public class CrowdTests
         double worstOverlap = 0, worstRatio = 0;
         for (ulong seed = 1; seed <= Runs; seed++)
         {
-            if (seed is 121 or 223 or 457 or 991)
-            {
-                continue; // one agent ends up alone beside a door jamb, steered at the corner and pushed off it by the wall, and never gets through (the narrow-passage limit)
-            }
             CrowdSim sim = CrowdWorlds.RandomField(8, 6, seed, 1);
-            var fresh = new NavMeshQuery(sim.Mesh);
+            var fresh = new NavMeshQuery(sim.Mesh, 65536, PathNodeModel.Crossing);
             double longest = 0;
             foreach (Agent a in sim.Agents)
             {
@@ -368,7 +364,7 @@ public class CrowdTests
             TiledNavMesh mesh = CrowdWorlds.Field2(7, seed);
             var crowd = new Crowd(mesh, new CrowdOptions { Filter = new QueryFilter { IncludeFlags = 1 } });
             var rng = new NavMeshWorlds.Rng(seed + 100);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var agents = new List<Agent>();
             for (int i = 0; i < 8; i++)
             {
@@ -428,7 +424,7 @@ public class CrowdTests
         for (ulong seed = 1; seed <= 20; seed++)
         {
             TiledNavMesh mesh = CorridorWorlds.Field(12, seed, out bool[] cells);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var rng = new NavMeshWorlds.Rng(seed);
             for (int k = 0; k < 10; k++)
             {
@@ -491,7 +487,7 @@ public class CrowdTests
     public void FindWalls_truncates_to_the_nearest()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(12, 5, out _);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         NearestPoly np = q.FindNearestPoly(new Vector3D(6.3, 0, 6.3), CorridorWorlds.Extents);
         var all = new WallSegment[512];
         q.FindWalls(np.Poly, np.Point, 6, (QueryFilter?)null, all, out int n, out _);
@@ -513,7 +509,7 @@ public class CrowdTests
         for (ulong seed = 1; seed <= 30; seed++)
         {
             TiledNavMesh mesh = CorridorWorlds.Field(16, seed);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var rng = new NavMeshWorlds.Rng(seed);
             for (int k = 0; k < 10; k++)
             {

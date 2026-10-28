@@ -88,7 +88,7 @@ internal static class CrowdScenarios
         for (ulong seed = 1; seed <= 4; seed++)
         {
             TiledNavMesh mesh = CorridorWorlds.Field(24, seed);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var rng = new NavMeshWorlds.Rng(seed);
             for (int k = 0; k < 60; k++)
             {
