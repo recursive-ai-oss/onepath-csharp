@@ -5,8 +5,13 @@
     <AssemblyName>$(PackagePrefix).OnePath</AssemblyName>
     <RootNamespace>$(PackagePrefix).OnePath</RootNamespace>
     <Description>Deterministic pathfinding and navigation for .NET: square, hex and voxel grids (A*, JPS, Theta*, HPA*, D* Lite, flow fields), graphs, tiled navigation meshes with 2D and 3D builders and queries, and ORCA crowds. Bit-identical results on every platform.</Description>
-    <PackageTags>pathfinding;navigation;navmesh;astar;jps;theta-star;crowd;orca;deterministic;lockstep;games</PackageTags>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>pathfinding;navigation;navmesh;nav-mesh;astar;a-star;jps;jump-point-search;theta-star;hpa-star;flow-field;crowd;orca;rvo;recast;detour;recast-alternative;voxel;gamedev;deterministic;lockstep;nativeaot</PackageTags>
+    <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
+    <PackageReleaseNotes>See CHANGELOG.md in the repository.</PackageReleaseNotes>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <!-- No baseline yet: this is the first public version. Set PackageValidationBaselineVersion after it ships. -->
+    <EnablePackageValidation>true</EnablePackageValidation>
     <IsPackable>true</IsPackable>
     <IsAotCompatible>true</IsAotCompatible>
     <IsTrimmable>true</IsTrimmable>
@@ -24,7 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../PACKAGE.md" Pack="true" PackagePath="/" />
     <None Include="../../LICENSE-MIT" Pack="true" PackagePath="/" />
     <None Include="../../LICENSE-APACHE" Pack="true" PackagePath="/" />
     <None Include="../../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" />

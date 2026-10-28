@@ -1,7 +1,10 @@
 name: ci
 
+# Runs on pushes to main, on ci-check/* branches (the release commit is checked there before it is tagged)
+# and on pull requests.
 on:
   push:
+    branches: [main, 'ci-check/**']
   pull_request:
 
 permissions:
@@ -27,8 +30,12 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Keep build output out of the checkout
+        run: echo "ONEPATH_ARTIFACTS=$RUNNER_TEMP/artifacts" >> "$GITHUB_ENV"
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
       - name: Build (Release, Checked)
@@ -42,14 +49,36 @@ jobs:
     name: browser-wasm
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Keep build output out of the checkout
+        run: echo "ONEPATH_ARTIFACTS=$RUNNER_TEMP/artifacts" >> "$GITHUB_ENV"
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: Build and test (Release)
         run: ci/build.sh Release && ci/test.sh Release
       - name: WASM smoke (headless, Node)
         run: ci/wasm-smoke.sh
+
+  pack:
+    # Builds the package as an artifact only; nothing is pushed anywhere.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Keep build output out of the checkout
+        run: echo "ONEPATH_ARTIFACTS=$RUNNER_TEMP/artifacts" >> "$GITHUB_ENV"
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Pack
+        run: |
+          dotnet pack src/OnePath -c Release -o "$RUNNER_TEMP/packages"
+          ls -l "$RUNNER_TEMP/packages"
+          test -n "$(ls "$RUNNER_TEMP"/packages/*.snupkg)"

@@ -4,6 +4,8 @@
 !/.editorconfig
 !/.github
 !/README.md
+!/PACKAGE.md
+!/CHANGELOG.md
 !/LICENSE-MIT
 !/LICENSE-APACHE
 !/THIRD-PARTY-NOTICES.md
