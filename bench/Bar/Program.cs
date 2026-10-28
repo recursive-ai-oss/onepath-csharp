@@ -9,7 +9,7 @@ using RecursiveAI.OnePath.Bar;
 //   <out>/rows.csv   every measurement, long format
 //   <out>/env.json   machine, CPU, cores, load before/during/after, SDK, runtime, reference pins
 //   <out>/report.md  one line per row: ours vs reference, ratio, memory, verdict
-// Usage: bar run --suite <file.tsv> [--ours-only 1] [--out <dir>] [--reps N] [--only <substring>] [--home <dir>] [--machine <name>]
+// Usage: bar run --suite <file.tsv> [--ours-only 1] [--in-process 1] [--light 1] [--out <dir>] [--reps N] [--only <substring>] [--home <dir>] [--machine <name>]
 //        bar env
 // Heavy runs take the worker lock outside this program: tools/bench/locked-run.sh.
 return Cli.Execute(args);
@@ -42,6 +42,8 @@ internal static class Cli
                 return 0;
             case "run":
                 return Run(opts);
+            case "ours-row":
+                return OursIsolated.Child(opts.GetValueOrDefault("suite") ?? "", opts.GetValueOrDefault("id") ?? "", new Paths(opts.GetValueOrDefault("home"), opts.ContainsKey("light")));
             default:
                 Console.Error.WriteLine("unknown command " + args[0]);
                 return 2;
@@ -60,7 +62,7 @@ internal static class Cli
         var runId = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
         var outDir = opts.GetValueOrDefault("out") ?? Path.Combine(Directory.GetCurrentDirectory(), "bar-" + runId);
         Directory.CreateDirectory(outDir);
-        var paths = new Paths(opts.GetValueOrDefault("home"));
+        var paths = new Paths(opts.GetValueOrDefault("home"), opts.ContainsKey("light"));
         var rows = Suite.Load(suitePath).Where(x => !opts.TryGetValue("only", out var only) || x.Id.Contains(only, StringComparison.Ordinal)).ToList();
 
         var loadBefore = Env.Load1();
@@ -84,8 +86,16 @@ internal static class Cli
                     }
 
                     var res = RefRunner.Run(row, paths);
-                    if (res.ExitCode == 0)
+                    // Warthog's --checkopt exits with the number of instances whose cost differs from the scenario's, after printing every
+                    // instance: the rows are valid, the code is reported beside them (reference_exit_code) and cost_mismatch_vs_scenario is ours to read.
+                    bool checkOptExit = row.Driver is "warthog" or "jps" && res.Rows.Count > 0;
+                    if (res.ExitCode == 0 || checkOptExit)
                     {
+                        if (res.ExitCode != 0)
+                        {
+                            res.Rows.Add(new Row(row.Part, row.Id, res.Rows[0].Side, "reference_exit_code", res.ExitCode.ToString(CultureInfo.InvariantCulture), "count"));
+                        }
+
                         refRuns.Add(res.Rows);
                     }
                     else
@@ -103,7 +113,18 @@ internal static class Cli
                 }
 
                 during.Add(Env.Load1());
-                var ours = OurScenarios.Run(row, paths);
+                // A fresh process per run, so the row's peak memory is its own; --in-process runs it here (debugging).
+                List<Row>? ours = null;
+                try
+                {
+                    ours = opts.ContainsKey("in-process") ? OurScenarios.Run(row, paths) : OursIsolated.Run(row, suitePath, paths);
+                }
+                catch (InvalidOperationException e)
+                {
+                    Console.Error.WriteLine("  ours failed: " + e.Message);
+                    failures++;
+                }
+
                 if (ours is not null)
                 {
                     ourRuns.Add(ours);

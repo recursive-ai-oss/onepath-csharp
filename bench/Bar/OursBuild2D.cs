@@ -56,6 +56,8 @@ internal static class OursBuild2D
         }
         (int polys, int verts, int tileCount, double area) = Measure(mesh!);
         times.Sort();
+        // The 2D gate's yardstick: the exact eroded area of the same tile map, computed without any builder (TileMapWorld.ExactErodedArea).
+        double exact = TileMapWorld.ExactErodedArea(cells, tiles, settings.AgentRadius);
         string side = OurScenarios.Side;
         Row R(string metric, double v, string unit) => new(row.Part, row.Id, side, metric, v.ToString("R", CultureInfo.InvariantCulture), unit);
         return new List<Row>
@@ -65,6 +67,8 @@ internal static class OursBuild2D
             R("polys", polys, "count"),
             R("verts", verts, "count"),
             R("coverage_area", area, "world_units2"),
+            R("exact_area", exact, "world_units2"),
+            R("delta_vs_exact_pct", exact > 0 ? (area - exact) * 100.0 / exact : (area == 0 ? 0 : double.PositiveInfinity), "percent"),
             R("tiles", tileCount, "count"),
             R("input_tris", triangles, "count"),
             R("peak_rss", Process.GetCurrentProcess().PeakWorkingSet64 / (1024.0 * 1024.0), "MB"),
