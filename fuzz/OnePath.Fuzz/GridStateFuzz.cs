@@ -16,7 +16,7 @@ namespace RecursiveAI.OnePath.Fuzz;
 /// </summary>
 internal static class GridStateFuzz
 {
-    private const int Kinds = 12;
+    private const int Kinds = 16;
 
     private static Grid Square()
     {
@@ -31,6 +31,23 @@ internal static class GridStateFuzz
         g.Areas[2] = 3.5;
         return g;
     }
+
+    // Jump point searches need one cost for every area, so they get a grid without area costs.
+    private static Grid JumpGrid() => Grid.FromText("""
+            ..........
+            .##..###..
+            .#...#.#..
+            .#.#.#.#..
+            ...#...#..
+            ##.#.###..
+            """);
+
+    // Kinds 12-15: JPS and JPS+ over the specialised engines, then over the generic jump point search.
+    private static GridOptions JumpOptions(int kind) => new()
+    {
+        Algorithm = (kind & 1) == 0 ? GridAlgorithm.Jps : GridAlgorithm.JpsPlus,
+        SpecializedEngines = kind < 14,
+    };
 
     private static HexGrid Hex() => HexGrid.FromText("......\n.####.\n..2...\n......", HexLayout.PointyOddRow);
 
@@ -102,11 +119,18 @@ internal static class GridStateFuzz
                     s.Step(13);
                     return s.SaveState();
                 }
-            default:
+            case 11:
                 {
                     GridSearch s = g.CreateSearch(SearchOptions(true));
                     s.TryBegin(new Cell(0, 0), new Cell(9, 5));
                     s.Step(13);
+                    return s.SaveState();
+                }
+            default:
+                {
+                    GridSearch s = JumpGrid().CreateSearch(JumpOptions(kind));
+                    s.TryBegin(new Cell(0, 0), new Cell(9, 5));
+                    s.Step(4);
                     return s.SaveState();
                 }
         }
@@ -244,6 +268,26 @@ internal static class GridStateFuzz
                     if (s.Status != SearchStatus.NotStarted && s.Step(500) == PathStatus.Found)
                     {
                         _ = s.CopyPath(new Cell[s.PathLength]);
+                    }
+                    break;
+                }
+            case 12:
+            case 13:
+            case 14:
+            case 15:
+                {
+                    GridSearch s = JumpGrid().CreateSearch(JumpOptions(kind));
+                    s.RestoreState(state);
+                    Again(s.SaveState, s.RestoreState);
+                    var span = new byte[s.GetStateSize()];
+                    if (s.SaveState(span) != span.Length || !span.AsSpan().SequenceEqual(s.SaveState()))
+                    {
+                        throw new InvalidOperationException("The span save differs from the array save.");
+                    }
+                    if (s.Status != SearchStatus.NotStarted && s.Step(500) == PathStatus.Found)
+                    {
+                        _ = s.CopyPath(new Cell[s.PathLength]);
+                        _ = s.CopyPath(new int[s.PathLength]);
                     }
                     break;
                 }

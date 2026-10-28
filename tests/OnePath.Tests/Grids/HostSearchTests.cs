@@ -209,7 +209,7 @@ public class HostSearchTests
         // Agent size: a 2x2 agent does not fit on a corridor one cell wide.
         GridSearch big = g.CreateSearch(new GridOptions { AgentSize = 2 });
         Assert.Equal(PathStatus.StartInvalid, big.TryBegin(new Cell(0, 2), new Cell(0, 0)));
-        Assert.Throws<ArgumentException>(() => g.CreateSearch(new GridOptions { Algorithm = GridAlgorithm.Jps }));
+        Assert.Throws<ArgumentException>(() => g.CreateSearch(new GridOptions { Algorithm = GridAlgorithm.ThetaStar }));
     }
 
     [Fact]

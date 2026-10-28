@@ -86,6 +86,13 @@ public sealed partial class AStar<TTopology, TCost, THeuristic>
         return w.ToArray();
     }
 
+    // The same bytes into a writer the caller keeps, so repeated saves allocate nothing once its buffer has grown.
+    internal void SaveTo(StateWriter w)
+    {
+        w.Reset(StateKind.AStar);
+        SearchStateIO.Write(w, _status, _topology.NodeCount, _weight, _start, _goal, _expandedCount, _iterations, _pathCost, _buffers);
+    }
+
     /// <summary>
     /// Restores a state written by <see cref="SaveState"/> into this search, which must be built over the same grid and
     /// options (same node count and <see cref="HeuristicWeight"/>). Later steps give exactly what the saved search would have.
@@ -115,6 +122,13 @@ public sealed partial class JumpSearch<TJumper, THeuristic>
         var w = new StateWriter(StateKind.JumpSearch);
         SearchStateIO.Write(w, _status, _width * _jumper.Height, 1.0, -1, _goal, _expandedCount, _iterations, _pathCost, _buffers);
         return w.ToArray();
+    }
+
+    // The same bytes into a writer the caller keeps (see AStar.SaveTo).
+    internal void SaveTo(StateWriter w)
+    {
+        w.Reset(StateKind.JumpSearch);
+        SearchStateIO.Write(w, _status, _width * _jumper.Height, 1.0, -1, _goal, _expandedCount, _iterations, _pathCost, _buffers);
     }
 
     /// <summary>Restores a state written by <see cref="SaveState"/> into a search built over the same grid.</summary>

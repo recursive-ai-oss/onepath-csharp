@@ -90,7 +90,7 @@ internal interface IJumpFinder
 /// Costs are exact pairs (see <see cref="SearchNode"/>); the open list orders by smaller <c>f</c>, larger cost so far, smaller node index.
 /// Costs are for unit steps; callers multiply by the cell cost. Not thread-safe.
 /// </summary>
-internal sealed class OctileJump<TFinder> : IOctileEngine
+internal sealed partial class OctileJump<TFinder> : IOctileJumpEngine
     where TFinder : struct, IJumpFinder
 {
     private const double Sqrt2 = GridMath.Sqrt2;
@@ -105,6 +105,7 @@ internal sealed class OctileJump<TFinder> : IOctileEngine
     private SearchStatus _status;
     private int _pathA;
     private int _pathB;
+    private int _start = -1;
 
     public OctileJump(TFinder finder, int width, int height)
     {
@@ -125,27 +126,45 @@ internal sealed class OctileJump<TFinder> : IOctileEngine
 
     public SearchStatus Run(int start, int goal, bool zeroEstimate, int budget, bool record)
     {
+        Begin(start, goal, zeroEstimate);
+        return Loop(budget, record);
+    }
+
+    /// <summary>Starts a search that <see cref="Step"/> then advances; <see cref="Run"/> is both in one call.</summary>
+    public void Begin(int start, int goal, bool zeroEstimate)
+    {
         JumpCore core = _core;
-        if (_generation >= (uint.MaxValue >> 4) - 2)
-        {
-            Array.Clear(core.Nodes);
-            _generation = 0;
-        }
-        _generation++;
-        core.OpenBase = _generation << 4;
+        NextGeneration();
         core.Heap.Clear();
         _expanded.Clear();
         _expandedCount = 0;
         _iterations = 0;
+        _pathA = 0;
+        _pathB = 0;
         core.UseEstimate = !zeroEstimate;
         core.Goal = goal;
         core.GoalY = goal / _w;
         core.GoalX = goal - (core.GoalY * _w);
+        _start = start;
         core.Nodes[start] = new SearchNode { A = 0, B = 0, Parent = -1, Tag = core.OpenBase };
         int sy = start / _w;
         core.Heap.Push(core.Key(0, 0, start - (sy * _w), sy), 0f, start);
         _status = SearchStatus.Running;
-        return Loop(budget, record);
+    }
+
+    /// <summary>Continues by at most <paramref name="budget"/> pops of live nodes; a finished search stays as it is.</summary>
+    public SearchStatus Step(int budget) => _status == SearchStatus.Running ? Loop(budget, false) : _status;
+
+    // A new generation makes every node record of the earlier search stale without clearing the array.
+    private void NextGeneration()
+    {
+        if (_generation >= (uint.MaxValue >> 4) - 2)
+        {
+            Array.Clear(_core.Nodes);
+            _generation = 0;
+        }
+        _generation++;
+        _core.OpenBase = _generation << 4;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
