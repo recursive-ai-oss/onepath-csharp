@@ -217,7 +217,7 @@ public static class Regions
             widest = Math.Max(widest, start[l + 1] - start[l]);
         }
         var frontier = new int[widest];
-        var next2 = new int[widest];
+        var assignSpan = new int[widest];
         var assignRegion = new int[widest];
         var queue = new int[widest];
         for (int level = maxDist; level >= 0; level--)
@@ -228,59 +228,78 @@ public static class Regions
             {
                 continue;
             }
-            // Round 1: every span of this level that touches a region.
-            int fc = hi - lo;
-            Array.Copy(order, lo, frontier, 0, fc);
-            while (fc > 0)
+            // Round 1: every span of this level that touches a region. Later rounds: the level's spans next to one assigned in the round before.
+            ReadOnlySpan<int> current = order.AsSpan(lo, hi - lo);
+            while (current.Length > 0)
             {
                 // Rounds are synchronous: every choice is made before any is applied, so the order inside the frontier does not matter.
                 int ac = 0;
-                for (int k = 0; k < fc; k++)
+                for (int k = 0; k < current.Length; k++)
                 {
-                    int s = frontier[k];
-                    int best = 0;
+                    int s = current[k];
+                    int b = 4 * s;
                     byte a = areaOf[s];
-                    for (int d = 0; d < 4; d++)
+                    int best = 0;
+                    int t = nbr[b];
+                    if (t >= 0 && areaOf[t] == a)
                     {
-                        int t = nbr[(4 * s) + d];
-                        if (t >= 0)
+                        best = region[t];
+                    }
+                    t = nbr[b + 1];
+                    if (t >= 0 && areaOf[t] == a)
+                    {
+                        int rt = region[t];
+                        if (rt > 0 && (best == 0 || rt < best))
                         {
-                            int rt = region[t];
-                            if (rt > 0 && areaOf[t] == a && (best == 0 || rt < best))
-                            {
-                                best = rt;
-                            }
+                            best = rt;
+                        }
+                    }
+                    t = nbr[b + 2];
+                    if (t >= 0 && areaOf[t] == a)
+                    {
+                        int rt = region[t];
+                        if (rt > 0 && (best == 0 || rt < best))
+                        {
+                            best = rt;
+                        }
+                    }
+                    t = nbr[b + 3];
+                    if (t >= 0 && areaOf[t] == a)
+                    {
+                        int rt = region[t];
+                        if (rt > 0 && (best == 0 || rt < best))
+                        {
+                            best = rt;
                         }
                     }
                     if (best > 0)
                     {
-                        frontier[ac] = s;
+                        assignSpan[ac] = s;
                         assignRegion[ac] = best;
                         ac++;
                     }
                 }
                 for (int k = 0; k < ac; k++)
                 {
-                    region[frontier[k]] = assignRegion[k];
+                    region[assignSpan[k]] = assignRegion[k];
                 }
                 // Next round: unassigned spans of this level next to a span assigned just now.
                 stamp++;
                 int nc = 0;
                 for (int k = 0; k < ac; k++)
                 {
-                    int s = frontier[k];
+                    int s = assignSpan[k];
                     for (int d = 0; d < 4; d++)
                     {
                         int t = nbr[(4 * s) + d];
                         if (t >= 0 && region[t] == 0 && areaOf[t] != 0 && dist[t] == level && mark[t] != stamp)
                         {
                             mark[t] = stamp;
-                            next2[nc++] = t;
+                            frontier[nc++] = t;
                         }
                     }
                 }
-                (frontier, next2) = (next2, frontier);
-                fc = nc;
+                current = frontier.AsSpan(0, nc);
             }
             // New basins: what is left of this level.
             for (int k = lo; k < hi; k++)
@@ -577,57 +596,72 @@ public static class Regions
         Span<CompactSpan> spans = chf.Spans;
         var size = new int[count + 1];
         var area = new byte[count + 1];
-        int[] nbr = g.Nbr;
-        // Boundary lengths between regions, first as a flat array per region (in neighbour-id order), turned into sorted dictionaries only for the
-        // few regions the merge below looks at.
-        var off = new int[count + 2];
         for (int i = 0; i < n; i++)
         {
             int r = region[i];
-            if (r == 0)
+            if (r != 0)
             {
-                continue;
+                size[r]++;
+                area[r] = spans[i].Area;
             }
-            size[r]++;
-            area[r] = spans[i].Area;
-            for (int d = 0; d < 4; d++)
+        }
+        // Only a region smaller than the larger threshold is ever removed or merged away, so only its neighbour list is read: those lists are
+        // gathered (boundary length = number of touching span edges), first flat in neighbour-id order and turned into sorted maps on first use.
+        // A bigger region's list is not kept up to date.
+        int limit = Math.Max(minArea, mergeArea);
+        var small = new bool[count + 1];
+        for (int r = 1; r <= count; r++)
+        {
+            small[r] = size[r] < limit;
+        }
+        int[] nbr = g.Nbr;
+        var off = new int[count + 2];
+        int[] edgeFrom = Array.Empty<int>();
+        int[] edgeTo = Array.Empty<int>();
+        int edges = 0;
+        if (limit > 0)
+        {
+            for (int i = 0; i < n; i++)
             {
-                int t = nbr[(4 * i) + d];
-                if (t >= 0)
+                int r = region[i];
+                if (r == 0 || !small[r])
                 {
-                    int rt = region[t];
-                    if (rt > 0 && rt != r)
+                    continue;
+                }
+                for (int d = 0; d < 4; d++)
+                {
+                    int t = nbr[(4 * i) + d];
+                    if (t >= 0)
                     {
-                        off[r + 1]++;
+                        int rt = region[t];
+                        if (rt > 0 && rt != r)
+                        {
+                            if (edges == edgeFrom.Length)
+                            {
+                                Array.Resize(ref edgeFrom, Math.Max(1024, edges * 2));
+                                Array.Resize(ref edgeTo, edgeFrom.Length);
+                            }
+                            edgeFrom[edges] = r;
+                            edgeTo[edges++] = rt;
+                        }
                     }
                 }
             }
+        }
+        for (int e = 0; e < edges; e++)
+        {
+            off[edgeFrom[e] + 1]++;
         }
         for (int r = 0; r <= count; r++)
         {
             off[r + 1] += off[r];
         }
-        var raw = new int[off[count + 1]];
+        var raw = new int[edges];
         var fillAt = new int[count + 1];
-        for (int i = 0; i < n; i++)
+        for (int e = 0; e < edges; e++)
         {
-            int r = region[i];
-            if (r == 0)
-            {
-                continue;
-            }
-            for (int d = 0; d < 4; d++)
-            {
-                int t = nbr[(4 * i) + d];
-                if (t >= 0)
-                {
-                    int rt = region[t];
-                    if (rt > 0 && rt != r)
-                    {
-                        raw[off[r] + fillAt[r]++] = rt;
-                    }
-                }
-            }
+            int r = edgeFrom[e];
+            raw[off[r] + fillAt[r]++] = edgeTo[e];
         }
         var nei = new RegionNeighbors(off, raw, count);
         var alias = new int[count + 1];
@@ -682,11 +716,20 @@ public static class Regions
                         {
                             continue;
                         }
-                        nei[best][m] = nei[best].GetValueOrDefault(m) + len;
-                        nei[m][best] = nei[m].GetValueOrDefault(best) + len;
-                        nei[m].Remove(r);
+                        if (small[best])
+                        {
+                            nei[best][m] = nei[best].GetValueOrDefault(m) + len;
+                        }
+                        if (small[m])
+                        {
+                            nei[m][best] = nei[m].GetValueOrDefault(best) + len;
+                            nei[m].Remove(r);
+                        }
                     }
-                    nei[best].Remove(r);
+                    if (small[best])
+                    {
+                        nei[best].Remove(r);
+                    }
                     nei[r].Clear();
                     changed = true;
                 }

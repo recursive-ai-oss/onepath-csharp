@@ -91,15 +91,21 @@ internal sealed class TriangleRasterizer
 
         // Restrict to the grid rectangle [0, W] x [0, D].
         int n = 3;
-        n = Clip(poly, n, 0, 0f, false, _b);
-        n = Clip(_b, n, 0, _width, true, _a);
-        n = Clip(_a, n, 2, 0f, false, _b);
-        n = Clip(_b, n, 2, _depth, true, _a);
-        if (n == 0)
+        // A triangle that lies wholly inside the rectangle is unchanged by the four clips (they keep points on the plane and cut nothing).
+        bool inside = u0 >= 0f && u0 <= _width && u1 >= 0f && u1 <= _width && u2 >= 0f && u2 <= _width
+            && w0 >= 0f && w0 <= _depth && w1 >= 0f && w1 <= _depth && w2 >= 0f && w2 <= _depth;
+        if (!inside)
         {
-            return false;
+            n = Clip(poly, n, 0, 0f, false, _b);
+            n = Clip(_b, n, 0, _width, true, _a);
+            n = Clip(_a, n, 2, 0f, false, _b);
+            n = Clip(_b, n, 2, _depth, true, _a);
+            if (n == 0)
+            {
+                return false;
+            }
+            poly = _a;
         }
-        poly = _a;
 
         float minW = poly[0].W;
         float maxW = minW;
