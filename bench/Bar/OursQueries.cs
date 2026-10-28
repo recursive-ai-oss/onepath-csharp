@@ -113,7 +113,7 @@ internal static class OursQueries
         var tPath = new List<double>();
         var tRay = new List<double>();
         var tNear = new List<double>();
-        for (int rep = 0; rep < reps; rep++)
+        double PathPass()
         {
             lenSum = 0;
             ok = 0;
@@ -140,9 +140,10 @@ internal static class OursQueries
                 }
                 ok++;
             }
-            tPath.Add(Ms(start));
+            return Ms(start);
         }
-        for (int rep = 0; rep < reps; rep++)
+
+        double RayPass()
         {
             hits = 0;
             long start = Stopwatch.GetTimestamp();
@@ -154,16 +155,45 @@ internal static class OursQueries
                     hits++;
                 }
             }
-            tRay.Add(Ms(start));
+            return Ms(start);
         }
-        for (int rep = 0; rep < reps; rep++)
+
+        double NearPass()
         {
             long start = Stopwatch.GetTimestamp();
             foreach (Vector3D p in pts)
             {
                 _ = q.FindNearestPoly(p, ext, in filter);
             }
-            tNear.Add(Ms(start));
+            return Ms(start);
+        }
+
+        // Untimed warm-up, as the method note says: a short row would otherwise run mostly in the runtime's first-tier code,
+        // which the native reference has no counterpart of. Each pass repeats until about half a second has gone by, which
+        // is past the runtime's tier-up delay. The wall clock only decides how long to warm up, never a result.
+        for (long warmEnd = Stopwatch.GetTimestamp() + (Stopwatch.Frequency / 2); Stopwatch.GetTimestamp() < warmEnd;)
+        {
+            PathPass();
+        }
+        for (long warmEnd = Stopwatch.GetTimestamp() + (Stopwatch.Frequency / 4); Stopwatch.GetTimestamp() < warmEnd;)
+        {
+            RayPass();
+        }
+        for (long warmEnd = Stopwatch.GetTimestamp() + (Stopwatch.Frequency / 4); Stopwatch.GetTimestamp() < warmEnd;)
+        {
+            NearPass();
+        }
+        for (int rep = 0; rep < reps; rep++)
+        {
+            tPath.Add(PathPass());
+        }
+        for (int rep = 0; rep < reps; rep++)
+        {
+            tRay.Add(RayPass());
+        }
+        for (int rep = 0; rep < reps; rep++)
+        {
+            tNear.Add(NearPass());
         }
         string id = row.Id;
         string side = OurScenarios.Side;
