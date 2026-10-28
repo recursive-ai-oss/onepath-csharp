@@ -160,7 +160,7 @@ public sealed partial class Crowd
     /// </para>
     /// <para>All or nothing: if the bytes are rejected, the crowd is unchanged.</para>
     /// <para>
-    /// Allocation: restoring a state of the same agents (same ids and settings in the same slots, only their dynamic state differing)
+    /// Allocation: restoring a state of the same agents (same ids and settings in the same slots, only their per-step state differing)
     /// into a crowd whose capacity already suffices allocates nothing. It allocates for each agent that is new to its slot (its
     /// <see cref="Agent"/>, settings and follower objects), when the slot arrays must grow, and when the bytes are rejected (the
     /// exception).

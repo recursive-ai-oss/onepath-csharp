@@ -406,7 +406,7 @@ check it against `Fnv1a64(SaveState())`.
 **Allocation.** `GetStateSize`, `TrySaveState` and `StateHash` allocate nothing, except that the first `StateHash` grows an internal
 scratch buffer to the largest follower (it is reused afterwards). `RestoreState` validates the whole input first and then applies it,
 so a rejected restore changes nothing. It allocates nothing when every active slot of the bytes holds, in the crowd, the agent with the
-same id and byte-identical settings (the rollback case: same agents, different dynamic state) and the slot arrays already suffice; its
+same id and byte-identical settings (the rollback case: same agents, different per-step state) and the slot arrays already suffice; its
 followers are read in place, corridor included. It allocates for each agent that is new to its slot (the `Agent`, its settings and its
 follower), when the slot arrays must grow, and for the exception when bytes are rejected. `StateHash`, `GetStateSize` and
 `TrySaveState` use crowd-owned scratch and must not run at the same time as each other or a step. `WorldCrowd` has no snapshot of its
