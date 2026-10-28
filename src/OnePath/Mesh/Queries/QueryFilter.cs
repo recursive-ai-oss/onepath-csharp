@@ -47,3 +47,20 @@ internal readonly struct PlainFilter : IQueryFilter
 
     public double MinAreaCost => _min;
 }
+
+/// <summary>
+/// The default filter as a struct: every polygon passes and every area costs 1. It gives the same results as
+/// <c>new QueryFilter()</c> and lets the span-based, allocation-free <c>FindPath&lt;TFilter&gt;</c> forms be called without
+/// writing a filter type: <c>var filter = new DefaultQueryFilter(); query.FindPath(startPoly, endPoly, a, b, in filter, path, out count);</c>.
+/// </summary>
+public readonly struct DefaultQueryFilter : IQueryFilter
+{
+    /// <summary>Always true: no flag mask excludes anything.</summary>
+    public bool Passes(ushort flags, byte area) => true;
+
+    /// <summary>Always 1.</summary>
+    public double AreaCost(byte area) => 1.0;
+
+    /// <summary>1.</summary>
+    public double MinAreaCost => 1.0;
+}

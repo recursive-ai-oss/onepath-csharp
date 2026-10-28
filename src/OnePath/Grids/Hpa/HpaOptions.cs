@@ -18,8 +18,8 @@ public sealed class HpaOptions
         get => _chunkSize;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfLessThan(value, 2);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 1024);
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 2, nameof(ChunkSize));
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 1024, nameof(ChunkSize));
             _chunkSize = value;
         }
     }
@@ -34,7 +34,7 @@ public sealed class HpaOptions
         get => _entranceThreshold;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1, nameof(EntranceThreshold));
             _entranceThreshold = value;
         }
     }
@@ -46,8 +46,8 @@ public sealed class HpaOptions
         get => _agentSize;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 255);
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1, nameof(AgentSize));
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 255, nameof(AgentSize));
             _agentSize = value;
         }
     }
