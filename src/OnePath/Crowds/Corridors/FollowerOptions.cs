@@ -41,6 +41,14 @@ public sealed record FollowerOptions
     /// <summary>The agent has arrived when it is this close (horizontally) to the end point. Default 0.01; at least 0. A step that can reach the end lands on it exactly.</summary>
     public double ArrivalRadius { get; init; } = 0.01;
 
+    /// <summary>
+    /// In a crowd, how far outside an intermediate corner the agent aims, on the far side of the bend from the obstacle. Corners lie
+    /// on wall vertices, and an agent that keeps a clearance from walls never gets onto one: aimed at the vertex itself it slows toward
+    /// it and stops short, so it must aim past it. Default 0 (aim at the corner; a lone follower has no avoidance to hold it back).
+    /// At least 0.
+    /// </summary>
+    public double CornerClearance { get; init; }
+
     /// <summary>Size of the corner buffer, 2 to 64. Default 8. Slowing for the end needs the end within these corners.</summary>
     public int MaxCorners { get; init; } = 8;
 
@@ -61,6 +69,13 @@ public sealed record FollowerOptions
 
     /// <summary>Search iterations per topology optimization, at least 1. Default 32.</summary>
     public int TopologyBudget { get; init; } = 32;
+
+    /// <summary>
+    /// Search iterations spent, once per finished replan on a polygon-node query, on re-judging the front of the new corridor by the
+    /// walk it gives (a polygon-node search charges polygon centres, and its route can be a half longer than the shortest walk).
+    /// Default 128; 0 turns it off; a crossing-node query is not refined.
+    /// </summary>
+    public int RefineBudget { get; init; } = 128;
 
     /// <summary>Search iterations per replan call (one call per step while a replan is pending), at least 1. Default 2048.</summary>
     public int ReplanBudget { get; init; } = 2048;
@@ -101,6 +116,7 @@ public sealed record FollowerOptions
         Check(nameof(SlowRadius), SlowRadius >= 0 && double.IsFinite(SlowRadius), SlowRadius);
         Check(nameof(ArrivalMinSpeed), ArrivalMinSpeed >= 0 && ArrivalMinSpeed <= MaxSpeed, ArrivalMinSpeed);
         Check(nameof(ArrivalRadius), ArrivalRadius >= 0 && double.IsFinite(ArrivalRadius), ArrivalRadius);
+        Check(nameof(CornerClearance), CornerClearance >= 0 && double.IsFinite(CornerClearance), CornerClearance);
         Check(nameof(MaxCorners), MaxCorners is >= 2 and <= 64, MaxCorners);
         Check(nameof(ValidateLookAhead), ValidateLookAhead >= 1, ValidateLookAhead);
         Check(nameof(OptimizeInterval), OptimizeInterval >= 0, OptimizeInterval);
@@ -108,6 +124,7 @@ public sealed record FollowerOptions
         Check(nameof(OptimizeBudget), OptimizeBudget >= 2, OptimizeBudget);
         Check(nameof(TopologyInterval), TopologyInterval >= 0, TopologyInterval);
         Check(nameof(TopologyBudget), TopologyBudget >= 1, TopologyBudget);
+        Check(nameof(RefineBudget), RefineBudget >= 0, RefineBudget);
         Check(nameof(ReplanBudget), ReplanBudget >= 1, ReplanBudget);
         Check(nameof(MaxReplanRounds), MaxReplanRounds >= 1, MaxReplanRounds);
         Check(nameof(StuckWindow), StuckWindow >= 0 && double.IsFinite(StuckWindow), StuckWindow);

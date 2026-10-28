@@ -73,6 +73,20 @@ target, with at most `budget` node expansions. If it finishes with the route, th
 cut (a polygon met again cuts everything between its two occurrences, the first stays) and cut to the capacity (then
 incomplete, replan requested). An unfinished search changes nothing. It needs at least 3 polygons; `window` ≥ 3.
 
+The route is taken only if it is *shorter to walk*: the string-pulled length from the position to the same end point through the new
+polygons must be less than the old length times (1 − 10⁻⁴). A search that costs less is not always shorter to walk (a polygon-node
+search charges polygon centres, and which way round an obstacle it prefers can change with the agent's place in its polygon): without
+this test the corridor flipped between two ways round and the agent stood between them (4 of the 1000 seeded crowd runs).
+
+**Local query.** When the follower's query is a polygon-node query, topology searches (and the refine below) run on a crossing-node
+query of the same mesh instead, created once per follower (per worker in a `Crowd`) with `clamp(8 · max(RefineBudget, TopologyBudget), 1024, 2²⁰)` nodes
+(8192 in a `Crowd`). A crossing-node query is used as is. The routes of the two models are the same search with different node costs, so the
+choice is only about which route is shorter to walk.
+
+**Refine.** When a replan on a polygon-node query ends `Success`, one topology search with budget `RefineBudget` (default 128, 0 = off) and
+window 64 runs at once, under the same shorter-to-walk test. Over 725 random pairs on scattered obstacles the polygon-node route was up
+to 1.41 × the shortest walk (worst of the three pairs over 1.08); after the refine none is over 1.08. Two-floor meshes need a budget of 2000.
+
 ## Mesh changes
 
 `Validate(filter, lookAhead)` checks polygons `0 .. min(count, lookAhead)−1`: each must be a valid reference, accepted by the filter,
@@ -100,8 +114,14 @@ Outcome:
 |---|---|---|
 | `Success` | leads to the target polygon | complete, no replan |
 | `Partial` (open list empty: no route) | leads to the expanded polygon closest to the target | incomplete, no replan |
-| `InProgress` (budget used up) | leads to the closest polygon so far | incomplete, replan requested |
+| `InProgress` (budget used up) | leads to the closest polygon so far | incomplete, replan from start requested |
 | cut to capacity | as above | incomplete, replan requested |
+
+**An unfinished search is not walked.** The closest polygon so far is a guess, and the next round does not continue from its end (that would
+splice two searches and the route would not be the shortest): the next round searches again from the agent's polygon with twice the budget
+(`ReplanBudget << rounds`), and the agent stands still while a search from the start is unfinished (`rounds > 0`, corridor incomplete,
+replan requested). With 40 iterations per replan the worst walked/route over 100 pairs fell from 1.33 to under 1.2; with the default budget of
+2048 the case does not arise on small meshes.
 
 In a `Crowd` step (not in `PathFollower.Step`), a replan requested only because the corridor was cut to capacity waits until the corridor holds at most three quarters of its capacity (the agent has walked a quarter of it; corridors of fewer than 16 polygons always extend at once); it is not repeated every step. A replan from start, or one after a mesh change that left a short corridor, runs at once.
 
@@ -166,15 +186,15 @@ the crossing).
 `MaxSpeed` 3.5, `MaxAcceleration` 8, `SlowRadius` 1, `ArrivalMinSpeed` 0.25, `ArrivalRadius` 0.01, `MaxCorners` 8,
 `ValidateLookAhead` 8, `OptimizeInterval` 4, `OptimizeRange` 10, `OptimizeBudget` 16, `TopologyInterval` 16, `TopologyBudget` 32,
 `ReplanBudget` 2048, `MaxReplanRounds` 16, `StuckWindow` 1, `StuckProgress` 0.1, `MaxStuckRecoveries` 2, `OffMeshMode` Automatic,
-`OffMeshSpeed` 3.5, `OffMeshTriggerRadius` 0.05, `SearchExtents` (2, 4, 2), `CorridorCapacity` 256. They are starting points chosen
+`OffMeshSpeed` 3.5, `OffMeshTriggerRadius` 0.05, `SearchExtents` (2, 4, 2), `CorridorCapacity` 256, `RefineBudget` 128, `CornerClearance` 0. They are starting points chosen
 for a one-unit-per-metre world; none was tuned against a reference.
 
 ### What the tests establish (stated bounds)
 
 - A follower reached every reachable goal in 750 random pairs on scattered-obstacle fields and 480 on two-floor meshes with
   off-mesh links, and ended exactly on the end point (within `ArrivalRadius`). The distance it walked was at most 1.08 × the funnel
-  length of the fresh route (worst measured 1.043 on fields and 1.054 on two floors; 1.17 with budgets of 40 iterations per replan and
-  shortcuts off). The excess comes from shortcuts and replans choosing other corridors; walking one corridor is exact.
+  length of the fresh crossing-node route, on both node models (polygon-node with `RefineBudget` 2000), and at most 1.2 × with budgets of 40 iterations per replan and
+  shortcuts off. The excess comes from shortcuts and replans choosing other corridors; walking one corridor is exact.
 - The corridor after any number of moves equals a fresh path query from the same polygon and position on perfect mazes (where the
   polygon route is unique), polygons and corners.
 - Repair after tile removal, replacement and polygon edits reaches the target whenever a fresh query from the same polygon does.
@@ -237,7 +257,11 @@ slot and reads the state the phase began with, so the result is the same for any
 0. **Snapshot** (single thread): every agent's position and velocity (the velocity it ended the last step with); the neighbour grid.
 1. **Plan** (per agent): an `Arrived` agent that was pushed farther than `2 · ArrivalRadius + 0.01` from its destination is sent back (`SetDestination`). Then
    `PathFollower.PlanCrowd`: the corridor upkeep of `Step` (steps 1 to 6 of the follower's step: validation, replans, shortcuts, off-mesh entry, arrival),
-   and the wanted velocity in X/Z, `MaxSpeed` toward the steering corner slowed by the same arrival rule as step 7 (no acceleration limit). An agent in an off-mesh
+   and the wanted velocity in X/Z, `MaxSpeed` toward the steering corner slowed by the same arrival rule as step 7 (no acceleration limit).
+   An intermediate corner is aimed at `CornerClearance` past the corner: from the corner, along (unit vector to the corner − unit vector from the
+   corner to the next one) normalised, skipped when that is shorter than 10⁻⁶ (no bend) or the corner is an off-mesh entry. A corner is a wall
+   vertex and wall avoidance keeps `WallClearance` from it, so an agent aimed exactly at it slowed toward it and stopped short. A crowd sets
+   `CornerClearance = 2 · WallClearance + 0.01` (0.11); a lone follower leaves it 0. An agent in an off-mesh
    crossing runs the whole crossing step here (no avoidance while crossing). An agent that is not walking (idle, arrived, stuck, no path) wants 0. Then the wall
    lookup (below).
 2. **Avoid** (per agent; `AvoidanceQuality.Off` and crossing agents skip it and keep the wanted velocity): neighbours, separation, side bias, constraints, solve.

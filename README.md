@@ -3,16 +3,30 @@
 Pathfinding and navigation for .NET, written from first principles: grids, graphs, navmeshes and
 crowds in one package, `RecursiveAI.OnePath`. Results are bit-identical on every platform.
 
-**Status:** pre-release. Grids, graphs and the 2D navmesh builder with its queries work today; the 3D navmesh
-builder and crowds are on the way. Everything is `net10.0`, NativeAOT- and trim-compatible, and results do not depend on
-the machine, the thread count or SIMD.
+**Status:** preview (`0.1.0-preview.1`). The API can still change between previews.
+
+- **Grids and graphs:** square, hex and 3D voxel grids; A\*, JPS, JPS+, Theta\*, Lazy Theta\*, HPA\*, LPA\*/D\* Lite replanning, flow fields, area costs, agent sizes; weighted and point graphs with bidirectional search and ALT landmarks.
+- **Navigation meshes:** an exact 2D builder (outlines, tile maps) and a 3D builder (triangle soup, glTF, voxel chunks), with path, string-pulling, raycast, nearest-point and random-point queries, run-time tile rebuild and obstacles, off-mesh links.
+- **Crowds:** path corridors and navmesh-aware ORCA avoidance, with byte-exact snapshot and restore.
+- **Still being tuned:** speed against the native references on some builders, queries and crowd sizes.
+
+**Determinism.** Results depend only on the inputs and options, never on the operating system, CPU, SIMD width,
+runtime version, JIT tier, WASM versus native, or thread count. The library uses only IEEE-exact `+ - * /` and `sqrt`,
+its own transcendental functions (from `RecursiveAI.OneMath`), fixed reduction orders and index-ordered parallel work, and
+the same inputs give the same bits on x64, arm64 and WASM (see `docs/hash-matrix.md`). Time slicing counts iterations, never
+clock time, so a deterministic game host can run it in lockstep or rollback. **Coordinate rule:** world positions cross
+the API as `double` and are exact within ±2^21 (a Q31.32 fixed-point value converts exactly); a coordinate beyond that
+throws `ArgumentOutOfRangeException`. Inside, meshes store float32 coordinates relative to a double tile origin.
+
+**Platforms.** `net10.0` on Windows, Linux and macOS (x64 and arm64), NativeAOT and trimming (an app that only uses grids
+trims the navmesh builders away), and browser WASM. The only runtime dependency is `RecursiveAI.OneMath`.
 
 Licensed under either of MIT ([LICENSE-MIT](LICENSE-MIT)) or Apache-2.0
 ([LICENSE-APACHE](LICENSE-APACHE)) at your option. © Recursive AI, LLC.
 
 ## Quickstart
 
-One `using RecursiveAI.OnePath;` reaches every grid and graph type below (the navmesh example also uses OneMath's
+One `using RecursiveAI.OnePath;` reaches every grid and graph type below (the navmesh examples also use OneMath's
 vectors and the query result types). Options are plain objects with named presets and optional
 delegates; you never write a struct to use the happy path (the struct-generic search cores are there for tuning, in
 `RecursiveAI.OnePath.Grids` and `.Graphs`). World positions are doubles within ±2^21.
@@ -131,6 +145,35 @@ Array.Fill(open, true);
 NavMesh mesh = NavMesh.Build2D(open, 40, 40, 1.0, new Vector2D(0, 0));
 PathResult route2D = mesh.FindPath(new Vector3D(3, 0, 3), new Vector3D(36, 0, 36));
 // route2D.HasPath, route2D.Points (the string-pulled path), route2D.Length
+```
+
+**Navigation mesh from level geometry** (triangles, Y up; `NavMesh.BuildGltf` reads a glTF file). `NavSettings` presets carry
+the agent's radius, height, step and slope.
+
+```csharp
+// quickstart: navmesh-3d
+// A 40 x 40 floor from two triangles (Y is up); real levels pass their triangle soup the same way.
+var floor = new[]
+{
+    new Triangle3D(new Vector3D(0, 0, 0), new Vector3D(0, 0, 40), new Vector3D(40, 0, 0)),
+    new Triangle3D(new Vector3D(40, 0, 0), new Vector3D(0, 0, 40), new Vector3D(40, 0, 40)),
+};
+NavMesh level = NavMesh.Build(floor, NavSettings.Humanoid);
+PathResult route3D = level.FindPath(new Vector3D(3, 0, 3), new Vector3D(36, 0, 36));
+```
+
+**Crowds.** Agents follow corridors to their destinations and avoid each other with ORCA; you call `Step` with a fixed time step.
+
+```csharp
+// quickstart: crowd
+Crowd crowd = level.CreateCrowd();
+Agent walker = crowd.Add(new Vector3D(3, 0, 3), Agent.Humanoid);
+PathStatus status = walker.SetDestination(new Vector3D(36, 0, 36));
+for (int i = 0; i < 20; i++)
+{
+    crowd.Step(0.05);   // fixed time step; the crowd has no clock of its own
+}
+// status.HasPath(), walker.HasPath, walker.RemainingDistance, walker.Velocity, walker.Position
 ```
 
 The snippets above are compiled and run by `tests/OnePath.Tests/ReadmeQuickstartTests.cs`.

@@ -255,11 +255,12 @@ public sealed class TileCache
         {
             volumes.Add(v);
         }
-        CompactHeightfield chf = e.Chf.Clone();
+        CompactHeightfield chf = e.Chf.CloneScratch();
         _pipeline.MarkObstacles(chf, obstacles, volumes);
         // Tiles are queued generously (a neighbour's obstacle may only graze the border), so most rebuilds find the areas unchanged.
         if (SameAreas(chf, e.LastAreas) && (e.LastLayers < 0 || Mesh.GetTilesAt(e.TileX, e.TileZ, _refs) == e.LastLayers))
         {
+            chf.ReleaseScratch();
             return;
         }
         e.LastAreas = Areas(chf);
@@ -272,6 +273,7 @@ public sealed class TileCache
         {
             _pipeline.FinishMarked(chf, e.TileX, e.TileZ, built);
         }
+        chf.ReleaseScratch();
         e.LastLayers = built.Count;
 
         TiledNavMesh mesh = Mesh;

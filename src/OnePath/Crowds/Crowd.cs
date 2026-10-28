@@ -233,7 +233,13 @@ public sealed partial class Crowd
 
     internal void SetPriorityAt(int slot, double value) => _priority[slot] = value;
 
-    internal QueryStatus SetDestinationAt(int slot, Vector3D destination) => _follow[slot]!.SetDestination(GetWorker(0).Query, destination, _opt.Filter);
+    internal QueryStatus SetDestinationAt(int slot, Vector3D destination)
+    {
+        Worker w = GetWorker(0);
+        PathFollower f = _follow[slot]!;
+        f.LocalQuery = w.Local;
+        return f.SetDestination(w.Query, destination, _opt.Filter);
+    }
 
     internal bool TeleportAt(int slot, Vector3D position)
     {
@@ -265,7 +271,7 @@ public sealed partial class Crowd
 
     // ---- storage ----
 
-    private Worker GetWorker(int w) => _workers[w] ??= new Worker(new NavMeshQuery(_mesh, _opt.QueryNodes, _opt.QueryNodeModel), _opt.MaxWallsAvoided);
+    private Worker GetWorker(int w) => _workers[w] ??= new Worker(new NavMeshQuery(_mesh, _opt.QueryNodes, _opt.QueryNodeModel), _opt.MaxWallsAvoided, _mesh);
 
     private void EnsureSlots(int needed)
     {
@@ -401,6 +407,7 @@ public sealed partial class Crowd
         PathFollower f = _follow[i]!;
         AgentOptions o = _agentOpt[i]!;
         QueryFilter? filter = _opt.Filter;
+        f.LocalQuery = w.Local;
         if (f.State == FollowerState.Arrived)
         {
             // Pushed away from the goal by others: go back (the corridor is short, so this is cheap).
@@ -754,9 +761,11 @@ public sealed partial class Crowd
         private readonly int _wallMax;
         private double[] _neighborDist = new double[MaxNeighborSlots];
 
-        public Worker(NavMeshQuery query, int maxWalls)
+        public Worker(NavMeshQuery query, int maxWalls, TiledNavMesh mesh)
         {
             Query = query;
+            // Polygon-node corridors are re-judged by a small crossing-node search (see PathFollower.LocalQuery); one per worker, not per agent.
+            Local = query.NodeModel == PathNodeModel.Polygon ? new NavMeshQuery(mesh, 8192, PathNodeModel.Crossing) : null;
             _wallMax = maxWalls;
             _wallDist = new double[maxWalls];
             WallPiece = new WallSegment[maxWalls];
@@ -764,6 +773,8 @@ public sealed partial class Crowd
         }
 
         public NavMeshQuery Query { get; }
+
+        public NavMeshQuery? Local { get; }
 
         public HalfPlane[] Lines = new HalfPlane[16];
         public HalfPlane[] ScratchLines = new HalfPlane[16];

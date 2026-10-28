@@ -57,8 +57,8 @@ internal static class CrowdWorlds
     /// <summary>A corridor <paramref name="length"/> x <paramref name="width"/> cells.</summary>
     public static TiledNavMesh Corridor(int length, int width) => Arena(length, width);
 
-    private static CrowdSim Make(TiledNavMesh mesh, int threads, AgentOptions options, bool constraints = false) =>
-        new(mesh, new Crowd(mesh, new CrowdOptions { MaxThreads = threads, RecordConstraints = constraints }), new List<Agent>());
+    private static CrowdSim Make(TiledNavMesh mesh, int threads, AgentOptions options, bool constraints = false, PathNodeModel model = PathNodeModel.Crossing) =>
+        new(mesh, new Crowd(mesh, new CrowdOptions { MaxThreads = threads, RecordConstraints = constraints, QueryNodeModel = model }), new List<Agent>());
 
     /// <summary>Places agents on a lattice of the given spacing inside the box, left to right, rows bottom to top, with a seeded jitter of a tenth of the spacing.</summary>
     public static List<Vector3D> Lattice(double x0, double z0, double x1, double z1, double spacing, int count, NavMeshWorlds.Rng rng)
@@ -149,11 +149,11 @@ internal static class CrowdWorlds
     }
 
     /// <summary>Agents on a scattered-obstacle field of 2-unit cells walk between random places with a route (starts at least 1 apart, goals at least 1.2 apart).</summary>
-    public static CrowdSim RandomField(int size, int n, ulong seed, int threads, AgentOptions? options = null, bool constraints = false)
+    public static CrowdSim RandomField(int size, int n, ulong seed, int threads, AgentOptions? options = null, bool constraints = false, PathNodeModel model = PathNodeModel.Crossing)
     {
         options ??= Agent.Small;
         TiledNavMesh mesh = Field2(size, seed);
-        CrowdSim sim = Make(mesh, threads, options, constraints);
+        CrowdSim sim = Make(mesh, threads, options, constraints, model);
         var rng = new NavMeshWorlds.Rng(seed + 1);
         var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         double side = size * 2.0;

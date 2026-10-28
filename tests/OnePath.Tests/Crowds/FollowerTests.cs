@@ -27,9 +27,12 @@ public class FollowerTests
 
     private static int BudgetFor(double length) => 600 + (int)(length * 40);
 
-    private static (int reached, double worstRatio, int crossings) ReachAll(TiledNavMesh mesh, Func<NavMeshWorlds.Rng, Vector3D> point, int pairs, ulong seed, FollowerOptions? options = null)
+    private static (int reached, double worstRatio, int crossings) ReachAll(TiledNavMesh mesh, Func<NavMeshWorlds.Rng, Vector3D> point, int pairs, ulong seed, FollowerOptions? options = null, PathNodeModel model = PathNodeModel.Crossing)
     {
-        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
+        // A polygon-node query's routes can be a half longer than the shortest walk; the follower re-judges them with its refine
+        // search, here given the budget the two-floor meshes need (the default is cheaper and leaves them within 1.2).
+        options = (options ?? FollowerOptions.Humanoid) with { RefineBudget = 2000 };
+        var q = new NavMeshQuery(mesh, 65536, model);
         var fresh = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(seed);
         int reached = 0, crossings = 0, tried = 0;
@@ -71,15 +74,17 @@ public class FollowerTests
         return (reached, worst, crossings);
     }
 
-    [Fact]
-    public void ReachesEveryReachableGoal_OnScatteredObstacles()
+    [Theory]
+    [InlineData(PathNodeModel.Crossing)]
+    [InlineData(PathNodeModel.Polygon)]
+    public void ReachesEveryReachableGoal_OnScatteredObstacles(PathNodeModel model)
     {
         int total = 0;
         double worst = 0;
         for (ulong seed = 1; seed <= 3; seed++)
         {
             TiledNavMesh mesh = CorridorWorlds.Field(48, seed);
-            (int n, double w, _) = ReachAll(mesh, r => CorridorWorlds.RandomFieldPoint(48, r), 250, seed * 17);
+            (int n, double w, _) = ReachAll(mesh, r => CorridorWorlds.RandomFieldPoint(48, r), 250, seed * 17, null, model);
             total += n;
             worst = Math.Max(worst, w);
         }
@@ -87,8 +92,10 @@ public class FollowerTests
         Assert.True(worst <= 1.08, $"worst walked/route ratio {worst}");
     }
 
-    [Fact]
-    public void ReachesEveryReachableGoal_OnLayeredMeshesWithLinks()
+    [Theory]
+    [InlineData(PathNodeModel.Crossing)]
+    [InlineData(PathNodeModel.Polygon)]
+    public void ReachesEveryReachableGoal_OnLayeredMeshesWithLinks(PathNodeModel model)
     {
         int total = 0, crossings = 0;
         double worst = 0;
@@ -96,7 +103,7 @@ public class FollowerTests
         {
             TiledNavMesh mesh = CorridorWorlds.TwoFloors(seed);
             List<PolyRef> polys = CorridorWorlds.AllPolys(mesh);
-            (int n, double w, int c) = ReachAll(mesh, r => CorridorWorlds.PointIn(mesh, polys[r.Int(polys.Count)], r), 120, seed * 29);
+            (int n, double w, int c) = ReachAll(mesh, r => CorridorWorlds.PointIn(mesh, polys[r.Int(polys.Count)], r), 120, seed * 29, null, model);
             total += n;
             crossings += c;
             worst = Math.Max(worst, w);
@@ -106,16 +113,18 @@ public class FollowerTests
         Assert.True(worst <= 1.08, $"worst walked/route ratio {worst}");
     }
 
-    [Fact]
-    public void ReachesGoals_WithoutShortcutsAndWithSmallBudgets()
+    [Theory]
+    [InlineData(PathNodeModel.Crossing)]
+    [InlineData(PathNodeModel.Polygon)]
+    public void ReachesGoals_WithoutShortcutsAndWithSmallBudgets(PathNodeModel model)
     {
         FollowerOptions o = FollowerOptions.Humanoid with { OptimizeInterval = 0, TopologyInterval = 0, ReplanBudget = 40, MaxReplanRounds = 40 };
         TiledNavMesh mesh = CorridorWorlds.Field(40, 9);
-        (int n, double w, _) = ReachAll(mesh, r => CorridorWorlds.RandomFieldPoint(40, r), 100, 3, o);
+        (int n, double w, _) = ReachAll(mesh, r => CorridorWorlds.RandomFieldPoint(40, r), 100, 3, o, model);
         Assert.Equal(100, n);
         // Without shortcuts the walk follows the polygon corridor, so the worst of 100 pairs depends on how the builder
         // happened to split the open areas (equally valid triangulations differ in it).
-        Assert.True(w <= 1.4, $"worst ratio {w}");
+        Assert.True(w <= 1.2, $"worst ratio {w}");
     }
 
     [Fact]

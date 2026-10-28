@@ -26,7 +26,7 @@ public struct SolidSpan
 public sealed class SolidHeightfield
 {
     private readonly int[] _heads;
-    private SolidSpan[] _spans = new SolidSpan[64];
+    private SolidSpan[] _spans;
     private int _used;
     private int _freeList = -1;
     private int _freeCount;
@@ -37,6 +37,8 @@ public sealed class SolidHeightfield
         ArgumentNullException.ThrowIfNull(frame);
         Frame = frame;
         _heads = new int[frame.ColumnCount];
+        // A walkable level has about one span per column: start there instead of doubling up to it.
+        _spans = new SolidSpan[Math.Clamp(frame.ColumnCount, 64, 1 << 20)];
         Array.Fill(_heads, -1);
     }
 
@@ -57,6 +59,26 @@ public sealed class SolidHeightfield
             throw new ArgumentOutOfRangeException(nameof(index), index, "No such span.");
         }
         return ref _spans[index];
+    }
+
+    // The span store and column heads for the filters' inner loops: indices reachable from the heads are below _used by construction.
+    internal SolidSpan[] RawSpans => _spans;
+
+    internal int[] RawHeads => _heads;
+
+    /// <summary>The number of live spans with a non-zero area.</summary>
+    internal int CountWalkable()
+    {
+        int total = 0;
+        SolidSpan[] spans = _spans;
+        for (int i = 0; i < _used; i++)
+        {
+            if (spans[i].Area != 0)
+            {
+                total++;
+            }
+        }
+        return total;
     }
 
     /// <summary>Removes every span, keeping the allocated storage.</summary>
@@ -86,6 +108,12 @@ public sealed class SolidHeightfield
         {
             throw new ArgumentOutOfRangeException(nameof(min), $"Span rows [{min}, {max}) must satisfy 0 <= min < max <= {Frame.Height}.");
         }
+        AddSpanUnchecked(column, min, max, area, mergeThreshold);
+    }
+
+    /// <summary>AddSpan for callers that have already established <c>0 &lt;= column &lt; ColumnCount</c> and <c>0 &lt;= min &lt; max &lt;= Frame.Height</c>.</summary>
+    internal void AddSpanUnchecked(int column, int min, int max, byte area, int mergeThreshold)
+    {
         int newMin = min;
         int newMax = max;
         byte newArea = area;
@@ -120,6 +148,7 @@ public sealed class SolidHeightfield
             }
             int next = s.Next;
             s.Next = _freeList;
+            s.Area = 0; // a freed span never counts as walkable, so CountWalkable can scan the whole store
             _freeList = cur;
             _freeCount++;
             if (prev == -1)

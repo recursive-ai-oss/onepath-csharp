@@ -4,7 +4,8 @@
     <PackageId>$(PackagePrefix).OnePath</PackageId>
     <AssemblyName>$(PackagePrefix).OnePath</AssemblyName>
     <RootNamespace>$(PackagePrefix).OnePath</RootNamespace>
-    <Description>Deterministic pathfinding and navigation: grids, graphs, navmeshes and crowds.</Description>
+    <Description>Deterministic pathfinding and navigation for .NET: square, hex and voxel grids (A*, JPS, Theta*, HPA*, D* Lite, flow fields), graphs, tiled navigation meshes with 2D and 3D builders and queries, and ORCA crowds. Bit-identical results on every platform.</Description>
+    <PackageTags>pathfinding;navigation;navmesh;astar;jps;theta-star;crowd;orca;deterministic;lockstep;games</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
     <IsAotCompatible>true</IsAotCompatible>
@@ -22,6 +23,9 @@
 
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../LICENSE-MIT" Pack="true" PackagePath="/" />
+    <None Include="../../LICENSE-APACHE" Pack="true" PackagePath="/" />
+    <None Include="../../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" />
     <!-- The one runtime dependency. Until it is published it restores from the folder in ONEMATH_FEED. -->
     <PackageReference Include="RecursiveAI.OneMath" />
   </ItemGroup>
