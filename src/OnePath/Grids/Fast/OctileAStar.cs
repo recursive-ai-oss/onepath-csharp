@@ -13,7 +13,7 @@ namespace RecursiveAI.OnePath.Grids;
 /// Costs are computed for unit steps; callers multiply by the cell cost.
 /// <para>Not thread-safe. The grid must not change while a search runs; edits between searches are picked up.</para>
 /// </summary>
-internal sealed class OctileAStar
+internal sealed class OctileAStar : IOctileEngine
 {
     private const double Sqrt2 = GridMath.Sqrt2;
 
@@ -179,7 +179,6 @@ internal sealed class OctileAStar
     {
         AStarNode[] nodes = _nodes;
         IndexedHeap open = _open;
-        uint closedTag = (_generation << 4) | 1u;
         uint openBase = _generation << 4;
         int stride = _stride;
         while (budget > 0)
@@ -192,7 +191,7 @@ internal sealed class OctileAStar
             int node = item.Node;
             budget--;
             _iterations++;
-            nodes[node].Tag = closedTag;
+            nodes[node].Tag |= 1u; // closed; the arrival direction bits stay
             int a = nodes[node].A;
             int b = nodes[node].B;
             if (node == _goal)

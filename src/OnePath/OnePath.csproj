@@ -16,6 +16,7 @@
     <!-- The bar runner and the micro-benchmarks time the specialised searches directly. -->
     <InternalsVisibleTo Include="OnePath.Bar" />
     <InternalsVisibleTo Include="Micro" />
+    <InternalsVisibleTo Include="OnePath.Tests" />
   </ItemGroup>
 
   <ItemGroup>

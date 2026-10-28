@@ -90,7 +90,7 @@ internal interface IJumpFinder
 /// Costs are exact pairs (see <see cref="SearchNode"/>); the open list orders by smaller <c>f</c>, larger cost so far, smaller node index.
 /// Costs are for unit steps; callers multiply by the cell cost. Not thread-safe.
 /// </summary>
-internal sealed class OctileJump<TFinder>
+internal sealed class OctileJump<TFinder> : IOctileEngine
     where TFinder : struct, IJumpFinder
 {
     private const double Sqrt2 = GridMath.Sqrt2;

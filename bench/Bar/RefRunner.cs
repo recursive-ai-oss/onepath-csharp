@@ -70,6 +70,12 @@ internal static class RefRunner
             if (i >= 0 && i + 1 < args.Count)
             {
                 cwd = Path.GetDirectoryName(args[i + 1]);
+                var converted = ConvertedMap(args[i + 1], paths: paths);
+                if (converted is not null)
+                {
+                    args.Add("--map");
+                    args.Add(converted);
+                }
             }
         }
 
@@ -235,5 +241,45 @@ internal static class RefRunner
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The Warthog programs read only '.', 'G' (free) and '@', 'O', 'T' (blocked); Moving AI maps with swamp ('S') or water ('W') make them
+    /// stop at the first instance that crosses one ("failed suboptimal"). For such maps this writes a copy with swamp as free ground
+    /// and water as blocked (the reading our side and the published optimal costs use) under <c>maps/_warthog</c> and returns its path;
+    /// it returns null for maps that need no change. The copy is passed with the documented <c>--map</c> option.
+    /// </summary>
+    private static string? ConvertedMap(string scenarioPath, Paths paths)
+    {
+        var mapPath = scenarioPath.EndsWith(".scen", StringComparison.Ordinal) ? scenarioPath[..^5] : null;
+        if (mapPath is null || !File.Exists(mapPath))
+        {
+            return null;
+        }
+
+        var bytes = File.ReadAllBytes(mapPath);
+        var body = Array.IndexOf(bytes, (byte)'\n', Math.Max(0, bytes.AsSpan().IndexOf("map\n"u8)));
+        if (body < 0 || Array.IndexOf(bytes, (byte)'S', body) < 0 && Array.IndexOf(bytes, (byte)'W', body) < 0)
+        {
+            return null;
+        }
+
+        var dir = Path.Combine(paths.Home, "maps", "_warthog", Path.GetFileName(Path.GetDirectoryName(mapPath)) ?? "set");
+        Directory.CreateDirectory(dir);
+        var target = Path.Combine(dir, Path.GetFileName(mapPath));
+        for (var k = body; k < bytes.Length; k++)
+        {
+            if (bytes[k] == (byte)'S')
+            {
+                bytes[k] = (byte)'.';
+            }
+            else if (bytes[k] == (byte)'W')
+            {
+                bytes[k] = (byte)'T';
+            }
+        }
+
+        File.WriteAllBytes(target, bytes);
+        return target;
     }
 }

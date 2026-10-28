@@ -458,7 +458,16 @@ public sealed partial class Grid
         }
         if ((o.Algorithm == GridAlgorithm.Jps || o.Algorithm == GridAlgorithm.JpsPlus) && JumpSearchApplies(o, out double unitCost))
         {
+            if (FastApplies(o, out _))
+            {
+                bool plusFast = o.Algorithm == GridAlgorithm.JpsPlus && Width <= JpsPlusIndex.MaxSide && Height <= JpsPlusIndex.MaxSide;
+                return FindPathFastJump((start.Y * Width) + start.X, (goal.Y * Width) + goal.X, o, unitCost, world ? CellCenter : null, plusFast);
+            }
             return FindPathJump(start, goal, o, unitCost, world);
+        }
+        if (o.Algorithm == GridAlgorithm.AStar && FastApplies(o, out double fastUnit))
+        {
+            return FindPathFastAStar((start.Y * Width) + start.X, (goal.Y * Width) + goal.X, o, fastUnit, world ? CellCenter : null);
         }
         SquareTopology topology = CreateTopology(size, o.Connectivity, o.Diagonals);
         GridHeuristic h = o.Heuristic;
