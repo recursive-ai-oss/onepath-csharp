@@ -7,6 +7,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 ### Added
 
 - **Results are bit-identical across every release of a major version:** no 1.x minor or patch release changes an existing path, build, query, search or crowd result (README, "Determinism").
+- **Every 1.x release reads every format written by an earlier 1.x release** (navigation meshes, tile caches, saved states); backward reading only.
 
 ## [1.0.0-rc.1]
 
