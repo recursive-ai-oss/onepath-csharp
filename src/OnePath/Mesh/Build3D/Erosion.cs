@@ -33,9 +33,29 @@ public static class Erosion
         int cap = 2 * radius;
         int n = chf.SpanCount;
         int[] link = SpanLinks.Rent(chf);
+        Span<CompactSpan> spans = chf.Spans;
+        if (radius <= 2)
+        {
+            // With a cap of 2 or 4 the distances below the cap are 0 (boundary), 2 (a link to a boundary span) and 3 (two perpendicular links to
+            // one), so no iteration is needed: one pass over the boundary flags gives the same set the distance field would.
+            byte[] boundary = Scratch.Rent<byte>(n);
+            for (int i = 0; i < n; i++)
+            {
+                boundary[i] = IsBoundary(spans, link, i) ? (byte)1 : (byte)0;
+            }
+            for (int i = 0; i < n; i++)
+            {
+                if (boundary[i] != 0 || (radius == 2 && NearBoundary(boundary, link, i)))
+                {
+                    spans[i].Area = 0;
+                }
+            }
+            Scratch.Return(boundary);
+            Scratch.Return(link);
+            return;
+        }
         int[] dist = Scratch.Rent<int>(n);
         DistanceInto(chf, link, dist, 2L * radius > int.MaxValue / 2 ? int.MaxValue / 2 : 2 * radius);
-        Span<CompactSpan> spans = chf.Spans;
         for (int i = 0; i < n; i++)
         {
             if (dist[i] < cap)
@@ -45,6 +65,35 @@ public static class Erosion
         }
         Scratch.Return(link);
         Scratch.Return(dist);
+    }
+
+    // True when a link of span i leads to a boundary span, or two perpendicular links in a row do.
+    private static bool NearBoundary(byte[] boundary, int[] link, int i)
+    {
+        int b = 4 * i;
+        for (int d = 0; d < 4; d++)
+        {
+            int nb = link[b + d];
+            if (nb < 0)
+            {
+                continue;
+            }
+            if (boundary[nb] != 0)
+            {
+                return true;
+            }
+            int m1 = link[(4 * nb) + ((d + 1) & 3)];
+            if (m1 >= 0 && boundary[m1] != 0)
+            {
+                return true;
+            }
+            int m3 = link[(4 * nb) + ((d + 3) & 3)];
+            if (m3 >= 0 && boundary[m3] != 0)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>
