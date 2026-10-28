@@ -5,7 +5,6 @@ using RecursiveAI.OneMath;
 namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>The shape of a <see cref="TileObstacle"/>.</summary>
-[Experimental("ONEPATH0002")]
 public enum ObstacleShape : byte
 {
     /// <summary>A vertical cylinder: base centre, radius, height.</summary>
@@ -24,7 +23,6 @@ public enum ObstacleShape : byte
 /// [<see cref="MinY"/>, <see cref="MaxY"/>] is made non-walkable, so the agent radius stays clear of it like any other wall without eroding the tile again. Obstacles are immutable; add them to a <see cref="TileCache"/>
 /// (or list them on <see cref="Mesh3DPipeline.Obstacles"/> to bake them into a build).
 /// </summary>
-[Experimental("ONEPATH0002")]
 public sealed class TileObstacle
 {
     private readonly double[] _p;

@@ -17,8 +17,6 @@
     <IsAotCompatible>true</IsAotCompatible>
     <IsTrimmable>true</IsTrimmable>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
-    <!-- The library uses its own preview types internally; the diagnostic is for callers. -->
-    <NoWarn>$(NoWarn);ONEPATH0002</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

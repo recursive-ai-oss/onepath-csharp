@@ -3,7 +3,7 @@
 Pathfinding and navigation for .NET, written from first principles: grids, graphs, navmeshes and
 crowds in one package, `RecursiveAI.OnePath`. Results are bit-identical on every platform.
 
-**Status:** preview (`0.4.0-preview.1`). The API can still change between previews. See [CHANGELOG.md](CHANGELOG.md); parts marked `[Experimental]` (the run-time tile cache, diagnostic `ONEPATH0002`) are not yet at the speed bar.
+**Status:** preview (`0.4.0-preview.2`). The API can still change between previews. See [CHANGELOG.md](CHANGELOG.md).
 
 - **Grids and graphs:** square, hex and 3D voxel grids; A\*, JPS, JPS+, Theta\*, Lazy Theta\*, HPA\*, LPA\*/D\* Lite replanning, flow fields, area costs, agent sizes; weighted and point graphs with bidirectional search and ALT landmarks.
 - **Navigation meshes:** an exact 2D builder (outlines, tile maps) and a 3D builder (triangle soup, glTF, voxel chunks), with path, string-pulling, raycast, nearest-point and random-point queries, run-time tile rebuild and obstacles, off-mesh links.
@@ -181,8 +181,8 @@ The snippets above are compiled and run by `tests/OnePath.Tests/ReadmeQuickstart
 ## Speed against the references
 
 Every row is **our time divided by the reference's** (below 1.00 is faster than the reference), warm, in-process, best of
-three, on the same inputs and settings, with grid costs checked against the optimal costs. The bar is 1.15 for navmesh parts and 1.00 for grids. Results of one locked run; the rows are refreshed after each
-run. Method: [docs/benchmarking.md](docs/benchmarking.md).
+three, on the same inputs and settings, with grid costs checked against the optimal costs. The bar is 1.15 for navmesh parts and 1.00 for grids. Grid, query, build and tile-cache rows are from one locked run; the crowd rows are from the locked run before it, because the crowd code has not changed since. Rows refreshed after each
+run. Millisecond-scale rows (queries, tile cache) warm up for at least two seconds before timing. Method: [docs/benchmarking.md](docs/benchmarking.md).
 
 - **x64:** AMD Ryzen 9 7950X3D (16 cores, 32 threads), Linux, .NET 10.0.13.
 - **arm64:** Apple M2 (8 cores), macOS, .NET 10.0.11.
@@ -190,26 +190,26 @@ run. Method: [docs/benchmarking.md](docs/benchmarking.md).
 
 | Part | Scenario | Reference | x64 | arm64 | Notes |
 |---|---|---|---:|---:|---|
-| Grid A\* | 9 Moving AI maps | Warthog | 0.83-0.97 | 0.87-1.00 | optimal costs match on every instance |
-| Grid JPS | 9 Moving AI maps | Warthog | 0.60-0.87 | 0.55-0.75 | |
-| Grid JPS+ | 9 Moving AI maps | Warthog | 0.64-0.83 | 0.45-0.82 | |
-| Grid JPS, improved pruning | 9 Moving AI maps | Warthog | 0.77-1.08 | 0.65-0.98 | 4 of 9 maps miss the bar on x64 (1.03-1.08); a later change is not yet re-measured |
-| Grid JPS+, improved pruning | 9 Moving AI maps | Warthog | 0.80-0.99 | 0.57-0.94 | |
-| Path query | city, tiled | Detour | 0.59 | 0.50 | |
+| Grid A\* | 9 Moving AI maps | Warthog | 0.83-0.98 | 0.86-1.00 | optimal costs match on every instance |
+| Grid JPS | 9 Moving AI maps | Warthog | 0.49-0.79 | 0.46-0.70 | |
+| Grid JPS+ | 9 Moving AI maps | Warthog | 0.64-0.85 | 0.45-0.82 | |
+| Grid JPS, improved pruning | 9 Moving AI maps | Warthog | 0.71-0.88 | 0.57-0.88 | |
+| Grid JPS+, improved pruning | 9 Moving AI maps | Warthog | 0.80-1.00 | 0.58-0.95 | |
+| Path query | city, tiled | Detour | 0.60 | 0.51 | |
 | Path query | terraces, tiled | Detour | 0.57 | 0.46 | |
-| Path query | terraces, single tile | Detour | 0.73 | 0.57 | |
-| Path query | overlapping floors, single tile | Detour | 0.15 | 0.14 | |
-| Path query | tile map, tiled | Detour | 1.05 | 0.95 | |
-| Path query | city, single tile | Detour | **1.81** | **1.64** | misses the bar; our mesh has more polygons than Recast's here (530 vs 361). A later contour change (294 polygons) measured about 0.84 informally and is not yet in a locked run |
-| 3D build | 8 levels, solo and tiled | Recast | 0.23-0.90 | 0.25-1.07 | same settings; walkable coverage within 0.35% of Recast's on every level |
-| 2D build | tile map, solo and tiled, radius 0.5 / 0.75 / 1.0 | Recast | 0.41-0.90 | 0.44-0.96 | see the coverage note below |
-| Crowd | 100-5000 agents on a city mesh | DetourCrowd | 0.47-0.72 | 0.48-0.66 | |
-| Crowd, ORCA only | circles of 250, 1000, 5000 agents, one thread | RVO2 (C++) | 0.71-1.11 | 0.69-1.01 | |
-| Crowd, ORCA only | circles of 250, 1000, 5000 agents, all cores | RVO2-CS | 0.05-0.25 | 0.08-0.35 | |
-| Tile cache (**experimental**) | obstacle add and remove, city and terraces | DetourTileCache | **4.40-5.29** | **4.66-6.05** | misses the bar; the tile cache is `[Experimental]` for that reason |
-| Tile cache (**experimental**) | obstacle add and remove, city and terraces | DotRecast | 1.85-2.63 | 2.08-2.83 | |
+| Path query | terraces, single tile | Detour | 0.73 | 0.58 | |
+| Path query | overlapping floors, single tile | Detour | 0.17 | 0.16 | |
+| Path query | city, single tile | Detour | 0.97 | 1.00 | |
+| Path query | tile map, tiled | Detour | **1.40** | **1.26** | misses the bar (1.05 / 0.95 in the previous run); under investigation |
+| 3D build | 8 levels, solo and tiled | Recast | 0.23-0.89 | 0.24-1.06 | same settings; walkable coverage within 0.35% of Recast's on every level |
+| 2D build | tile map, solo and tiled, radius 0.5 / 0.75 / 1.0 | Recast | 0.42-0.89 | 0.43-0.95 | see the coverage note below |
+| Crowd | 100-5000 agents on a city mesh | DetourCrowd | 0.47-0.72 | 0.48-0.66 | earlier run (crowd code unchanged) |
+| Crowd, ORCA only | circles of 250, 1000, 5000 agents, one thread | RVO2 (C++) | 0.71-1.11 | 0.69-1.01 | earlier run |
+| Crowd, ORCA only | circles of 250, 1000, 5000 agents, all cores | RVO2-CS | 0.05-0.25 | 0.08-0.35 | earlier run |
+| Tile cache | obstacle add and remove, city and terraces, tiled | DetourTileCache | 0.78-0.93 | 0.68-0.91 | |
+| Tile cache | obstacle add and remove, city and terraces, tiled | DotRecast | 0.33-0.45 | 0.31-0.43 | |
 
-DotRecast is faster than ours on none of the build, query and crowd rows above except the tile cache.
+DotRecast is faster than ours on none of the build, query, crowd and tile-cache rows above.
 
 **2D coverage.** The 2D builder is checked against the exact eroded area of the input (walkable coverage within 1%): ours is
 within 0.01% of it on every tile-map row. Recast's coverage on the same settings is 31-44% below that area (DotRecast 31-51%),

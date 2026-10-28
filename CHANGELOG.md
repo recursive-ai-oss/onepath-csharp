@@ -4,13 +4,20 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.4.0-preview.2]
+
 ### Added
 
 - **Grids for deterministic hosts:** `Grid.CreateSearch` returns a non-generic resumable `GridSearch` (`TryBegin`, `Step`, `CopyPath`, byte-exact `SaveState`/`RestoreState`, allocation-free on the specialised engine) that returns the path `FindPath` returns; `GridReplanner.TryReplan`/`CopyPath` (no allocation); `AStar.TryBegin`, `Topology`, `Start`, `Goal`; `Grid.ContentHash`; `Grid.TryFindNearestWalkable`, `CanFit`, `MaxAgentSizeAt`; `Grid.TryGetFixedCost` (Q31.32) and `GridPath.TryGetStepCounts`; options `SpecializedEngines` (force the generic engine so tier-1 and tier-2 A\* break ties alike) and `NearestRadius`. Documented in `docs/grids.md` and `docs/grids-state.md` (state kind 12).
 - **Crowd state without allocation:** `Crowd.StateHash()` (FNV-1a 64 of the snapshot bytes), `Crowd.GetStateSize()` and `Crowd.TrySaveState(Span<byte>, out int)` write the same OPCS v1 bytes as `SaveState()` into caller memory; `RestoreState` restores the same agents without allocating (followers and corridors are read in place, so a held `Agent.Path` stays valid). Documented in `docs/crowds.md`.
 
+### Changed
+
+- **The run-time tile cache is no longer experimental:** the `[Experimental]` marker is removed from `TileCache`, `TileObstacle`, `ObstacleShape`, `Mesh3DPipeline.Build*Cached` and `Mesh3DPipeline.Obstacles`. An obstacle add-and-remove cycle now measures 0.78-0.93 (x64) and 0.68-0.91 (arm64) of DetourTileCache's time on the city and terraces levels. Rebuilds repair the contours of the changed layer instead of redoing them, and the result is byte-identical to a fresh build of the same state.
+
 ### Fixed
 
+- A crowd whose settings (speed, horizon, wall clearance) were huge but valid, for example restored from a saved state, could ask the wall query for a radius beyond its limit; the radius is now bounded.
 - Restoring a sliced search (`AStar`, jump point, Theta\*, graph A\*) from a state that claimed *found* with a goal the search never closed could be accepted and then hang in `PathLength`/`CopyPath` by following leftover parent links in a loop; it is now a `GridStateException`.
 
 ## [0.4.0-preview.1]
@@ -31,7 +38,7 @@ First public preview. The API can still change between previews. The only runtim
 
 ### Experimental
 
-These types carry `[Experimental("ONEPATH0002")]` and may change or move in any preview:
+These types carry `[Experimental]` and may change or move in any preview:
 
 - the run-time tile cache: `TileCache`, `TileObstacle`, `ObstacleShape`, `Mesh3DPipeline.BuildSoupCached`, `BuildChunkCached`, `BuildHeightfieldCached` and `Mesh3DPipeline.Obstacles`. A tile rebuild still costs several times what a comparable native tile cache spends (see the speed table in the README).
 
@@ -40,5 +47,6 @@ These types carry `[Experimental("ONEPATH0002")]` and may change or move in any 
 - Peak memory is higher than the native references'.
 - Path queries on one large single-tile city mesh ran 1.6-1.8x slower than Detour in the last locked run (a later change to the mesh contours is not yet re-measured), and the tile cache is 4-6x slower than DetourTileCache; the README table lists the rows.
 
-[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.1...HEAD
+[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.2...HEAD
+[0.4.0-preview.2]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.1...v0.4.0-preview.2
 [0.4.0-preview.1]: https://github.com/recursive-ai-oss/onepath-csharp/releases/tag/v0.4.0-preview.1

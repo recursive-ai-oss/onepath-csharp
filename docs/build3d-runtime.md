@@ -6,8 +6,6 @@ A level built once can change while the game runs: a barricade appears, a door's
 the whole level is too slow, and rebuilding a tile from the triangles repeats work that did not change. A **tile cache** keeps, for
 each tile, the part of the build that depends only on the geometry, and redoes the rest.
 
-**Preview.** `TileCache`, `TileObstacle`, `ObstacleShape`, the `Build*Cached` methods and `Mesh3DPipeline.Obstacles` carry `[Experimental("ONEPATH0002")]`: one rebuild still costs more than a comparable native tile cache spends (see "Cost" below), and the API may change while that is reduced.
-
 ## What is cached
 
 Each tile is built on a grid of its cells plus a border of `Border` cells (agent radius in cells + 3) (`build3d-polys.md`). The stages are
