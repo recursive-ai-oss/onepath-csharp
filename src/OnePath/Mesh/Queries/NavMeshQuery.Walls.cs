@@ -61,6 +61,7 @@ public sealed partial class NavMeshQuery
     /// <param name="truncated">True if more pieces were found than <paramref name="walls"/> holds.</param>
     /// <returns>Success, or InvalidStartPoly (nothing written).</returns>
     /// <exception cref="ArgumentOutOfRangeException">The centre is non-finite or beyond ±2^21, or the radius is out of range.</exception>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus FindWalls<TFilter>(PolyRef startPoly, Vector3D center, double radius, in TFilter filter, Span<WallSegment> walls, out int count, out bool truncated)
         where TFilter : struct, IQueryFilter
     {
@@ -151,6 +152,7 @@ public sealed partial class NavMeshQuery
     }
 
     /// <summary>Lists wall pieces with the plain filter (null accepts everything).</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus FindWalls(PolyRef startPoly, Vector3D center, double radius, QueryFilter? filter, Span<WallSegment> walls, out int count, out bool truncated)
     {
         var f = new PlainFilter(filter ?? s_defaultFilter);
@@ -159,6 +161,7 @@ public sealed partial class NavMeshQuery
 
     // Keeps the buffer sorted by distance; a later piece at equal distance goes after the earlier ones (pieces are met in a
     // deterministic order). Distances of stored pieces are recomputed with the same expression, so they equal the keys.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private static void Insert(Span<WallSegment> walls, double cx, double cz, ref int count, ref bool truncated, double d2, WallSegment w)
     {
         int pos = count;
@@ -183,5 +186,6 @@ public sealed partial class NavMeshQuery
         walls[pos] = w;
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private static double Dist2(WallSegment w, double cx, double cz) => SegDist2(cx, cz, w.AX, w.AZ, w.BX, w.BZ);
 }

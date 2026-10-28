@@ -51,6 +51,7 @@ public sealed partial class NavMeshQuery
     /// <summary>True if the last polygon-set search needed more polygons than the query's node limit and dropped some.</summary>
     public bool AreaNodeLimitReached => _aNodeLimit;
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private void EnsureAreaBuffers()
     {
         if (_aPoly.Length != 0)
@@ -87,6 +88,7 @@ public sealed partial class NavMeshQuery
     /// <param name="kind">Whether stacked polygons are all kept or only the first met.</param>
     /// <returns><see cref="AreaQueryStatus.InProgress"/> when the search can run, else why not.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The centre is non-finite or beyond ±2^21, or the radius is out of range.</exception>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus BeginAreaSearch(PolyRef startPoly, Vector3D center, double radius, QueryFilter? filter = null, AreaSearchKind kind = AreaSearchKind.Reachable)
     {
         _aPlain = new PlainFilter(filter ?? s_defaultFilter);
@@ -96,6 +98,7 @@ public sealed partial class NavMeshQuery
 
     /// <summary>Starts a sliced circle search with a struct filter; pass the same filter to every <see cref="UpdateAreaSearch{TFilter}"/> call.</summary>
     /// <inheritdoc cref="BeginAreaSearch(PolyRef, Vector3D, double, QueryFilter?, AreaSearchKind)"/>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus BeginAreaSearch<TFilter>(PolyRef startPoly, Vector3D center, double radius, in TFilter filter, AreaSearchKind kind = AreaSearchKind.Reachable)
         where TFilter : struct, IQueryFilter
     {
@@ -119,6 +122,7 @@ public sealed partial class NavMeshQuery
     /// </summary>
     /// <returns><see cref="AreaQueryStatus.InProgress"/> when the search can run, <see cref="AreaQueryStatus.InvalidShape"/> for a bad shape, or <see cref="AreaQueryStatus.InvalidStartPoly"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A shape point is non-finite or beyond ±2^21.</exception>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus BeginAreaSearch(PolyRef startPoly, ReadOnlySpan<Vector3D> shape, QueryFilter? filter = null, AreaSearchKind kind = AreaSearchKind.Reachable)
     {
         _aPlain = new PlainFilter(filter ?? s_defaultFilter);
@@ -128,6 +132,7 @@ public sealed partial class NavMeshQuery
 
     /// <summary>Starts a sliced convex-shape search with a struct filter.</summary>
     /// <inheritdoc cref="BeginAreaSearch(PolyRef, ReadOnlySpan{Vector3D}, QueryFilter?, AreaSearchKind)"/>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus BeginAreaSearch<TFilter>(PolyRef startPoly, ReadOnlySpan<Vector3D> shape, in TFilter filter, AreaSearchKind kind = AreaSearchKind.Reachable)
         where TFilter : struct, IQueryFilter
     {
@@ -145,6 +150,7 @@ public sealed partial class NavMeshQuery
         return BeginArea(startPoly, kind, in filter);
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private void ClearPlainMark<TFilter>()
     {
         if (typeof(TFilter) != typeof(PlainFilter))
@@ -154,6 +160,7 @@ public sealed partial class NavMeshQuery
     }
 
     // Validates and stores a convex shape, counter-clockwise, with its reference point (vertex mean) in (_aCx, _aCz).
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private bool SetConvexShape(ReadOnlySpan<Vector3D> shape)
     {
         int n = shape.Length;
@@ -199,6 +206,7 @@ public sealed partial class NavMeshQuery
         return true;
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private AreaQueryStatus BeginArea<TFilter>(PolyRef startPoly, AreaSearchKind kind, in TFilter filter)
         where TFilter : struct, IQueryFilter
     {
@@ -236,6 +244,7 @@ public sealed partial class NavMeshQuery
     }
 
     // Looks the polygon up; returns the node index, or -1 with the free hash slot in `slot`.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private int AreaFind(ulong poly, out int slot)
     {
         int h = (int)(Mix(poly) & (ulong)_ahMask);
@@ -256,6 +265,7 @@ public sealed partial class NavMeshQuery
 
     /// <summary>Runs up to <paramref name="maxIterations"/> expansions of the search begun with a plain filter.</summary>
     /// <exception cref="InvalidOperationException">The search was started with a struct filter; use the generic overload.</exception>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus UpdateAreaSearch(int maxIterations)
     {
         if (!_aPlainStored)
@@ -271,6 +281,7 @@ public sealed partial class NavMeshQuery
     /// Any split of the same total work ends with the result of one unlimited call.
     /// </summary>
     /// <returns>InProgress while unfinished, then Success; or the failure from Begin.</returns>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus UpdateAreaSearch<TFilter>(int maxIterations, in TFilter filter)
         where TFilter : struct, IQueryFilter
     {
@@ -299,6 +310,7 @@ public sealed partial class NavMeshQuery
         return _aState == SearchState.Done ? AreaQueryStatus.Success : AreaQueryStatus.InProgress;
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private void ExpandArea<TFilter>(int node, in TFilter filter)
         where TFilter : struct, IQueryFilter
     {
@@ -350,6 +362,7 @@ public sealed partial class NavMeshQuery
     }
 
     // Point at fraction s along a→c; the ends are returned exactly.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private static void Lerp(double ax, double az, double cx, double cz, double s, out double x, out double z)
     {
         if (s <= 0)
@@ -369,6 +382,7 @@ public sealed partial class NavMeshQuery
         }
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private void AreaRelax(int parent, PolyRef target, double key)
     {
         int n = AreaFind(target.Value, out int slot);
@@ -402,6 +416,7 @@ public sealed partial class NavMeshQuery
     }
 
     // True if the polygon's X/Z outline overlaps (interiors intersect) a polygon already kept.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private bool OverlapsKept(PolyRef target)
     {
         if (!_mesh.TryGetPoly(target, out NavTile t, out int p))
@@ -420,9 +435,11 @@ public sealed partial class NavMeshQuery
 
     // Convex polygons (counter-clockwise) have overlapping interiors unless some edge of one has the whole other on its
     // outer closed side (separating axis theorem; exact predicates, so touching polygons never count as overlapping).
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     internal static bool PolysOverlap(NavTile t1, int p1, NavTile t2, int p2) =>
         !SeparatedBy(t1, p1, t2, p2) && !SeparatedBy(t2, p2, t1, p1);
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private static bool SeparatedBy(NavTile a, int pa, NavTile b, int pb)
     {
         int na = a.PolyVertexCounts[pa], nb = b.PolyVertexCounts[pb];
@@ -457,6 +474,7 @@ public sealed partial class NavMeshQuery
     /// <param name="count">Number of polygons written.</param>
     /// <param name="truncated">True if <paramref name="polys"/> was too short.</param>
     /// <returns>Success when the search is done, InProgress otherwise, InvalidStartPoly if it never began.</returns>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus FinishAreaSearch(Span<PolyRef> polys, Span<PolyRef> parents, Span<double> distancesSquared, out int count, out bool truncated)
     {
         count = 0;
@@ -499,6 +517,7 @@ public sealed partial class NavMeshQuery
     /// <param name="distancesSquared">Receives each polygon's squared entry distance (may be empty).</param>
     /// <param name="count">Number of polygons written.</param>
     /// <param name="truncated">True if <paramref name="polys"/> was too short.</param>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus FindPolysInCircle<TFilter>(PolyRef startPoly, Vector3D center, double radius, in TFilter filter, Span<PolyRef> polys, Span<PolyRef> parents, Span<double> distancesSquared, out int count, out bool truncated)
         where TFilter : struct, IQueryFilter
     {
@@ -507,6 +526,7 @@ public sealed partial class NavMeshQuery
     }
 
     /// <summary>Circle query with the plain filter (null accepts everything).</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus FindPolysInCircle(PolyRef startPoly, Vector3D center, double radius, QueryFilter? filter, Span<PolyRef> polys, Span<PolyRef> parents, Span<double> distancesSquared, out int count, out bool truncated)
     {
         var f = new PlainFilter(filter ?? s_defaultFilter);
@@ -514,6 +534,7 @@ public sealed partial class NavMeshQuery
     }
 
     /// <summary>As <see cref="FindPolysInCircle{TFilter}"/>, for a convex shape given by its X/Z points (see <see cref="BeginAreaSearch(PolyRef, ReadOnlySpan{Vector3D}, QueryFilter?, AreaSearchKind)"/>).</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus FindPolysInShape<TFilter>(PolyRef startPoly, ReadOnlySpan<Vector3D> shape, in TFilter filter, Span<PolyRef> polys, Span<PolyRef> parents, Span<double> distancesSquared, out int count, out bool truncated)
         where TFilter : struct, IQueryFilter
     {
@@ -522,6 +543,7 @@ public sealed partial class NavMeshQuery
     }
 
     /// <summary>Shape query with the plain filter.</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus FindPolysInShape(PolyRef startPoly, ReadOnlySpan<Vector3D> shape, QueryFilter? filter, Span<PolyRef> polys, Span<PolyRef> parents, Span<double> distancesSquared, out int count, out bool truncated)
     {
         var f = new PlainFilter(filter ?? s_defaultFilter);
@@ -532,6 +554,7 @@ public sealed partial class NavMeshQuery
     /// The local neighbourhood of a position: the circle query, but a polygon whose outline overlaps one already kept is
     /// skipped (and not expanded through), so stacked floors appear once. "Already kept" follows the search's creation order.
     /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus FindLocalNeighbourhood<TFilter>(PolyRef startPoly, Vector3D center, double radius, in TFilter filter, Span<PolyRef> polys, Span<PolyRef> parents, out int count, out bool truncated)
         where TFilter : struct, IQueryFilter
     {
@@ -540,12 +563,14 @@ public sealed partial class NavMeshQuery
     }
 
     /// <summary>Local neighbourhood with the plain filter.</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public AreaQueryStatus FindLocalNeighbourhood(PolyRef startPoly, Vector3D center, double radius, QueryFilter? filter, Span<PolyRef> polys, Span<PolyRef> parents, out int count, out bool truncated)
     {
         var f = new PlainFilter(filter ?? s_defaultFilter);
         return FindLocalNeighbourhood(startPoly, center, radius, in f, polys, parents, out count, out truncated);
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private AreaQueryStatus RunAndFinish<TFilter>(AreaQueryStatus begin, in TFilter filter, Span<PolyRef> polys, Span<PolyRef> parents, Span<double> dist, out int count, out bool truncated)
         where TFilter : struct, IQueryFilter
     {
@@ -563,12 +588,15 @@ public sealed partial class NavMeshQuery
 
     // Orientation of c relative to a→b in the X/Z plane, exact. Magnitudes below 2^-100 are treated as zero so the
     // predicate's input range is never exceeded.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     internal static int Side(double ax, double az, double bx, double bz, double cx, double cz) =>
         ExactPredicates.Orient2D(Tiny(ax), Tiny(az), Tiny(bx), Tiny(bz), Tiny(cx), Tiny(cz));
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private static double Tiny(double v) => Math.Abs(v) < 7.888609052210118E-31 ? 0.0 : v;
 
     // Does the segment touch the query shape? If so, key = squared distance from the shape's reference point to the segment.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private bool Touches(double ax, double az, double bx, double bz, out double key)
     {
         key = SegDist2(_aCx, _aCz, ax, az, bx, bz);
@@ -592,6 +620,7 @@ public sealed partial class NavMeshQuery
         return false;
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private bool InsideShape(double x, double z)
     {
         int n = _aShapeN;
@@ -607,6 +636,7 @@ public sealed partial class NavMeshQuery
     }
 
     // Closed segments a-b and c-d share a point.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private static bool SegmentsMeet(double ax, double az, double bx, double bz, double cx, double cz, double dx, double dz)
     {
         int o1 = Side(ax, az, bx, bz, cx, cz), o2 = Side(ax, az, bx, bz, dx, dz);
@@ -620,9 +650,11 @@ public sealed partial class NavMeshQuery
     }
 
     // For a point known to be collinear with a-b: is it between the ends?
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private static bool OnBox(double ax, double az, double bx, double bz, double px, double pz) =>
         px >= Math.Min(ax, bx) && px <= Math.Max(ax, bx) && pz >= Math.Min(az, bz) && pz <= Math.Max(az, bz);
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     internal static double SegDist2(double px, double pz, double ax, double az, double bx, double bz)
     {
         double ex = bx - ax, ez = bz - az;
@@ -634,6 +666,7 @@ public sealed partial class NavMeshQuery
 
     // ---- open list: binary min-heap on (key, insertion sequence) ----
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private void AreaPush(double f, int node)
     {
         if (_apCount == _apF.Length)
@@ -661,6 +694,7 @@ public sealed partial class NavMeshQuery
         _apNode[i] = node;
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private int AreaPop()
     {
         int result = _apNode[0];

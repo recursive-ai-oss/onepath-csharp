@@ -19,6 +19,7 @@ public sealed partial class NavMeshQuery
     /// <param name="visited">Receives the polygons visited, start first (may be empty).</param>
     /// <param name="visitedCount">Number written to <paramref name="visited"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public RaycastResult Raycast<TFilter>(PolyRef startPoly, Vector3D start, Vector3D end, in TFilter filter, Span<PolyRef> visited, out int visitedCount)
         where TFilter : struct, IQueryFilter => RaycastCore(startPoly, start, end, in filter, visited, out visitedCount, out _);
 
@@ -27,6 +28,7 @@ public sealed partial class NavMeshQuery
     // segment passes through. Of those, only the ones whose extent holds the crossing point count, and among them the first
     // that leads to a polygon the filter accepts wins, so a segment that slips through a vertex into the next polygon
     // continues; if none leads anywhere the lowest index is the wall that was hit.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private PolyRef PickExitEdge<TFilter>(PolyRef cur, NavTile t, int p, int b, int n, double sx, double sz, double dx, double dz, double tCross, double tmax, int first, in TFilter filter, out int edge)
         where TFilter : struct, IQueryFilter
     {
@@ -91,6 +93,7 @@ public sealed partial class NavMeshQuery
     }
 
     // The raycast proper; also reports the last polygon the ray was in (the visited buffer may be too short to tell).
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private RaycastResult RaycastCore<TFilter>(PolyRef startPoly, Vector3D start, Vector3D end, in TFilter filter, Span<PolyRef> visited, out int visitedCount, out PolyRef last)
         where TFilter : struct, IQueryFilter
     {
@@ -173,6 +176,7 @@ public sealed partial class NavMeshQuery
     }
 
     /// <summary>Raycast with the plain filter (null accepts everything).</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public RaycastResult Raycast(PolyRef startPoly, Vector3D start, Vector3D end, QueryFilter? filter, Span<PolyRef> visited, out int visitedCount)
     {
         var f = new PlainFilter(filter ?? s_defaultFilter);
@@ -180,6 +184,7 @@ public sealed partial class NavMeshQuery
     }
 
     // The polygon on the other side of an edge at world (x, z), if the filter allows entering it.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     private PolyRef CrossEdge<TFilter>(PolyRef cur, NavTile t, int p, int edge, double x, double z, in TFilter filter)
         where TFilter : struct, IQueryFilter
     {

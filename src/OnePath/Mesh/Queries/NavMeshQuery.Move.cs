@@ -19,6 +19,7 @@ public sealed partial class NavMeshQuery
     /// <param name="visited">Receives the polygons traced, start first (may be empty).</param>
     /// <param name="visitedCount">Number written to <paramref name="visited"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public MoveResult MoveAlongSurface<TFilter>(PolyRef startPoly, Vector3D start, Vector3D end, in TFilter filter, Span<PolyRef> visited, out int visitedCount)
         where TFilter : struct, IQueryFilter
     {
@@ -46,6 +47,7 @@ public sealed partial class NavMeshQuery
     }
 
     /// <summary>Moves along the surface with the plain filter (null accepts everything).</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public MoveResult MoveAlongSurface(PolyRef startPoly, Vector3D start, Vector3D end, QueryFilter? filter, Span<PolyRef> visited, out int visitedCount)
     {
         var f = new PlainFilter(filter ?? s_defaultFilter);

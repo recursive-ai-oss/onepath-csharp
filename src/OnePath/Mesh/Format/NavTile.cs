@@ -192,6 +192,7 @@ public sealed class NavTile
 
     /// <summary>Index into <see cref="PolyIndices"/> of the first vertex of polygon <paramref name="poly"/>.</summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="poly"/> is not a polygon index of this tile.</exception>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
     public int PolyFirstIndex(int poly)
     {
         if ((uint)poly >= (uint)PolyCount)
