@@ -184,9 +184,23 @@ public static class Regions
         }
         int[] region = Scratch.RentZeroed<int>(n);
         byte[] areaOf = Scratch.Rent<byte>(n);
+        byte firstArea = 0;
+        bool singleArea = true;
         for (int i = 0; i < n; i++)
         {
-            areaOf[i] = spans[i].Area;
+            byte a = spans[i].Area;
+            areaOf[i] = a;
+            if (a != 0)
+            {
+                if (firstArea == 0)
+                {
+                    firstArea = a;
+                }
+                else if (a != firstArea)
+                {
+                    singleArea = false;
+                }
+            }
         }
 
         // Counting sort of walkable spans by distance, ascending index inside a level.
@@ -244,38 +258,77 @@ public static class Regions
                 {
                     int s = current[k];
                     int b = 4 * s;
-                    byte a = areaOf[s];
                     int best = 0;
-                    int t = nbr[b];
-                    if (t >= 0 && areaOf[t] == a)
+                    if (singleArea)
                     {
-                        best = region[t];
-                    }
-                    t = nbr[b + 1];
-                    if (t >= 0 && areaOf[t] == a)
-                    {
-                        int rt = region[t];
-                        if (rt > 0 && (best == 0 || rt < best))
+                        // One area id: a neighbour with a region has it too.
+                        int t = nbr[b];
+                        if (t >= 0)
                         {
-                            best = rt;
+                            best = region[t];
+                        }
+                        t = nbr[b + 1];
+                        if (t >= 0)
+                        {
+                            int rt = region[t];
+                            if (rt > 0 && (best == 0 || rt < best))
+                            {
+                                best = rt;
+                            }
+                        }
+                        t = nbr[b + 2];
+                        if (t >= 0)
+                        {
+                            int rt = region[t];
+                            if (rt > 0 && (best == 0 || rt < best))
+                            {
+                                best = rt;
+                            }
+                        }
+                        t = nbr[b + 3];
+                        if (t >= 0)
+                        {
+                            int rt = region[t];
+                            if (rt > 0 && (best == 0 || rt < best))
+                            {
+                                best = rt;
+                            }
                         }
                     }
-                    t = nbr[b + 2];
-                    if (t >= 0 && areaOf[t] == a)
+                    else
                     {
-                        int rt = region[t];
-                        if (rt > 0 && (best == 0 || rt < best))
+                        byte a = areaOf[s];
+                        int t = nbr[b];
+                        if (t >= 0 && areaOf[t] == a)
                         {
-                            best = rt;
+                            best = region[t];
                         }
-                    }
-                    t = nbr[b + 3];
-                    if (t >= 0 && areaOf[t] == a)
-                    {
-                        int rt = region[t];
-                        if (rt > 0 && (best == 0 || rt < best))
+                        t = nbr[b + 1];
+                        if (t >= 0 && areaOf[t] == a)
                         {
-                            best = rt;
+                            int rt = region[t];
+                            if (rt > 0 && (best == 0 || rt < best))
+                            {
+                                best = rt;
+                            }
+                        }
+                        t = nbr[b + 2];
+                        if (t >= 0 && areaOf[t] == a)
+                        {
+                            int rt = region[t];
+                            if (rt > 0 && (best == 0 || rt < best))
+                            {
+                                best = rt;
+                            }
+                        }
+                        t = nbr[b + 3];
+                        if (t >= 0 && areaOf[t] == a)
+                        {
+                            int rt = region[t];
+                            if (rt > 0 && (best == 0 || rt < best))
+                            {
+                                best = rt;
+                            }
                         }
                     }
                     if (best > 0)
