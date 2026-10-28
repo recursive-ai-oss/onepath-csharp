@@ -14,8 +14,8 @@ public static class NavMeshSerializer
 {
     private const uint TileMagic = 0x5450_4E4F; // "ONPT" little-endian
     private const uint MeshMagic = 0x4D50_4E4F; // "ONPM"
-    internal const int ParamsSize = 60;
-    private const int TileFixedHeader = 4 + 2 + 2 + 12 + 24 + (6 * 4);
+    internal const int ParamsSize = 68;
+    private const int TileFixedHeader = 4 + 2 + 2 + NavMeshFingerprint.Size + 12 + 24 + (6 * 4);
     private const int PolyRecordSize = 16;
     private const int OffMeshRecordSize = 36;
 
@@ -138,6 +138,7 @@ public static class NavMeshSerializer
         w.F32(p.AgentRadius);
         w.F32(p.AgentHeight);
         w.F32(p.AgentMaxSlopeDegrees);
+        w.U64(p.SettingsDigest);
     }
 
     internal static NavMeshParams ReadParams(ref Reader r)
@@ -157,6 +158,7 @@ public static class NavMeshSerializer
                 AgentRadius = r.F32("agent radius"),
                 AgentHeight = r.F32("agent height"),
                 AgentMaxSlopeDegrees = r.F32("agent slope"),
+                SettingsDigest = r.U64("settings digest"),
             };
             p.Validate();
         }
@@ -183,11 +185,11 @@ public static class NavMeshSerializer
         ushort f = r.U16("flags");
         if (v != NavMeshFormat.Version)
         {
-            throw new NavMeshFormatException($"Unsupported format version {v}; this build reads version {NavMeshFormat.Version}.");
+            throw new NavMeshVersionException(v, NavMeshFormat.Version);
         }
         if (f != HeaderFlags)
         {
-            throw new NavMeshFormatException($"Unexpected header flags 0x{f:X4}; this build reads 0x{HeaderFlags:X4} (bit 0 marks the draft format).");
+            throw new NavMeshFormatException($"Unexpected header flags 0x{f:X4}; version {v} requires 0x{HeaderFlags:X4}.");
         }
     }
 
@@ -196,6 +198,9 @@ public static class NavMeshSerializer
         w.U32(TileMagic);
         w.U16(NavMeshFormat.Version);
         w.U16(HeaderFlags);
+        Span<byte> fp = stackalloc byte[NavMeshFingerprint.Size];
+        t.Params.Fingerprint.CopyTo(fp);
+        w.Bytes(fp);
         w.I32(t.TileX);
         w.I32(t.TileZ);
         w.I32(t.Layer);
@@ -260,6 +265,11 @@ public static class NavMeshSerializer
             throw new NavMeshFormatException("Not a tile (bad magic).");
         }
         CheckVersion(ref r);
+        var found = NavMeshFingerprint.From(r.Take(NavMeshFingerprint.Size, "build fingerprint"));
+        if (found != p.Fingerprint)
+        {
+            throw new NavMeshFingerprintException(found, p.Fingerprint, "Reading a tile");
+        }
         var d = new NavTileData
         {
             TileX = r.I32("tile X"),
@@ -393,6 +403,8 @@ public static class NavMeshSerializer
 
         public void U32(uint v) => BinaryPrimitives.WriteUInt32LittleEndian(Next(4), v);
 
+        public void U64(ulong v) => BinaryPrimitives.WriteUInt64LittleEndian(Next(8), v);
+
         public void I32(int v) => BinaryPrimitives.WriteInt32LittleEndian(Next(4), v);
 
         public void F32(float v) => BinaryPrimitives.WriteInt32LittleEndian(Next(4), BitConverter.SingleToInt32Bits(v));
@@ -433,6 +445,8 @@ public static class NavMeshSerializer
         public ushort U16(string what) => BinaryPrimitives.ReadUInt16LittleEndian(Next(2, what));
 
         public uint U32(string what) => BinaryPrimitives.ReadUInt32LittleEndian(Next(4, what));
+
+        public ulong U64(string what) => BinaryPrimitives.ReadUInt64LittleEndian(Next(8, what));
 
         public int I32(string what) => BinaryPrimitives.ReadInt32LittleEndian(Next(4, what));
 

@@ -61,7 +61,7 @@ public sealed class TiledNavMesh
 
     /// <summary>Adds a tile and stitches it to its neighbours.</summary>
     /// <returns>A reference to the new tile.</returns>
-    /// <exception cref="ArgumentException">The tile was built with different parameters.</exception>
+    /// <exception cref="NavMeshFingerprintException">The tile was built with other settings than the mesh (a <see cref="NavMeshFormatException"/>).</exception>
     /// <exception cref="InvalidOperationException">A tile already exists at the tile's (column, row, layer), or no slot is left.</exception>
     public TileRef AddTile(NavTile tile)
     {
@@ -81,7 +81,7 @@ public sealed class TiledNavMesh
     /// Replaces the tile at the same (column, row, layer), or adds it when none exists. The slot's generation
     /// changes, so every polygon reference into the old tile becomes invalid.
     /// </summary>
-    /// <exception cref="ArgumentException">The tile was built with different parameters.</exception>
+    /// <exception cref="NavMeshFingerprintException">The tile was built with other settings than the mesh (a <see cref="NavMeshFormatException"/>).</exception>
     public TileRef ReplaceTile(NavTile tile)
     {
         _editCount++;
@@ -200,6 +200,10 @@ public sealed class TiledNavMesh
     private void CheckTile(NavTile tile)
     {
         ArgumentNullException.ThrowIfNull(tile);
+        if (tile.Params.Fingerprint != Params.Fingerprint)
+        {
+            throw new NavMeshFingerprintException(tile.Params.Fingerprint, Params.Fingerprint, $"Tile ({tile.TileX}, {tile.TileZ}, layer {tile.Layer})");
+        }
         if (!tile.Params.SameAs(Params))
         {
             throw new ArgumentException("The tile was built with different mesh parameters.", nameof(tile));

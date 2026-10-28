@@ -197,7 +197,7 @@ public class NavMeshSnapshotTests
         partial.Add(m.GetTileBySlot(0)!);
         Assert.Throws<NavMeshFormatException>(() => NavMeshSnapshot.Restore(referenced, partial));
         var other = new TiledNavMesh(new NavMeshParams { OriginX = -16, OriginZ = -16, TileSize = 8, CellSize = 0.25, WalkableClimb = 0.75f });
-        Assert.Contains("different parameters", Assert.Throws<NavMeshFormatException>(() => other.Restore(m.Snapshot())).Message);
+        Assert.Contains("fingerprint", Assert.Throws<NavMeshFingerprintException>(() => other.Restore(m.Snapshot())).Message);
         Assert.Equal(0, other.TileCount);
     }
 
@@ -257,8 +257,8 @@ public class NavMeshSnapshotTests
     public void UnknownOrRepeatedSectionsAreRejected()
     {
         byte[] good = NavMeshWorlds.RandomMesh(2, 0, 0, 1, 1, 1, false, 0).Snapshot(SnapshotMode.Referenced);
-        // Section table: count at 8 + 60, then id (u16), reserved (u16), length (u32).
-        int at = 8 + 60;
+        // Section table: count at 8 + 68, then id (u16), reserved (u16), length (u32).
+        int at = 8 + 68;
         byte[] unknown = (byte[])good.Clone();
         unknown[at + 4] = 2;
         Assert.Contains("section", Assert.Throws<NavMeshFormatException>(() => NavMeshSnapshot.Restore(unknown, new TileLibrary())).Message);

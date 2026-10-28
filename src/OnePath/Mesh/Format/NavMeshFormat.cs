@@ -6,16 +6,15 @@ namespace RecursiveAI.OnePath.Mesh;
 public static class NavMeshFormat
 {
     /// <summary>The format version this build reads and writes.</summary>
-    public const ushort Version = 1;
+    public const ushort Version = 2;
 
     /// <summary>
-    /// True while the format may still change incompatibly. Files written in that state carry
-    /// <see cref="FlagUnstable"/>; a stable release of the format clears the flag and bumps <see cref="Version"/>,
-    /// so unstable files are never mistaken for stable ones.
+    /// True while the format may still change incompatibly. The format is frozen: any later layout change is a new
+    /// <see cref="Version"/> with a reader for this one, so this is false.
     /// </summary>
-    public const bool IsUnstable = true;
+    public const bool IsUnstable = false;
 
-    /// <summary>Header flag bit 0: the file was written by a draft (unstable) format.</summary>
+    /// <summary>Header flag bit 0: the file was written by a draft (unstable) format. Never set by a frozen version.</summary>
     public const ushort FlagUnstable = 1;
 
     /// <summary>Largest polygon area id.</summary>
@@ -50,7 +49,7 @@ public static class NavMeshFormat
 /// Thrown when mesh or tile data is malformed: a validation failure of hand-built data, or a byte stream that
 /// is truncated, inconsistent or hostile. The message names what was wrong and where.
 /// </summary>
-public sealed class NavMeshFormatException : Exception
+public class NavMeshFormatException : Exception
 {
     /// <summary>Creates the exception with a message.</summary>
     public NavMeshFormatException(string message)
@@ -69,4 +68,43 @@ public sealed class NavMeshFormatException : Exception
         : base("The navigation mesh data is malformed.")
     {
     }
+}
+
+/// <summary>Thrown when a file's format version is not the one this build reads.</summary>
+public sealed class NavMeshVersionException : NavMeshFormatException
+{
+    /// <summary>Creates the exception for a file of version <paramref name="found"/>.</summary>
+    public NavMeshVersionException(int found, int expected)
+        : base($"Unsupported navigation mesh format version {found}; this build reads only version {expected}" + (found == 1 ? " (version 1 was the draft format and is not readable)." : "."))
+    {
+        Found = found;
+        Expected = expected;
+    }
+
+    /// <summary>The version found in the data.</summary>
+    public int Found { get; }
+
+    /// <summary>The version this build reads.</summary>
+    public int Expected { get; }
+}
+
+/// <summary>
+/// Thrown when a tile was built with other settings than the mesh it is added to, streamed into or restored against
+/// (different cell size, tile size, agent class, partition, detail or any other setting that changes tile content).
+/// </summary>
+public sealed class NavMeshFingerprintException : NavMeshFormatException
+{
+    /// <summary>Creates the exception.</summary>
+    public NavMeshFingerprintException(NavMeshFingerprint found, NavMeshFingerprint expected, string where)
+        : base($"{where}: the tile's build fingerprint {found} differs from the mesh's {expected}; it was built with other settings or for another agent class.")
+    {
+        Found = found;
+        Expected = expected;
+    }
+
+    /// <summary>The fingerprint carried by the tile.</summary>
+    public NavMeshFingerprint Found { get; }
+
+    /// <summary>The fingerprint of the mesh.</summary>
+    public NavMeshFingerprint Expected { get; }
 }

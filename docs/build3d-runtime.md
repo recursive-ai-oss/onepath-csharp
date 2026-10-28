@@ -1,6 +1,6 @@
 # The 3D builder at run time: tile cache, obstacles, area volumes
 
-Status: follows the draft mesh format (`navmesh-format.md`). Written so a port reproduces the same tiles bit for bit.
+Status: follows the frozen mesh format (`navmesh-format.md`). Written so a port reproduces the same tiles bit for bit.
 
 A level built once can change while the game runs: a barricade appears, a door's doorway closes, a swamp becomes costly. Rebuilding
 the whole level is too slow, and rebuilding a tile from the triangles repeats work that did not change. A **tile cache** keeps, for
