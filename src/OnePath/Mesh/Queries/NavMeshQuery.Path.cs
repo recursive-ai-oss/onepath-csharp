@@ -128,6 +128,17 @@ public sealed partial class NavMeshQuery
         {
             return _beginStatus = QueryStatus.InvalidEndPoly;
         }
+        _refined = false;
+        _startPos = startPos;
+        InitSearch(startPoly, endPoly, startPos, endPos, in filter);
+        return _beginStatus = QueryStatus.InProgress;
+    }
+
+    // Sets up an empty search from startPos in startPoly towards endPos in endPoly.
+    private void InitSearch<TFilter>(PolyRef startPoly, PolyRef endPoly, Vector3D startPos, Vector3D endPos, in TFilter filter)
+        where TFilter : struct, IQueryFilter
+    {
+        _terminal = -1;
         if (_polygonNodes)
         {
             PrepareDense();
@@ -170,7 +181,6 @@ public sealed partial class NavMeshQuery
         _nodes[root].H = h0;
         Push(filter.MinAreaCost * h0, root);
         _state = SearchState.Active;
-        return _beginStatus = QueryStatus.InProgress;
     }
 
     /// <summary>Runs up to <paramref name="maxIterations"/> expansions of the search started with the plain-filter <see cref="BeginPath(PolyRef, PolyRef, Vector3D, Vector3D, QueryFilter?)"/>.</summary>
@@ -199,43 +209,71 @@ public sealed partial class NavMeshQuery
         }
         if (_state == SearchState.Done)
         {
-            return _terminal >= 0 ? QueryStatus.Success : QueryStatus.Partial;
+            return _terminal >= 0 && !_refined ? QueryStatus.Success : QueryStatus.Partial;
         }
         int budget = maxIterations;
-        while (budget > 0 && _heapCount > 0)
+        while (true)
         {
-            int node = PopMin();
-            if (_nodes[node].Closed)
+            while (budget > 0 && _heapCount > 0)
             {
-                continue; // stale entry from an earlier, more expensive route
+                int node = PopMin();
+                if (_nodes[node].Closed)
+                {
+                    continue; // stale entry from an earlier, more expensive route
+                }
+                _nodes[node].Closed = true;
+                budget--;
+                _iterations++;
+                if (node == _terminalNodeIndex)
+                {
+                    _terminal = node;
+                    _state = SearchState.Done;
+                    return _refined ? QueryStatus.Partial : QueryStatus.Success;
+                }
+                if (_polygonNodes)
+                {
+                    ExpandPolygon(node, in filter);
+                }
+                else
+                {
+                    Expand(node, in filter);
+                }
             }
-            _nodes[node].Closed = true;
-            budget--;
-            _iterations++;
-            if (node == _terminalNodeIndex)
+            if (_heapCount > 0)
             {
-                _terminal = node;
-                _state = SearchState.Done;
-                return QueryStatus.Success;
+                return QueryStatus.InProgress;
             }
-            if (_polygonNodes)
+            // The goal is out of reach. The polygon model prices a polygon by the best route found to it, which is not
+            // the best route to the polygons beyond it, and with nothing to stop the search it prices the whole reachable
+            // area that way. So the corridor to the polygon nearest the goal is searched again as an ordinary query with that
+            // polygon as the goal, which the goal-directed search answers well. The result is still reported as Partial.
+            if (_polygonNodes && !_refined && _terminal < 0 && TryRefine(in filter))
             {
-                ExpandPolygon(node, in filter);
+                continue;
             }
-            else
-            {
-                Expand(node, in filter);
-            }
-        }
-        if (_heapCount == 0)
-        {
             _state = SearchState.Done;
             return QueryStatus.Partial;
         }
-        return QueryStatus.InProgress;
     }
 
     private int _terminalNodeIndex = -1;
+    private bool _refined;
+    private Vector3D _startPos;
+
+    // Restarts a finished, unsuccessful polygon-model search towards the polygon it got nearest the goal in, ending at the
+    // point of that polygon nearest the goal. False when there is nothing to improve (the start polygon is the nearest).
+    private bool TryRefine<TFilter>(in TFilter filter)
+        where TFilter : struct, IQueryFilter
+    {
+        var nearest = new PolyRef(_nodes[_best].Arrival);
+        if (nearest == _startPoly || !ClosestPointOnPoly(nearest, _endPos, out Vector3D end, out _))
+        {
+            return false;
+        }
+        _refined = true;
+        InitSearch(_startPoly, nearest, _startPos, end, in filter);
+        return true;
+    }
 
     /// <summary>
     /// Ends the search and writes the corridor (start polygon first). Loops where the cheapest route left a polygon and
@@ -256,7 +294,7 @@ public sealed partial class NavMeshQuery
         }
         bool done = _state == SearchState.Done;
         int target = _terminal >= 0 ? _terminal : _best;
-        QueryStatus status = _terminal >= 0 ? QueryStatus.Success : (done ? QueryStatus.Partial : QueryStatus.InProgress);
+        QueryStatus status = _terminal >= 0 && !_refined ? QueryStatus.Success : (done ? QueryStatus.Partial : QueryStatus.InProgress);
         cost = _nodes[target].G;
         int len = 0;
         int cur = target;

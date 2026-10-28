@@ -160,11 +160,21 @@ public class NavMeshPathNodeModelTests
                 else
                 {
                     unreachable++;
+                    // An unreachable goal still gets a loop-free corridor from the start that string-pulls, as the crossing model's does.
+                    Assert.Equal(QueryStatus.Partial, f2);
+                    Assert.True(n2 >= 1 && n1 >= 1);
+                    var seen = new HashSet<ulong>();
+                    for (int i = 0; i < n2; i++)
+                    {
+                        Assert.True(seen.Add(c2[i].Value));
+                    }
+                    Assert.True(poly.ClosestPointOnPoly(c2[n2 - 1], pb, out Vector3D end, out _));
+                    Assert.Equal(QueryStatus.Success, poly.FindStraightPath(pa, end, c2.AsSpan(0, n2), new StraightPathPoint[4096], out _, out _));
                 }
             }
         }
         Assert.True(reachable > 40, $"only {reachable} reachable pairs");
-        Assert.True(unreachable >= 0);
+        Assert.True(unreachable > 0, "no unreachable pair was drawn");
     }
 
     [Fact]
