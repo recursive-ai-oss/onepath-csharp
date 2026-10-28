@@ -96,6 +96,18 @@ public static class Contours
         ArgumentNullException.ThrowIfNull(settings);
         settings.Validate();
         var g = new SpanGraph(chf);
+        try
+        {
+            return BuildCore(chf, settings, g);
+        }
+        finally
+        {
+            g.Release();
+        }
+    }
+
+    private static ContourSet BuildCore(CompactHeightfield chf, ContourSettings settings, SpanGraph g)
+    {
         Span<CompactSpan> spans = chf.Spans;
         int n = g.Count;
         var region = new int[n];

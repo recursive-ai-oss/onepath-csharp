@@ -30,16 +30,21 @@ public static class Erosion
         {
             return;
         }
-        int[] dist = ComputeBoundaryDistance(chf, 2L * radius > int.MaxValue / 2 ? int.MaxValue / 2 : 2 * radius);
         int cap = 2 * radius;
+        int n = chf.SpanCount;
+        int[] link = SpanLinks.Rent(chf);
+        int[] dist = Scratch.Rent<int>(n);
+        DistanceInto(chf, link, dist, 2L * radius > int.MaxValue / 2 ? int.MaxValue / 2 : 2 * radius);
         Span<CompactSpan> spans = chf.Spans;
-        for (int i = 0; i < spans.Length; i++)
+        for (int i = 0; i < n; i++)
         {
             if (dist[i] < cap)
             {
                 spans[i].Area = 0;
             }
         }
+        Scratch.Return(link);
+        Scratch.Return(dist);
     }
 
     /// <summary>
@@ -53,15 +58,18 @@ public static class Erosion
         {
             throw new ArgumentOutOfRangeException(nameof(cap), cap, "The cap must be at least 1.");
         }
-        return ComputeBoundaryDistance(chf, SpanLinks.Build(chf), cap);
+        int[] link = SpanLinks.Rent(chf);
+        var dist = new int[chf.SpanCount];
+        DistanceInto(chf, link, dist, cap);
+        Scratch.Return(link);
+        return dist;
     }
 
-    /// <summary>The distance field from the raw links (<see cref="SpanLinks.Build"/>), so a caller that needs both can build them once.</summary>
-    internal static int[] ComputeBoundaryDistance(CompactHeightfield chf, int[] link, int cap)
+    /// <summary>The distance field from the raw links (<see cref="SpanLinks.Rent"/>) into the first <c>SpanCount</c> entries of <paramref name="dist"/>, so a caller that needs both can build them once.</summary>
+    internal static void DistanceInto(CompactHeightfield chf, int[] link, int[] dist, int cap)
     {
         Span<CompactSpan> spans = chf.Spans;
         int n = spans.Length;
-        int[] dist = GC.AllocateUninitializedArray<int>(n);
         for (int i = 0; i < n; i++)
         {
             dist[i] = IsBoundary(spans, link, i) ? 0 : cap;
@@ -70,22 +78,20 @@ public static class Erosion
         // Pull relaxation to a fixed point. The shortest-path distance (the unique fixed point) does not depend on the order of the passes,
         // so a forward and a backward pass over half of the neighbours (the chamfer masks) do most of the work, and passes over all of them,
         // alternating direction, finish it and prove it: the loop ends with a pass that changes nothing.
-        Relax(dist, link, forward: true, half: true);
-        Relax(dist, link, forward: false, half: true);
+        Relax(dist, link, n, forward: true, half: true);
+        Relax(dist, link, n, forward: false, half: true);
         bool forwardPass = true;
-        while (Relax(dist, link, forwardPass, half: false))
+        while (Relax(dist, link, n, forwardPass, half: false))
         {
             forwardPass = !forwardPass;
         }
-        return dist;
     }
 
     // One pass of dist[i] = min(dist[i], dist[n] + 2 for a link i → n, dist[m] + 3 for a link n → m perpendicular to i → n). Returns whether anything changed.
     // Half masks: the forward pass looks at -x, -z and the diagonals of them, the backward pass at +x, +z and theirs (the other half is not yet final).
-    private static bool Relax(int[] dist, int[] link, bool forward, bool half)
+    private static bool Relax(int[] dist, int[] link, int count, bool forward, bool half)
     {
         bool changed = false;
-        int count = dist.Length;
         for (int k = 0; k < count; k++)
         {
             int i = forward ? k : count - 1 - k;
@@ -212,11 +218,25 @@ internal static class SpanLinks
     /// <summary>Resolves every span's per-cell link indices to span indices. The links may be one-way; see <see cref="SpanGraph"/> for the mutual subset.</summary>
     public static int[] Build(CompactHeightfield chf)
     {
+        int[] link = new int[4 * chf.SpanCount];
+        Fill(chf, link);
+        return link;
+    }
+
+    /// <summary>As <see cref="Build"/> into a pooled array (at least <c>4 * SpanCount</c> long) that the caller returns with <see cref="Scratch.Return{T}"/>.</summary>
+    public static int[] Rent(CompactHeightfield chf)
+    {
+        int[] link = Scratch.Rent<int>(4 * chf.SpanCount);
+        Fill(chf, link);
+        return link;
+    }
+
+    private static void Fill(CompactHeightfield chf, int[] link)
+    {
         HeightfieldFrame f = chf.Frame;
         ReadOnlySpan<int> first = chf.CellFirst;
         ReadOnlySpan<int> count = chf.CellCount;
         Span<CompactSpan> spans = chf.Spans;
-        int[] link = GC.AllocateUninitializedArray<int>(4 * spans.Length);
         int w = f.Width;
         int cols = f.ColumnCount;
         for (int c = 0; c < cols; c++)
@@ -236,6 +256,24 @@ internal static class SpanLinks
                 link[b + 3] = con == CompactHeightfield.NotConnected ? -1 : first[c - w] + con;
             }
         }
-        return link;
     }
+}
+
+/// <summary>
+/// Pooled scratch arrays for the stages. A rented array is at least the length asked for and holds arbitrary old data: the renter writes every
+/// entry it reads. Returning is optional (a missed return only costs the allocation the pool would have saved).
+/// </summary>
+internal static class Scratch
+{
+    public static T[] Rent<T>(int length) => System.Buffers.ArrayPool<T>.Shared.Rent(length);
+
+    /// <summary>A rented array whose first <paramref name="length"/> entries are zero.</summary>
+    public static T[] RentZeroed<T>(int length)
+    {
+        T[] a = System.Buffers.ArrayPool<T>.Shared.Rent(length);
+        Array.Clear(a, 0, length);
+        return a;
+    }
+
+    public static void Return<T>(T[] array) => System.Buffers.ArrayPool<T>.Shared.Return(array);
 }

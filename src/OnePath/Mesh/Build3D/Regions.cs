@@ -15,11 +15,11 @@ internal sealed class SpanGraph
     private int[]? _cellZ;
 
     public SpanGraph(CompactHeightfield chf)
-        : this(chf, SpanLinks.Build(chf))
+        : this(chf, SpanLinks.Rent(chf))
     {
     }
 
-    /// <summary>Builds the graph from the raw links of <paramref name="chf"/> (see <see cref="SpanLinks.Build"/>). The graph takes ownership of the array and rewrites it in place.</summary>
+    /// <summary>Builds the graph from the raw links of <paramref name="chf"/> (see <see cref="SpanLinks.Build"/>). The graph takes ownership of the (pooled, at least <c>4 * SpanCount</c> long) array and rewrites it in place; <see cref="Release"/> gives it back.</summary>
     public SpanGraph(CompactHeightfield chf, int[] rawLinks)
     {
         _chf = chf;
@@ -40,12 +40,23 @@ internal sealed class SpanGraph
                 }
             }
         }
-        for (int k = 0; k < nbr.Length; k++)
+        for (int k = 0; k < 4 * Count; k++)
         {
             if (nbr[k] == -2)
             {
                 nbr[k] = -1;
             }
+        }
+    }
+
+    /// <summary>Returns the pooled arrays; the graph must not be used afterwards.</summary>
+    public void Release()
+    {
+        Scratch.Return(Nbr);
+        if (_cellX != null)
+        {
+            Scratch.Return(_cellX);
+            Scratch.Return(_cellZ!);
         }
     }
 
@@ -82,8 +93,8 @@ internal sealed class SpanGraph
             return;
         }
         int w = Width;
-        var cx = new int[Count];
-        var cz = new int[Count];
+        int[] cx = Scratch.Rent<int>(Count);
+        int[] cz = Scratch.Rent<int>(Count);
         ReadOnlySpan<int> first = _chf.CellFirst;
         ReadOnlySpan<int> count = _chf.CellCount;
         for (int z = 0, c = 0; z < Depth; z++)
@@ -166,18 +177,19 @@ public static class Regions
         ArgumentNullException.ThrowIfNull(chf);
         ArgumentNullException.ThrowIfNull(settings);
         settings.Validate();
-        int[] links = SpanLinks.Build(chf);
-        int[] dist = Erosion.ComputeBoundaryDistance(chf, links, 1 << 28);
+        int n = chf.SpanCount;
+        int[] links = SpanLinks.Rent(chf);
+        int[] dist = Scratch.Rent<int>(n);
+        Erosion.DistanceInto(chf, links, dist, 1 << 28);
         var g = new SpanGraph(chf, links);
         Span<CompactSpan> spans = chf.Spans;
-        int n = g.Count;
         int maxDist = 0;
-        foreach (int d in dist)
+        for (int i = 0; i < n; i++)
         {
-            maxDist = Math.Max(maxDist, d);
+            maxDist = Math.Max(maxDist, dist[i]);
         }
-        var region = new int[n];
-        byte[] areaOf = GC.AllocateUninitializedArray<byte>(n);
+        int[] region = Scratch.RentZeroed<int>(n);
+        byte[] areaOf = Scratch.Rent<byte>(n);
         for (int i = 0; i < n; i++)
         {
             areaOf[i] = spans[i].Area;
@@ -197,7 +209,7 @@ public static class Regions
             start[l + 1] += start[l];
         }
         var fill = new int[maxDist + 1];
-        int[] order = GC.AllocateUninitializedArray<int>(start[maxDist + 1]);
+        int[] order = Scratch.Rent<int>(start[maxDist + 1]);
         for (int i = 0; i < n; i++)
         {
             if (areaOf[i] != 0)
@@ -207,7 +219,7 @@ public static class Regions
         }
 
         int next = 0;
-        var mark = new int[n];
+        int[] mark = Scratch.RentZeroed<int>(n);
         int stamp = 0;
         int[] nbr = g.Nbr;
         // The frontier and the round's assignments are plain arrays sized to the largest level; a queue of the same size serves the basin floods.
@@ -330,6 +342,12 @@ public static class Regions
             }
         }
         Finish(chf, g, region, next, settings.MinRegionArea, settings.MergeRegionArea);
+        g.Release();
+        Scratch.Return(dist);
+        Scratch.Return(region);
+        Scratch.Return(areaOf);
+        Scratch.Return(order);
+        Scratch.Return(mark);
     }
 
     /// <summary>
@@ -345,6 +363,7 @@ public static class Regions
         var g = new SpanGraph(chf);
         int count = Sweep(chf, g, out int[] region);
         Finish(chf, g, region, count, settings.MinRegionArea, settings.MergeRegionArea);
+        g.Release();
     }
 
     /// <summary>
@@ -458,6 +477,7 @@ public static class Regions
             }
         }
         Finish(chf, g, region, count, settings.MinRegionArea, 0);
+        g.Release();
     }
 
     /// <summary>
@@ -482,6 +502,7 @@ public static class Regions
             max = Math.Max(max, region[i]);
         }
         Finish(chf, g, region, max, minArea, mergeArea);
+        g.Release();
     }
 
     private static int Resolve(int[] alias, int r)
