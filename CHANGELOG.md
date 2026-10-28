@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- **Results are bit-identical across every release of a major version:** no 1.x minor or patch release changes an existing path, build, query, search or crowd result (README, "Determinism").
+
 ## [1.0.0-rc.1]
 
 Release candidate for 1.0: the public API is frozen from here unless a release candidate finds a defect. Every part measures within its speed target against the native references on x64 and arm64 (see the README table); results are bit-identical across x64, arm64, WebAssembly, SIMD and scalar, and any thread count.

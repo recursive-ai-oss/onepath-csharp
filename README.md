@@ -192,6 +192,8 @@ For a deterministic game host (lockstep, rollback) that means:
 - **Snapshot and restore.** Grid searches, replanners, flow fields, dynamic meshes (rebuilt tiles, obstacles) and crowds save to bytes and restore to the same state; the same state writes the same bytes on every platform.
 - **Debug geometry** (polygons, links, paths, corridors, agent velocities) comes out as plain data.
 
+- **Across versions.** Within a major version, every release gives the same bits for the same inputs and options. No 1.x minor or patch release changes an existing path, mesh build, query, search or crowd step. A change that would alter an existing result, even a better one, does one of two things. It ships behind a new option whose default keeps the old result. Or it waits for the next major version and is listed in the changelog. Features added in a minor release then keep their results for the rest of that major version. The math underneath, `RecursiveAI.OneMath`, makes the same promise, so updating either package within its major version never moves a result. Peers in a lockstep session, and replays recorded on another 1.x release, stay in sync. The hash matrix checks this: every line of the previous release's manifest must appear unchanged in the next one's.
+
 The formats, tie-breaks and budget units are written down in [docs/](docs/README.md) so a port can reproduce the same bits from the text.
 
 ## What it does not do
