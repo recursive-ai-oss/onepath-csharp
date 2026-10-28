@@ -48,7 +48,7 @@ public class RaycastOnMergedPolygonsTests
         {
             const int size = 32;
             TiledNavMesh mesh = CorridorWorlds.Field(size, seed, out bool[] cells);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var rng = new NavMeshWorlds.Rng(seed * 13);
             var visited = new PolyRef[256];
             for (int i = 0; i < 1500; i++)
@@ -101,7 +101,7 @@ public class RaycastOnMergedPolygonsTests
     {
         const int size = 32;
         TiledNavMesh mesh = CorridorWorlds.Field(size, 3, out bool[] cells);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(4);
         var visited = new PolyRef[256];
         int moved = 0;

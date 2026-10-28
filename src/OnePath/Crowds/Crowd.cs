@@ -265,7 +265,7 @@ public sealed partial class Crowd
 
     // ---- storage ----
 
-    private Worker GetWorker(int w) => _workers[w] ??= new Worker(new NavMeshQuery(_mesh, _opt.QueryNodes), _opt.MaxWallsAvoided);
+    private Worker GetWorker(int w) => _workers[w] ??= new Worker(new NavMeshQuery(_mesh, _opt.QueryNodes, _opt.QueryNodeModel), _opt.MaxWallsAvoided);
 
     private void EnsureSlots(int needed)
     {

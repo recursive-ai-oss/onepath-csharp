@@ -32,7 +32,7 @@ internal static class CorridorScenarios
     private static void FollowField(ScenarioContext ctx)
     {
         TiledNavMesh mesh = CorridorWorlds.Field(32, 5);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(3);
         var agents = new List<PathFollower>();
         for (int i = 0; i < 12; i++)
@@ -85,7 +85,7 @@ internal static class CorridorScenarios
         for (ulong world = 1; world <= 3; world++)
         {
             TiledNavMesh mesh = CorridorWorlds.TwoFloors(world * 4093);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var rng = new NavMeshWorlds.Rng(world);
             var mut = new NavMeshWorlds.Rng(world + 100);
             List<PolyRef> polys = CorridorWorlds.AllPolys(mesh);
@@ -147,7 +147,7 @@ internal static class CorridorScenarios
     private static void Moves(ScenarioContext ctx)
     {
         TiledNavMesh mesh = CorridorWorlds.Maze(8, 3, out List<Vector3D> rooms);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var rng = new NavMeshWorlds.Rng(9);
         var corners = new StraightPathPoint[64];
         for (int trial = 0; trial < 20; trial++)
