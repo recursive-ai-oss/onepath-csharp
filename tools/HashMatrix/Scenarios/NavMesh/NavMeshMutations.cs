@@ -134,7 +134,7 @@ internal static class NavMeshMutations
             var o = new PathOptions
             {
                 SearchExtents = new Vector3D(2, 5, 2),
-                Filter = i % 3 == 1 ? new QueryFilter { ExcludeFlags = 2 }.SetAreaCost(1, 3).SetAreaCost(9, 2) : null,
+                Filter = i % 3 == 1 ? new QueryFilter { ExcludeFlags = 2 }.WithAreaCost(1, 3).WithAreaCost(9, 2) : null,
             };
             PathResult pr = q.FindPath(a, b, o);
             sink((int)pr.Detail);

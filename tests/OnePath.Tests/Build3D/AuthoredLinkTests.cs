@@ -109,7 +109,7 @@ public class AuthoredLinkTests
         Assert.Equal(PathStatus.Partial, m.FindPath(A, B, cancellationToken: TestContext.Current.CancellationToken).Status);
         Assert.True(t.SetOffMeshLinkEnabled(owner, 0, true));
         Assert.Equal(PathStatus.Found, m.FindPath(A, B, cancellationToken: TestContext.Current.CancellationToken).Status);
-        var closed = new PathOptions { Filter = new QueryFilter().SetAreaCost(4, double.PositiveInfinity) };
+        var closed = new PathOptions { Filter = new QueryFilter().WithAreaCost(4, double.PositiveInfinity) };
         Assert.Equal(PathStatus.Partial, m.FindPath(A, B, closed, cancellationToken: TestContext.Current.CancellationToken).Status);
     }
 

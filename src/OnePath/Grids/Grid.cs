@@ -425,7 +425,8 @@ public sealed partial class Grid
     /// <summary>
     /// Same as <see cref="FindPath(Cell, Cell, GridOptions?, CancellationToken)"/>, run on the thread pool so the calling thread
     /// (a frame loop, a UI thread) is not blocked. The result equals the synchronous one for the same grid and options; nothing
-    /// depends on timing or on which thread runs it. Do not edit the grid until the task has completed.
+    /// depends on timing or on which thread runs it. Do not edit the grid until the task has completed. On single-threaded
+    /// WebAssembly the work runs on the same thread when you yield: always await the task, never block on it.
     /// </summary>
     /// <param name="start">Start cell.</param>
     /// <param name="goal">Goal cell.</param>

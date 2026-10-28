@@ -289,4 +289,36 @@
     <Right>lib/net10.0/RecursiveAI.OnePath.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>
   </Suppression>
+  <!-- A query filter is immutable after construction: the setter is now init-only (use an object initializer). -->
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:RecursiveAI.OnePath.Mesh.Queries.QueryFilter.set_IncludeFlags(System.UInt16)</Target>
+    <Left>lib/net10.0/RecursiveAI.OnePath.dll</Left>
+    <Right>lib/net10.0/RecursiveAI.OnePath.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <!-- A query filter is immutable after construction: the setter is now init-only (use an object initializer). -->
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:RecursiveAI.OnePath.Mesh.Queries.QueryFilter.set_ExcludeFlags(System.UInt16)</Target>
+    <Left>lib/net10.0/RecursiveAI.OnePath.dll</Left>
+    <Right>lib/net10.0/RecursiveAI.OnePath.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <!-- A query filter is immutable after construction: the setter is now init-only (use an object initializer). -->
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:RecursiveAI.OnePath.Mesh.Queries.QueryFilter.set_Predicate(System.Func{System.UInt16,System.Byte,System.Boolean})</Target>
+    <Left>lib/net10.0/RecursiveAI.OnePath.dll</Left>
+    <Right>lib/net10.0/RecursiveAI.OnePath.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
+  <!-- A query filter is immutable after construction: SetAreaCost is replaced by WithAreaCost, which returns a new filter. -->
+  <Suppression>
+    <DiagnosticId>CP0002</DiagnosticId>
+    <Target>M:RecursiveAI.OnePath.Mesh.Queries.QueryFilter.SetAreaCost(System.Int32,System.Double)</Target>
+    <Left>lib/net10.0/RecursiveAI.OnePath.dll</Left>
+    <Right>lib/net10.0/RecursiveAI.OnePath.dll</Right>
+    <IsBaselineSuppression>true</IsBaselineSuppression>
+  </Suppression>
 </Suppressions>

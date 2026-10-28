@@ -23,11 +23,11 @@ public class NavMeshQueryTests
     private static QueryFilter MixedFilter(NavMeshWorlds.Rng r)
     {
         var f = new QueryFilter { ExcludeFlags = r.Int(3) == 0 ? (ushort)4 : (ushort)0 };
-        f.SetAreaCost(1, 1.0 + r.Int(4));
-        f.SetAreaCost(2, 0.5 + (0.5 * r.Int(3)));
+        f = f.WithAreaCost(1, 1.0 + r.Int(4));
+        f = f.WithAreaCost(2, 0.5 + (0.5 * r.Int(3)));
         if (r.Int(4) == 0)
         {
-            f.SetAreaCost(3, double.PositiveInfinity);
+            f = f.WithAreaCost(3, double.PositiveInfinity);
         }
         return f;
     }
@@ -734,7 +734,7 @@ public class NavMeshQueryTests
         Assert.Single(part.Corridor);
         Assert.Equal(tr.Poly(0), part.Corridor[0]);
         // Costly middle area: cost grows, path same corridor (no alternative).
-        var costly = new PathOptions { Filter = new QueryFilter().SetAreaCost(1, 10) };
+        var costly = new PathOptions { Filter = new QueryFilter().WithAreaCost(1, 10) };
         PathResult c = q.FindPath(a, b, costly, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(c.Cost > ok.Cost * 3);
     }
@@ -769,7 +769,7 @@ public class NavMeshQueryTests
         Assert.Equal(PathStatus.Found, back.Status);
         Assert.True(back.Points[1].Flags.HasFlag(StraightPathMarks.OffMeshConnection));
         // The forbidden area closes the link.
-        PathResult closed = q.FindPath(a, b, new PathOptions { Filter = new QueryFilter().SetAreaCost(9, double.PositiveInfinity) }, cancellationToken: TestContext.Current.CancellationToken);
+        PathResult closed = q.FindPath(a, b, new PathOptions { Filter = new QueryFilter().WithAreaCost(9, double.PositiveInfinity) }, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(PathStatus.Partial, closed.Status);
     }
 

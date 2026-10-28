@@ -340,7 +340,7 @@ public class Tier1ConsistencyTests
     public void Tier1_option_classes_are_immutable_after_construction()
     {
         var mutable = new List<string>();
-        foreach (Type t in new[] { typeof(GridOptions), typeof(VoxelOptions), typeof(PathOptions), typeof(NavSettings), typeof(CrowdOptions), typeof(AgentOptions), typeof(GraphOptions) })
+        foreach (Type t in new[] { typeof(GridOptions), typeof(VoxelOptions), typeof(PathOptions), typeof(NavSettings), typeof(CrowdOptions), typeof(AgentOptions), typeof(GraphOptions), typeof(QueryFilter) })
         {
             foreach (PropertyInfo p in t.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
@@ -388,7 +388,7 @@ public class Tier1ConsistencyTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new GridOptions { AgentSize = 0 });
     }
 
-    private static void Check(Type type, object? first, object? second, string where, List<string> offenders)
+    private static void Check(Type type, object? first, object? second, string where, List<string> offenders, int depth = 0)
     {
         // Only a preset that hands out the very same object on every read can leak a change to the next caller.
         if (!type.IsClass || first is null || !ReferenceEquals(first, second))
@@ -402,6 +402,101 @@ public class Tier1ConsistencyTests
             {
                 offenders.Add($"{where} ({type.Name}.{p.Name})");
             }
+            // Objects reachable from the preset (a filter inside a crowd's options, say) are shared too.
+            if (p.GetIndexParameters().Length == 0 && p.PropertyType.IsClass && p.PropertyType.Assembly == typeof(NavMesh).Assembly && depth < 4)
+            {
+                object? inner = p.GetValue(first);
+                Check(p.PropertyType, inner, inner, $"{where}.{p.Name}", offenders, depth + 1);
+            }
         }
+    }
+
+    [Fact]
+    public void Query_filter_is_immutable_and_derived_copies_leave_the_original_alone()
+    {
+        var baseFilter = new QueryFilter { ExcludeFlags = 2, Predicate = (f, _) => f != 8 };
+        QueryFilter derived = baseFilter.WithAreaCost(5, 4.0).WithAreaCost(6, double.PositiveInfinity);
+        Assert.NotSame(baseFilter, derived);
+        Assert.Equal(1.0, baseFilter.GetAreaCost(5));
+        Assert.Equal(4.0, derived.GetAreaCost(5));
+        Assert.True(double.IsPositiveInfinity(derived.GetAreaCost(6)));
+        Assert.Equal(1.0, baseFilter.GetAreaCost(6));
+        Assert.Equal(2, derived.ExcludeFlags);
+        Assert.Same(baseFilter.Predicate, derived.Predicate);
+        Assert.Throws<ArgumentOutOfRangeException>(() => baseFilter.WithAreaCost(64, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => baseFilter.WithAreaCost(0, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => baseFilter.WithAreaCost(0, double.NaN));
+
+        // The filters a preset hands out (options with a filter set) have no public setter to reach.
+        foreach (PropertyInfo p in typeof(QueryFilter).GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            Assert.True(p.SetMethod is null || IsInitOnly(p.SetMethod), "QueryFilter." + p.Name);
+        }
+        Assert.Null(CrowdOptions.Default.Filter);
+        var shared = new CrowdOptions { Filter = derived };
+        Assert.Same(derived, shared.Filter);
+    }
+
+    [Fact]
+    public async Task Hex_async_equals_sync()
+    {
+        var rng = new Random(7);
+        var open = new bool[40, 40];
+        for (int x = 0; x < 40; x++)
+        {
+            for (int y = 0; y < 40; y++)
+            {
+                open[x, y] = rng.Next(100) >= 25 || (x, y) is (0, 0) or (39, 39);
+            }
+        }
+        HexGrid g = HexGrid.From(open);
+        foreach (GridAlgorithm alg in new[] { GridAlgorithm.AStar, GridAlgorithm.ThetaStar })
+        {
+            var o = new GridOptions { Algorithm = alg, RecordExpansions = true };
+            AssertSame(g.FindPath(new Cell(0, 0), new Cell(39, 39), o), await g.FindPathAsync(new Cell(0, 0), new Cell(39, 39), o, TestContext.Current.CancellationToken));
+        }
+        var world = new HexGrid(20, 20) { Space = new GridSpace(0, 0, 1) };
+        AssertSame(world.FindPath(new WorldPoint(0.5, 0.5), new WorldPoint(10.5, 9.5)), await world.FindPathAsync(new WorldPoint(0.5, 0.5), new WorldPoint(10.5, 9.5), null, TestContext.Current.CancellationToken));
+
+        var wide = new HexGrid(300, 300);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wide.FindPathAsync(new Cell(0, 0), new Cell(299, 299), null, new CancellationToken(true)));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => wide.FindPathAsync(new WorldPoint(double.NaN, 0), new WorldPoint(1, 1), null, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Voxel_async_equals_sync()
+    {
+        var rng = new Random(11);
+        var open = new bool[16, 12, 16];
+        for (int x = 0; x < 16; x++)
+        {
+            for (int y = 0; y < 12; y++)
+            {
+                for (int z = 0; z < 16; z++)
+                {
+                    open[x, y, z] = rng.Next(100) >= 20 || (x, y, z) is (0, 0, 0) or (15, 11, 15);
+                }
+            }
+        }
+        VoxelGrid g = VoxelGrid.From(open);
+        foreach (VoxelConnectivity c in new[] { VoxelConnectivity.Six, VoxelConnectivity.TwentySix })
+        {
+            var o = new VoxelOptions { Connectivity = c };
+            VoxelPath sync = g.FindPath(new VoxelCell(0, 0, 0), new VoxelCell(15, 11, 15), o);
+            VoxelPath asyncPath = await g.FindPathAsync(new VoxelCell(0, 0, 0), new VoxelCell(15, 11, 15), o, TestContext.Current.CancellationToken);
+            Assert.Equal(sync.Status, asyncPath.Status);
+            Assert.Equal(BitConverter.DoubleToInt64Bits(sync.Cost), BitConverter.DoubleToInt64Bits(asyncPath.Cost));
+            Assert.True(sync.Cells.SequenceEqual(asyncPath.Cells));
+        }
+        var world = new VoxelGrid(10, 10, 10) { Space = new VoxelSpace(0, 0, 0, 1) };
+        VoxelPath ws = world.FindPath(new VoxelPoint(0.5, 0.5, 0.5), new VoxelPoint(8.5, 7.5, 9.5));
+        VoxelPath wa = await world.FindPathAsync(new VoxelPoint(0.5, 0.5, 0.5), new VoxelPoint(8.5, 7.5, 9.5), null, TestContext.Current.CancellationToken);
+        Assert.Equal(ws.Status, wa.Status);
+        Assert.True(ws.Cells.SequenceEqual(wa.Cells));
+        Assert.True(ws.Points.SequenceEqual(wa.Points));
+
+        var big = new VoxelGrid(64, 64, 64);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => big.FindPathAsync(new VoxelCell(0, 0, 0), new VoxelCell(63, 63, 63), null, new CancellationToken(true)));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => big.FindPathAsync(new VoxelPoint(double.NaN, 0, 0), new VoxelPoint(1, 1, 1), null, TestContext.Current.CancellationToken));
     }
 }
