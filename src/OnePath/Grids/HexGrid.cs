@@ -310,7 +310,7 @@ public sealed partial class HexGrid
     /// <param name="start">Start position.</param>
     /// <param name="goal">Goal position.</param>
     /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
-    /// <returns>The result. Positions outside the grid give <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/>.</returns>
+    /// <returns>The result. Positions outside the grid give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN or beyond ±2^21.</exception>
     /// <exception cref="ArgumentException">The options ask for an agent size other than 1.</exception>
     public GridPath FindPath(WorldPoint start, WorldPoint goal, GridOptions? options = null)
@@ -319,11 +319,11 @@ public sealed partial class HexGrid
         bool g = TryGetCell(goal, out Cell gc);
         if (!s)
         {
-            return new GridPath(PathOutcome.StartInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathStatus.StartInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         if (!g)
         {
-            return new GridPath(PathOutcome.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         return FindPathCore(sc, gc, options ?? DefaultOptions, true);
     }
@@ -345,11 +345,11 @@ public sealed partial class HexGrid
         }
         if (!Contains(start.X, start.Y) || _cells[(start.Y * Width) + start.X] == AreaCosts.Wall || o.Blocked?.Invoke(start) == true)
         {
-            return new GridPath(PathOutcome.StartInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathStatus.StartInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         if (!Contains(goal.X, goal.Y) || _cells[(goal.Y * Width) + goal.X] == AreaCosts.Wall || o.Blocked?.Invoke(goal) == true)
         {
-            return new GridPath(PathOutcome.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         HexTopology topology = CreateTopology();
         bool zero = o.Heuristic == GridHeuristic.Zero;

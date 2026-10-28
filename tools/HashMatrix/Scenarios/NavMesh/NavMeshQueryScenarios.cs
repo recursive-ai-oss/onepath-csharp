@@ -59,7 +59,7 @@ internal static class NavMeshQueryScenarios
                 o.Filter = new QueryFilter { ExcludeFlags = 2 }.SetAreaCost(1, 3).SetAreaCost(9, 2);
             }
             PathResult p = q.FindPath(Spot(r), Spot(r), o);
-            ctx.Write((int)p.Status);
+            ctx.Write((int)p.Detail);
             ctx.Write(p.Cost);
             ctx.Write(p.Corridor.Count);
             foreach (PolyRef c in p.Corridor)

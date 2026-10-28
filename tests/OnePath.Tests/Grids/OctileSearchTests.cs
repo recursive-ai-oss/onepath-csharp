@@ -113,11 +113,11 @@ public class OctileSearchTests
                     GridPath p = g.FindPath(s, t, new GridOptions { Algorithm = alg });
                     if (double.IsPositiveInfinity(expected))
                     {
-                        Assert.Equal(PathOutcome.NoPath, p.Status);
+                        Assert.Equal(PathStatus.NoPath, p.Status);
                     }
                     else
                     {
-                        Assert.Equal(PathOutcome.Found, p.Status);
+                        Assert.Equal(PathStatus.Found, p.Status);
                         Assert.Equal(expected, p.Cost, 6);
                     }
                 }
@@ -131,9 +131,9 @@ public class OctileSearchTests
     {
         var g = Grid.FromText(string.Join('\n', new string('.', 40), new string('.', 40), new string('.', 40)));
         GridPath cut = g.FindPath(new Cell(0, 0), new Cell(39, 2), new GridOptions { IterationBudget = 3 });
-        Assert.Equal(PathOutcome.BudgetExhausted, cut.Status);
+        Assert.Equal(PathStatus.BudgetExhausted, cut.Status);
         GridPath full = g.FindPath(new Cell(0, 0), new Cell(39, 2));
-        Assert.Equal(PathOutcome.Found, full.Status);
+        Assert.Equal(PathStatus.Found, full.Status);
     }
 
     [Theory]
@@ -148,8 +148,8 @@ public class OctileSearchTests
         row.SetWalkable(6, 0, false);
         var o = new GridOptions { Algorithm = alg };
         Assert.Equal(5.0, column.FindPath(new Cell(0, 0), new Cell(0, 5), o).Cost, 9);
-        Assert.Equal(PathOutcome.NoPath, column.FindPath(new Cell(0, 0), new Cell(0, 8), o).Status);
+        Assert.Equal(PathStatus.NoPath, column.FindPath(new Cell(0, 0), new Cell(0, 8), o).Status);
         Assert.Equal(5.0, row.FindPath(new Cell(0, 0), new Cell(5, 0), o).Cost, 9);
-        Assert.Equal(PathOutcome.NoPath, row.FindPath(new Cell(0, 0), new Cell(8, 0), o).Status);
+        Assert.Equal(PathStatus.NoPath, row.FindPath(new Cell(0, 0), new Cell(8, 0), o).Status);
     }
 }

@@ -74,7 +74,7 @@ public class VoxelPagedSearchTests
             VoxelPath p = g.FindPath(a, b, new VoxelOptions { IterationBudget = budget });
             if (budget < full.ExpandedCount + 1)
             {
-                Assert.Equal(PathOutcome.BudgetExhausted, p.Status);
+                Assert.Equal(PathStatus.BudgetExhausted, p.Status);
                 Assert.Equal(budget, p.ExpandedCount);
             }
         }

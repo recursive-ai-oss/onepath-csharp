@@ -66,7 +66,7 @@ public sealed class GraphOptions
     /// <summary>Node filter: nodes for which this returns true can not be entered (the start and goal included, which makes the query invalid).</summary>
     public Func<int, bool>? Blocked { get; init; }
 
-    /// <summary>Maximum iterations (expansions); 0 means unlimited. A query that runs out ends with <see cref="PathOutcome.BudgetExhausted"/>.</summary>
+    /// <summary>Maximum iterations (expansions); 0 means unlimited. A query that runs out ends with <see cref="PathStatus.BudgetExhausted"/>.</summary>
     public int IterationBudget { get; init; }
 
     /// <summary>When true the result lists the expanded nodes in order (debug data; forward expansions first, then backward ones).</summary>
@@ -81,7 +81,7 @@ public sealed class GraphPath
     private readonly int[] _expanded;
     private readonly Point3[] _positions;
 
-    internal GraphPath(PathOutcome status, double cost, int[]? nodes, int expandedCount, int[]? expanded, Point3[]? positions, GraphAlgorithm algorithm)
+    internal GraphPath(PathStatus status, double cost, int[]? nodes, int expandedCount, int[]? expanded, Point3[]? positions, GraphAlgorithm algorithm)
     {
         Status = status;
         Cost = cost;
@@ -93,10 +93,16 @@ public sealed class GraphPath
     }
 
     /// <summary>How the query ended.</summary>
-    public PathOutcome Status { get; }
+    public PathStatus Status { get; }
 
-    /// <summary>True when a path was found.</summary>
-    public bool Found => Status == PathOutcome.Found;
+    /// <summary>True when a path to the goal was found.</summary>
+    public bool Found => Status == PathStatus.Found;
+
+    /// <summary>True when the result holds a usable path (found, or best effort toward the goal). Grid and graph searches never return a partial path.</summary>
+    public bool HasPath => Status.HasPath();
+
+    /// <summary>True for a best-effort path that stops short of the goal; always false here.</summary>
+    public bool IsPartial => Status == PathStatus.Partial;
 
     /// <summary>The path cost (+∞ when no path was found).</summary>
     public double Cost { get; }
@@ -105,7 +111,32 @@ public sealed class GraphPath
     public ReadOnlySpan<int> Nodes => _nodes;
 
     /// <summary>The positions of the path's nodes for point graphs; empty otherwise.</summary>
-    public ReadOnlySpan<Point3> Positions => _positions;
+    public ReadOnlySpan<Point3> Points => _positions;
+
+    /// <summary>
+    /// Length of the polyline through <see cref="Points"/>, in world units: 0 when there is no path, NaN when a path exists but the query
+    /// produced no points (the cell or node overloads).
+    /// </summary>
+    public double Length
+    {
+        get
+        {
+            if (_nodes.Length == 0)
+            {
+                return 0;
+            }
+            if (_positions.Length == 0)
+            {
+                return double.NaN;
+            }
+            double l = 0;
+            for (int i = 1; i < _positions.Length; i++)
+            {
+                l += Math.Sqrt(((_positions[i].X-_positions[i-1].X)*(_positions[i].X-_positions[i-1].X))+((_positions[i].Y-_positions[i-1].Y)*(_positions[i].Y-_positions[i-1].Y))+((_positions[i].Z-_positions[i-1].Z)*(_positions[i].Z-_positions[i-1].Z)));
+            }
+            return l;
+        }
+    }
 
     /// <summary>Number of nodes the search expanded.</summary>
     public int ExpandedCount { get; }
@@ -341,7 +372,7 @@ public sealed partial class Graph
     /// <param name="goal">Goal node id.</param>
     /// <param name="options">Options; null means defaults (Dijkstra).</param>
     /// <param name="cancellationToken">Checked every 256 iterations.</param>
-    /// <returns>The result. Ids outside the graph (or blocked by the filter) give <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/>.</returns>
+    /// <returns>The result. Ids outside the graph (or blocked by the filter) give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
     /// <exception cref="InvalidOperationException">The landmarks in <paramref name="options"/> were built for a different graph.</exception>
     /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
     public GraphPath FindPath(int start, int goal, GraphOptions? options = null, CancellationToken cancellationToken = default)

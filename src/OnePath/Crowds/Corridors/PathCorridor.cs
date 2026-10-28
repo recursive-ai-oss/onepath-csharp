@@ -343,14 +343,14 @@ public sealed class PathCorridor
     /// <param name="query">The query object to use.</param>
     /// <param name="corners">Receives the points.</param>
     /// <param name="count">Number written.</param>
-    /// <returns><see cref="PathStatus.Success"/>, or <see cref="PathStatus.InvalidCorridor"/> (nothing written) when a polygon is stale or two polygons no longer touch: call <see cref="Validate"/>.</returns>
-    public PathStatus FindCorners(NavMeshQuery query, Span<StraightPathPoint> corners, out int count)
+    /// <returns><see cref="QueryStatus.Success"/>, or <see cref="QueryStatus.InvalidCorridor"/> (nothing written) when a polygon is stale or two polygons no longer touch: call <see cref="Validate"/>.</returns>
+    public QueryStatus FindCorners(NavMeshQuery query, Span<StraightPathPoint> corners, out int count)
     {
         ArgumentNullException.ThrowIfNull(query);
         count = 0;
         if (_count == 0)
         {
-            return PathStatus.InvalidCorridor;
+            return QueryStatus.InvalidCorridor;
         }
         return query.FindStraightPath(_position, _target, _path.AsSpan(0, _count), corners, out count, out _);
     }
@@ -463,8 +463,8 @@ public sealed class PathCorridor
         {
             return false;
         }
-        PathStatus s = query.BeginPath(_path[0], _path[t], _position, endPos, filter);
-        if (s != PathStatus.InProgress || query.UpdatePath(budget) != PathStatus.Success)
+        QueryStatus s = query.BeginPath(_path[0], _path[t], _position, endPos, filter);
+        if (s != QueryStatus.InProgress || query.UpdatePath(budget) != QueryStatus.Success)
         {
             return false;
         }
@@ -667,13 +667,13 @@ public sealed class PathCorridor
     /// <param name="filter">Polygon filter and area costs.</param>
     /// <param name="budget">Most search iterations (node expansions), at least 1.</param>
     /// <param name="searchExtents">Half-size of the box searched for the polygon nearest an unresolved target; null means (2, 4, 2).</param>
-    /// <returns><see cref="PathStatus.Success"/> (complete), <see cref="PathStatus.Partial"/> (no route; corridor ends at the closest polygon), <see cref="PathStatus.InProgress"/> (budget used up; corridor extended), or why no search could start (<see cref="PathStatus.InvalidStartPoly"/>, <see cref="PathStatus.NoEndNearby"/>); then nothing changed.</returns>
-    public PathStatus Replan(NavMeshQuery query, QueryFilter? filter = null, int budget = 2048, Vector3D? searchExtents = null)
+    /// <returns><see cref="QueryStatus.Success"/> (complete), <see cref="QueryStatus.Partial"/> (no route; corridor ends at the closest polygon), <see cref="QueryStatus.InProgress"/> (budget used up; corridor extended), or why no search could start (<see cref="QueryStatus.InvalidStartPoly"/>, <see cref="QueryStatus.NoEndNearby"/>); then nothing changed.</returns>
+    public QueryStatus Replan(NavMeshQuery query, QueryFilter? filter = null, int budget = 2048, Vector3D? searchExtents = null)
     {
         _session ??= new CorridorReplan();
         _session.SearchExtents = searchExtents ?? new Vector3D(2, 4, 2);
-        PathStatus s = _session.Begin(query, this, filter);
-        if (s != PathStatus.InProgress)
+        QueryStatus s = _session.Begin(query, this, filter);
+        if (s != QueryStatus.InProgress)
         {
             return s;
         }

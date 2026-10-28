@@ -390,14 +390,14 @@ public sealed partial class Grid
     /// <param name="start">Start cell.</param>
     /// <param name="goal">Goal cell.</param>
     /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
-    /// <returns>The result; check <see cref="GridPath.Status"/>. Cells outside the grid or not walkable for the agent give <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/>.</returns>
+    /// <returns>The result; check <see cref="GridPath.Status"/>. Cells outside the grid or not walkable for the agent give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
     public GridPath FindPath(Cell start, Cell goal, GridOptions? options = null) => FindPathCore(start, goal, options ?? DefaultOptions, false);
 
     /// <summary>Finds a least-cost path between two world positions (their containing cells); the result carries world-space cell centres.</summary>
     /// <param name="start">Start position.</param>
     /// <param name="goal">Goal position.</param>
     /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
-    /// <returns>The result. Positions outside the grid give <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/>.</returns>
+    /// <returns>The result. Positions outside the grid give <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN or beyond ±2^21.</exception>
     public GridPath FindPath(WorldPoint start, WorldPoint goal, GridOptions? options = null)
     {
@@ -405,11 +405,11 @@ public sealed partial class Grid
         bool g = TryGetCell(goal, out Cell gc);
         if (!s)
         {
-            return new GridPath(PathOutcome.StartInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathStatus.StartInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         if (!g)
         {
-            return new GridPath(PathOutcome.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         return FindPathCore(sc, gc, options ?? DefaultOptions, true);
     }
@@ -433,11 +433,11 @@ public sealed partial class Grid
         int size = o.AgentSize;
         if (!Contains(start.X, start.Y) || _clearance[(start.Y * Width) + start.X] < size || o.Blocked?.Invoke(start) == true)
         {
-            return new GridPath(PathOutcome.StartInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathStatus.StartInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         if (!Contains(goal.X, goal.Y) || _clearance[(goal.Y * Width) + goal.X] < size || o.Blocked?.Invoke(goal) == true)
         {
-            return new GridPath(PathOutcome.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
+            return new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null);
         }
         if (o.Algorithm is GridAlgorithm.ThetaStar or GridAlgorithm.LazyThetaStar && AnyAngleRunner.Applies(this, o, out double anyAngleCost))
         {

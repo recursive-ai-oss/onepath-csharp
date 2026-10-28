@@ -206,7 +206,7 @@ public sealed class PointGraph
     /// <param name="goal">Goal node id.</param>
     /// <param name="options">Options; null means defaults.</param>
     /// <param name="cancellationToken">Checked every 256 iterations.</param>
-    /// <returns>The result, with <see cref="GraphPath.Positions"/> filled.</returns>
+    /// <returns>The result, with <see cref="GraphPath.Points"/> filled.</returns>
     /// <exception cref="InvalidOperationException">The landmarks in <paramref name="options"/> were built for a different graph.</exception>
     /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
     public GraphPath FindPath(int start, int goal, GraphOptions? options = null, CancellationToken cancellationToken = default)
@@ -227,7 +227,7 @@ public sealed class PointGraph
     /// <param name="goal">Goal position.</param>
     /// <param name="options">Options; null means defaults.</param>
     /// <param name="cancellationToken">Checked every 256 iterations.</param>
-    /// <returns>The result; <see cref="PathOutcome.StartInvalid"/> or <see cref="PathOutcome.GoalInvalid"/> for an empty graph.</returns>
+    /// <returns>The result; <see cref="PathStatus.StartInvalid"/> or <see cref="PathStatus.GoalInvalid"/> for an empty graph.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN, infinite or beyond ±2^21.</exception>
     public GraphPath FindPath(Point3 start, Point3 goal, GraphOptions? options = null, CancellationToken cancellationToken = default)
         => FindPath(NearestNode(start), NearestNode(goal), options, cancellationToken);

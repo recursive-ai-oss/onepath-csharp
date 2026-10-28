@@ -117,7 +117,7 @@ Every sliced form counts iterations, never time; a budget of *n* does the same w
 | Bidirectional graph search | one pop from one side, sides alternating | |
 
 Tier-1 `GridOptions.IterationBudget`, `VoxelOptions.IterationBudget` and `GraphOptions.IterationBudget` (0 = unlimited) are a single
-cap: the query stops with `PathOutcome.BudgetExhausted` and is not resumable. To resume, use the tier-2 `Begin`/`Step` form, whose state can also be saved.
+cap: the query stops with `PathStatus.BudgetExhausted` and is not resumable. To resume, use the tier-2 `Begin`/`Step` form, whose state can also be saved.
 
 ## Debug geometry
 

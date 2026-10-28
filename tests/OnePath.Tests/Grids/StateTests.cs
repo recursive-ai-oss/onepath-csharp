@@ -341,7 +341,7 @@ public class StateTests
         Assert.Equal(p.ExpandedCount, d.ExpandedCount);
         Assert.Equal(p.ExpandedCount, d.ExpandedCells.Count);
         Assert.Equal(p.Cells.Length, d.Cells.Count);
-        Assert.Equal(p.Cells.Length, d.WorldPoints.Count);
+        Assert.Equal(p.Cells.Length, d.Points.Count);
         Assert.Equal(quiet.Cost, d.Cost);
         Assert.Equal(algorithm, d.Algorithm);
     }

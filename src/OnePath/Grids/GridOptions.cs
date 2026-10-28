@@ -98,7 +98,7 @@ public sealed class GridOptions
     public bool RecordExpansions { get; set; }
 
     /// <summary>
-    /// Most iterations (node expansions) a query may use before it gives up with <see cref="PathOutcome.BudgetExhausted"/>;
+    /// Most iterations (node expansions) a query may use before it gives up with <see cref="PathStatus.BudgetExhausted"/>;
     /// counts iterations, never time. Default unlimited.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is below 1.</exception>
@@ -140,7 +140,7 @@ public sealed class GridPath
     private readonly Cell[] _expanded;
     private readonly WorldPoint[] _world;
 
-    internal GridPath(PathOutcome status, double cost, Cell[]? cells, int expandedCount, Cell[]? expanded, WorldPoint[]? world)
+    internal GridPath(PathStatus status, double cost, Cell[]? cells, int expandedCount, Cell[]? expanded, WorldPoint[]? world)
     {
         Status = status;
         Cost = cost;
@@ -154,10 +154,16 @@ public sealed class GridPath
     public GridAlgorithm Algorithm { get; internal init; }
 
     /// <summary>How the query ended.</summary>
-    public PathOutcome Status { get; }
+    public PathStatus Status { get; }
 
-    /// <summary>True when a path was found.</summary>
-    public bool Found => Status == PathOutcome.Found;
+    /// <summary>True when a path to the goal was found.</summary>
+    public bool Found => Status == PathStatus.Found;
+
+    /// <summary>True when the result holds a usable path (found, or best effort toward the goal). Grid and graph searches never return a partial path.</summary>
+    public bool HasPath => Status.HasPath();
+
+    /// <summary>True for a best-effort path that stops short of the goal; always false here.</summary>
+    public bool IsPartial => Status == PathStatus.Partial;
 
     /// <summary>The path cost (+∞ when no path was found).</summary>
     public double Cost { get; }
@@ -166,7 +172,32 @@ public sealed class GridPath
     public ReadOnlySpan<Cell> Cells => _cells;
 
     /// <summary>The world-space cell centres of the path, filled by the world-space query overloads and empty otherwise.</summary>
-    public ReadOnlySpan<WorldPoint> WorldPoints => _world;
+    public ReadOnlySpan<WorldPoint> Points => _world;
+
+    /// <summary>
+    /// Length of the polyline through <see cref="Points"/>, in world units: 0 when there is no path, NaN when a path exists but the query
+    /// produced no points (the cell or node overloads).
+    /// </summary>
+    public double Length
+    {
+        get
+        {
+            if (_cells.Length == 0)
+            {
+                return 0;
+            }
+            if (_world.Length == 0)
+            {
+                return double.NaN;
+            }
+            double l = 0;
+            for (int i = 1; i < _world.Length; i++)
+            {
+                l += Math.Sqrt(((_world[i].X-_world[i-1].X)*(_world[i].X-_world[i-1].X))+((_world[i].Y-_world[i-1].Y)*(_world[i].Y-_world[i-1].Y)));
+            }
+            return l;
+        }
+    }
 
     /// <summary>Number of nodes the search expanded.</summary>
     public int ExpandedCount { get; }

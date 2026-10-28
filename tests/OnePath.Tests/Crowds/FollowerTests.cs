@@ -39,13 +39,13 @@ public class FollowerTests
             tried++;
             Vector3D a = point(rng), b = point(rng);
             PathResult r = fresh.FindPath(a, b);
-            if (r.Status != PathStatus.Success)
+            if (r.Status != PathStatus.Found)
             {
                 continue;
             }
             var f = new PathFollower(options);
             Assert.True(f.Place(q, a));
-            Assert.NotEqual(PathStatus.NoEndNearby, f.SetDestination(q, b));
+            Assert.NotEqual(QueryStatus.NoEndNearby, f.SetDestination(q, b));
             int steps = 0;
             double walked = 0;
             bool crossed = false;
@@ -135,8 +135,8 @@ public class FollowerTests
             }
             var f = new PathFollower();
             Assert.True(f.Place(q, a));
-            PathStatus s = f.SetDestination(q, b);
-            Assert.Equal(PathStatus.Partial, s);
+            QueryStatus s = f.SetDestination(q, b);
+            Assert.Equal(QueryStatus.Partial, s);
             Walk(f, q, BudgetFor(r.Length));
             Assert.Equal(FollowerState.Arrived, f.State);
             Assert.False(f.ReachedTarget);
@@ -152,14 +152,14 @@ public class FollowerTests
         var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var f = new PathFollower();
         Assert.False(f.Place(q, new Vector3D(500, 0, 500)));
-        Assert.Equal(PathStatus.InvalidStartPoly, f.SetDestination(q, new Vector3D(1, 0, 1)));
+        Assert.Equal(QueryStatus.InvalidStartPoly, f.SetDestination(q, new Vector3D(1, 0, 1)));
         Assert.True(f.Place(q, new Vector3D(10.5, 0, 10.5)));
-        Assert.Equal(PathStatus.NoEndNearby, f.SetDestination(q, new Vector3D(900, 0, 900)));
+        Assert.Equal(QueryStatus.NoEndNearby, f.SetDestination(q, new Vector3D(900, 0, 900)));
         Assert.Equal(FollowerState.NoPath, f.State);
         Assert.False(f.HasPath);
         f.Step(q, Dt);
         Assert.Equal(default, f.Velocity);
-        Assert.Equal(PathStatus.Success, f.SetDestination(q, new Vector3D(10.5, 0, 10.9)));
+        Assert.Equal(QueryStatus.Success, f.SetDestination(q, new Vector3D(10.5, 0, 10.9)));
         Walk(f, q, 2000);
         Assert.Equal(FollowerState.Arrived, f.State);
     }
@@ -174,7 +174,7 @@ public class FollowerTests
         for (int i = 0; i < 200 && done < 25; i++)
         {
             Vector3D a = CorridorWorlds.RandomFieldPoint(40, rng), b = CorridorWorlds.RandomFieldPoint(40, rng), c = CorridorWorlds.RandomFieldPoint(40, rng);
-            if (q.FindPath(a, b).Status != PathStatus.Success || q.FindPath(a, c).Status != PathStatus.Success)
+            if (q.FindPath(a, b).Status != PathStatus.Found || q.FindPath(a, c).Status != PathStatus.Found)
             {
                 continue;
             }
@@ -189,9 +189,9 @@ public class FollowerTests
             {
                 continue;
             }
-            Assert.NotEqual(PathStatus.NoEndNearby, f.SetDestination(q, c));
+            Assert.NotEqual(QueryStatus.NoEndNearby, f.SetDestination(q, c));
             PathResult r = q.FindPath(f.Position, c);
-            if (r.Status != PathStatus.Success)
+            if (r.Status != PathStatus.Found)
             {
                 continue; // the pocket the walk had entered
             }
@@ -255,7 +255,7 @@ public class FollowerTests
             b = CorridorWorlds.RandomFieldPoint(30, rng);
             r = q.FindPath(a, b);
         }
-        while (r.Status != PathStatus.Success || r.Length < 15);
+        while (r.Status != PathStatus.Found || r.Length < 15);
         // An acceleration this low never reaches a tenth of full speed within the window.
         var f = new PathFollower(FollowerOptions.Humanoid with { MaxAcceleration = 0.05, StuckWindow = 1, MaxStuckRecoveries = 2 });
         f.Place(q, a);
@@ -272,7 +272,7 @@ public class FollowerTests
         // A new destination starts over.
         f.Step(q, Dt);
         Assert.Equal(FollowerState.Stuck, f.State);
-        Assert.NotEqual(PathStatus.NoEndNearby, f.SetDestination(q, b));
+        Assert.NotEqual(QueryStatus.NoEndNearby, f.SetDestination(q, b));
         Assert.Equal(FollowerState.Moving, f.State);
     }
 
@@ -290,7 +290,7 @@ public class FollowerTests
             {
                 Vector3D a = CorridorWorlds.PointIn(mesh, polys[rng.Int(polys.Count)], rng), b = CorridorWorlds.PointIn(mesh, polys[rng.Int(polys.Count)], rng);
                 PathResult r = q.FindPath(a, b);
-                if (r.Status != PathStatus.Success)
+                if (r.Status != PathStatus.Found)
                 {
                     continue;
                 }
@@ -398,7 +398,7 @@ public class FollowerTests
                 }
                 Vector3D a = CorridorWorlds.PointIn(mesh, polys[rng.Int(polys.Count)], rng), b = CorridorWorlds.PointIn(mesh, polys[rng.Int(polys.Count)], rng);
                 var f = new PathFollower();
-                if (!f.Place(q, a) || f.SetDestination(q, b) != PathStatus.Success)
+                if (!f.Place(q, a) || f.SetDestination(q, b) != QueryStatus.Success)
                 {
                     continue;
                 }
@@ -421,7 +421,7 @@ public class FollowerTests
                 var fq = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
                 NearestPoly ng = fq.FindNearestPoly(b, CorridorWorlds.Extents);
                 PathResult r = ng.Poly.IsSet ? fq.FindPath(f.Position, b) : null!;
-                if (r is null || r.Status != PathStatus.Success)
+                if (r is null || r.Status != PathStatus.Found)
                 {
                     continue;
                 }
@@ -631,7 +631,7 @@ public class FollowerTests
         while (agents.Count < 30)
         {
             var f = new PathFollower();
-            if (f.Place(q, CorridorWorlds.RandomFieldPoint(48, rng)) && f.SetDestination(q, CorridorWorlds.RandomFieldPoint(48, rng)) != PathStatus.NoEndNearby)
+            if (f.Place(q, CorridorWorlds.RandomFieldPoint(48, rng)) && f.SetDestination(q, CorridorWorlds.RandomFieldPoint(48, rng)) != QueryStatus.NoEndNearby)
             {
                 agents.Add(f);
             }

@@ -149,7 +149,7 @@ public sealed partial class GridReplanner : IGridBatchListener, IDisposable
     public GridPath Replan() => Replan(int.MaxValue);
 
     /// <summary>
-    /// Like <see cref="Replan()"/> but spends at most <paramref name="iterationBudget"/> queue pops; on <see cref="PathOutcome.BudgetExhausted"/>
+    /// Like <see cref="Replan()"/> but spends at most <paramref name="iterationBudget"/> queue pops; on <see cref="PathStatus.BudgetExhausted"/>
     /// call again to continue. Any sequence of budgets ends with the result of one unsliced call.
     /// </summary>
     /// <param name="iterationBudget">At least 1.</param>
@@ -165,14 +165,14 @@ public sealed partial class GridReplanner : IGridBatchListener, IDisposable
         {
             _search = Build(Start, Goal);
         }
-        PathOutcome status;
+        PathStatus status;
         if (_options.Blocked?.Invoke(Start) == true)
         {
-            status = PathOutcome.StartInvalid;
+            status = PathStatus.StartInvalid;
         }
         else if (_options.Blocked?.Invoke(Goal) == true)
         {
-            status = PathOutcome.GoalInvalid;
+            status = PathStatus.GoalInvalid;
         }
         else
         {
@@ -189,7 +189,7 @@ public sealed partial class GridReplanner : IGridBatchListener, IDisposable
                 expandedCells[i] = SearchRunner.ToCell(e[i], _grid.Width);
             }
         }
-        if (status != PathOutcome.Found)
+        if (status != PathStatus.Found)
         {
             return new GridPath(status, double.PositiveInfinity, null, expanded, expandedCells, null) { Algorithm = _algorithm };
         }
@@ -203,7 +203,7 @@ public sealed partial class GridReplanner : IGridBatchListener, IDisposable
         {
             cells[i] = ToCell(nodes[i]);
         }
-        return new GridPath(PathOutcome.Found, cost, cells, expanded, expandedCells, null) { Algorithm = _algorithm };
+        return new GridPath(PathStatus.Found, cost, cells, expanded, expandedCells, null) { Algorithm = _algorithm };
     }
 
     /// <inheritdoc/>

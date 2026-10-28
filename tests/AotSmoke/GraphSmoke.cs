@@ -29,7 +29,7 @@ internal static class GraphSmoke
         var pts = new List<Point3> { new(0, 0), new(10, 0), new(20, 0), new(20, 10), new(0, 10) };
         var pg = PointGraph.From(pts, new PointGraphOptions { MaxDistance = 11, LinkValid = (_, _) => true });
         GraphPath pp = pg.FindPath(new Point3(1, 1), new Point3(19, 11));
-        ok &= pp.Found && pp.Cost == 30.0 && pp.Positions.Length == 4;
+        ok &= pp.Found && pp.Cost == 30.0 && pp.Points.Length == 4;
         var knn = PointGraph.From(pts, new PointGraphOptions { NearestCount = 2 });
         ok &= knn.FindPath(0, 3).Found;
 

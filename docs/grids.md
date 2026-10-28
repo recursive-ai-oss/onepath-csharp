@@ -2,7 +2,7 @@
 
 Normative. A port must reproduce the same expansion order, costs and paths from this text. Code lives in
 `src/OnePath/Grids/`. The tier-1 types (`Grid`, `HexGrid`, `VoxelGrid`, their options and results, `Cell`, `WorldPoint`, `VoxelCell`,
-`VoxelPoint`, `GridSpace`, `VoxelSpace`, `AreaCosts`, `HexCoord`, `GridAlgorithm`, `PathOutcome`, `GridFlowField` and the replanners) live in
+`VoxelPoint`, `GridSpace`, `VoxelSpace`, `AreaCosts`, `HexCoord`, `GridAlgorithm`, `PathStatus`, `GridFlowField` and the replanners) live in
 the root namespace `RecursiveAI.OnePath`; the search cores, topologies, heuristics, buffers and indexes (tiers 2 and 3) live in
 `RecursiveAI.OnePath.Grids` and `.Grids.Voxel`.
 
@@ -97,7 +97,7 @@ admissible and consistent for the default cost model; hooks that lower costs, or
 **Sliced search.** `AStar.Step(n)` performs at most `n` iterations and returns `Running` while work remains;
 `Run()` is `Step(int.MaxValue)` with cooperative cancellation; time is never consulted. Any sequence of budgets gives
 the same expansion order, path and cost as one unsliced run. The tier-1 `GridOptions.IterationBudget` ends the query with
-`PathOutcome.BudgetExhausted` after that many iterations.
+`PathStatus.BudgetExhausted` after that many iterations.
 
 ## API tiers
 
@@ -116,7 +116,7 @@ the same expansion order, path and cost as one unsliced run. The tier-1 `GridOpt
    Tier 1 picks them with `GridOptions.Algorithm`.
 
 Debug data: `GridOptions.RecordExpansions` / `GridSearchBuffers.RecordExpansions` record the expanded nodes in order
-(`GridPath.ExpandedCells`, `GridSearchBuffers.ExpandedNodes`); the path is `GridPath.Cells` / `WorldPoints`.
+(`GridPath.ExpandedCells`, `GridSearchBuffers.ExpandedNodes`); the path is `GridPath.Cells` / `Points`.
 
 ## Jump point search (JPS, JPS+)
 
@@ -258,7 +258,7 @@ Integers only. With `dx = x1-x0`, `dy = y1-y0`, `nx = |dx|`, `ny = |dy|`, steps 
 one cost multiplier `m` for every area, no `StepCost`/`Blocked` callbacks, heuristic `Auto`, `Euclidean` or `Zero`.
 The cost of a segment is `m * sqrt(dx*dx + dy*dy)` (`dx`, `dy` integer, the sum exact in 64 bits, one correctly rounded square root),
 so a straight cell step costs `m`, a diagonal one `m * Sqrt2` as in A*. A path's cost is the sum of its segment costs added in path order
-from 0 (`GridPath.Cost`; `Cells` and `WorldPoints` list the waypoints only). Heuristic: `m * sqrt(dx*dx + dy*dy)` to the goal
+from 0 (`GridPath.Cost`; `Cells` and `Points` list the waypoints only). Heuristic: `m * sqrt(dx*dx + dy*dy)` to the goal
 (`EuclideanHeuristic`), weight `GridOptions.HeuristicWeight`.
 
 **Search** (`ThetaSearch<THeuristic>`, tier 2). The open set is the grid core's `OpenSet` (smaller f, larger g, smaller cell index); one
