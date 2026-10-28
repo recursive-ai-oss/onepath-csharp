@@ -40,7 +40,7 @@ walker.SetDestination(new Vector3D(36, 0, 36));
 crowd.Step(0.05);   // fixed time step; the crowd has no clock of its own
 ```
 
-More examples, build instructions and the speed table against the native references:
+More examples, the documentation index ([docs](https://github.com/recursive-ai-oss/onepath-csharp/blob/main/docs/README.md)), build instructions and the speed table against the native references:
 <https://github.com/recursive-ai-oss/onepath-csharp/blob/main/README.md>. Release notes:
 <https://github.com/recursive-ai-oss/onepath-csharp/blob/main/CHANGELOG.md>. Third-party notices:
 <https://github.com/recursive-ai-oss/onepath-csharp/blob/main/THIRD-PARTY-NOTICES.md>.

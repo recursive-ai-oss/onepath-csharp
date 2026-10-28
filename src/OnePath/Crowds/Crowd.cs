@@ -88,16 +88,16 @@ public sealed partial class Crowd
         }
     }
 
-    /// <summary>The mesh agents walk.</summary>
+    /// <summary>The tiled mesh the agents walk (the one passed to the constructor; a crowd never changes it).</summary>
     public TiledNavMesh Mesh => _mesh;
 
-    /// <summary>The settings.</summary>
+    /// <summary>The settings the crowd was created with (fixed for its life; <see cref="Step"/> and the snapshot depend on them).</summary>
     public CrowdOptions Options => _opt;
 
-    /// <summary>Number of agents in the crowd.</summary>
+    /// <summary>Number of agents now in the crowd (added and not removed), never more than <see cref="CrowdOptions.MaxAgents"/>.</summary>
     public int Count => _count;
 
-    /// <summary>Steps taken so far.</summary>
+    /// <summary>Number of <see cref="Step"/> calls completed since creation (restored by <c>RestoreState</c>); the crowd's only notion of time.</summary>
     public long StepCount => _steps;
 
     /// <summary>A query object over the mesh for the host's own queries between steps (not safe to use during <see cref="Step"/>).</summary>

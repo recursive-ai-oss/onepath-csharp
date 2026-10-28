@@ -48,10 +48,10 @@ public sealed class Agent
 
     private PathFollower Follower => _slot >= 0 ? _crowd.FollowerAt(_slot) : throw new InvalidOperationException("The agent was removed from its crowd.");
 
-    /// <summary>Where the agent stands (world; always on the mesh).</summary>
+    /// <summary>Where the agent stands: world coordinates in the unit of the mesh, Y up, always on the mesh surface.</summary>
     public Vector3D Position => Follower.Position;
 
-    /// <summary>How fast and which way it moved in the last step (units per second, 3D).</summary>
+    /// <summary>The velocity the agent moved with in the last <see cref="Crowd.Step"/>: world units per second, 3D (zero before the first step).</summary>
     public Vector3D Velocity => Follower.Velocity;
 
     /// <summary>Where it is going (the position it stands at when it has no destination).</summary>
