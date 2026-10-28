@@ -388,9 +388,16 @@ default area, fixed at construction: 0 for open space, 255 for a solid block to 
 `(x & 15) | ((y & 15) << 4) | ((z & 15) << 8)`. An edit that differs from the default allocates the chunk, which then stays.
 Padding voxels past the size in an edge chunk are never read. At most 2^30 voxels.
 
-**Search nodes.** A voxel's node is `x + sx * (y + sy * z)`. Search buffers are dense: 20 bytes per voxel (cost 8,
-parent 4, mark 4, open-set position 4), so a 518-million-voxel block needs about 10 GB for a search; storage of a sparse
-world is cheap, searching one is not (a sparse search state is a possible later change).
+**Search nodes.** A voxel's node is `x + sx * (y + sy * z)`; it is the final open-list tie-break. State per node is cost 8,
+parent 4, mark 4, open-set position 4 (20 bytes). The one-line query (`grid.FindPath`) keeps that state in pages of 8 x 8 x 8
+voxels (512 nodes, 10 KB), allocated when the search first reaches a voxel of the block and found through a dense table with one
+int per block (4 MB for 5x10^8 voxels); the parent is stored as a slot (page << 9 | in-page index), the in-page index is
+`(x & 7) | ((y & 7) << 3) | ((z & 7) << 6)`, and the search reads each voxel's coordinates from its page, so no node index is
+ever divided. Search memory is therefore proportional to the blocks the search touches. The paged search is the same algorithm
+as `AStar` (same open-list order, strict-improvement relaxation with reopening, neighbour order), so cost, path, expansion order
+and iteration counts are equal (tested against the dense search). Pages are pooled between queries; a pool above 4096 pages
+(about 40 MB) is dropped after the query. The tier-2 `AStar<VoxelTopology, ...>` with `GridSearchBuffers` stays dense, 20 bytes per voxel
+of the block (a 518-million-voxel block needs about 10 GB).
 
 **Moves and costs.** 6 (faces), 18 (+ edges) or 26 (+ corners) neighbours; the order is faces, then edges, then corners, each
 by z, then y, then x ascending from -1 to 1 (an 18- or 6-move view uses a prefix). Face moves have length 1, edge moves
