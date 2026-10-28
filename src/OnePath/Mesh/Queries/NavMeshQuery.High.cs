@@ -142,6 +142,14 @@ public static class TiledNavMeshQueryExtensions
     public static PathResult FindPath(this TiledNavMesh mesh, Vector3D start, Vector3D end, PathOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(mesh);
-        return new NavMeshQuery(mesh).FindPath(start, end, options, cancellationToken);
+        NavMeshQuery q = mesh.RentQuery();
+        try
+        {
+            return q.FindPath(start, end, options, cancellationToken);
+        }
+        finally
+        {
+            mesh.ReturnQuery(q);
+        }
     }
 }

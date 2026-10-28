@@ -4,6 +4,15 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Changed
+
+- **`NavMesh.FindPath` and `FindPathAsync`, `NavWorld.FindPath` and the `TiledNavMesh.FindPath` extension no longer build a query object per call.** A fresh query allocated about 10 MB (a 65,536-node search table), which put a gen-2 collection into most hot loops. The mesh now keeps up to four spare query objects, borrowed per call with an atomic exchange, so concurrent calls never share one; a steady-state call allocates only the returned path (about 250 bytes for a short path, against 10.2 MB before). Results are bit-identical to a fresh query, also across mesh edits.
+
+### Added
+
+- **`NavMesh.TrySamplePosition`, `NavMesh.Raycast` and `NavMesh.TryGetRandomPoint`**, with the small `NavMeshHit` struct: snap a position to the mesh, trace a line along it, and draw a seeded random point, without a query object, polygon reference or callback.
+- **`Agent.SetOptions(AgentOptions)`** changes a live agent's settings in place (id, position, velocity and path are kept). A crowd snapshot already stored per-agent settings, so it carries the change, and restoring a snapshot taken before the change gives the agent its old settings again without invalidating the handle you hold. The snapshot format is unchanged.
+
 ## [1.0.0-rc.1]
 
 Release candidate for 1.0: the public API is frozen from here unless a release candidate finds a defect. Every part measures within its speed target against the native references on x64 and arm64 (see the README table); results are bit-identical across x64, arm64, WebAssembly, SIMD and scalar, and any thread count.

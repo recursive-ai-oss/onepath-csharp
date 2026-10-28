@@ -249,6 +249,13 @@ agent with `PathFollower.Place` (the nearest accepted polygon within the followe
 refused with `ArgumentException`), standing still with no destination. The crowd's `Filter` (null = everything, cost 1) is the filter of every
 follower and wall query.
 
+`Agent.SetOptions(options)` replaces a live agent's settings: the options are validated as `Add` validates them, the follower's tuning is swapped in
+place (its position, velocity, destination and corridor are untouched; `CorridorCapacity` and `MaxCorners` of `Path` cannot change, `ArgumentException`),
+the slot's priority becomes `options.Priority`, and the slot's wall cache is marked invalid so the next step gathers walls with the new reach. Nothing else
+changes, so the next step is a function of the new settings and the old state. The snapshot already writes every slot's settings in full, so the change is
+saved with no format change; restoring a snapshot into a crowd that holds the same agent id in that slot with different settings keeps the `Agent` object and
+replaces its settings and follower.
+
 ## Step
 
 Three phases, each over the slots in fixed groups of 32 (worker *w* takes groups *w*, *w* + threads, …). In a phase an agent writes only its own

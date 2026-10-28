@@ -36,8 +36,30 @@ public sealed class Agent
     /// <summary>A number that identifies the agent in its crowd for good: 0, 1, 2, ... in the order agents were added. Never reused.</summary>
     public long Id { get; }
 
-    /// <summary>The settings the agent was added with.</summary>
-    public AgentOptions Options { get; }
+    /// <summary>The agent's settings: the ones it was added with, or the last given to <see cref="SetOptions"/>.</summary>
+    public AgentOptions Options { get; internal set; }
+
+    /// <summary>
+    /// Changes the agent's settings in place (a slowed or hasted agent, a new radius): its id, position, velocity and path are kept and
+    /// the next <see cref="Crowd.Step"/> uses the new values. <see cref="Priority"/> becomes <c>options.Priority</c>. The result of a
+    /// step is deterministic and a crowd snapshot carries the new settings. When <see cref="AgentOptions.Path"/> is set, its
+    /// <c>CorridorCapacity</c> and <c>MaxCorners</c> must equal the agent's current ones.
+    /// </summary>
+    /// <param name="options">The new settings; validated as <see cref="Crowd.Add"/> validates.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="options"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A setting is out of range (the message names it); nothing changed.</exception>
+    /// <exception cref="ArgumentException">The path settings change the corridor capacity or corner count.</exception>
+    /// <exception cref="InvalidOperationException">The agent was removed.</exception>
+    public void SetOptions(AgentOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        if (_slot < 0)
+        {
+            throw new InvalidOperationException("The agent was removed from its crowd.");
+        }
+        _crowd.SetOptionsAt(_slot, options);
+        Options = options;
+    }
 
     /// <summary>True while the agent is in its crowd.</summary>
     public bool IsActive => _slot >= 0;

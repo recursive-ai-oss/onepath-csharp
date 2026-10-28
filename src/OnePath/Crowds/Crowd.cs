@@ -233,6 +233,17 @@ public sealed partial class Crowd
 
     internal void SetPriorityAt(int slot, double value) => _priority[slot] = value;
 
+    internal void SetOptionsAt(int slot, AgentOptions options)
+    {
+        options.Validate();
+        _follow[slot]!.ReplaceOptions(options.ToFollowerOptions());
+        _agentOpt[slot] = options;
+        _priority[slot] = options.Priority;
+        // The wall cache was gathered with the old reach (speed, clearance); gather it again on the next step.
+        _wallStamp[slot] = -1;
+        _wallCount[slot] = 0;
+    }
+
     internal QueryStatus SetDestinationAt(int slot, Vector3D destination)
     {
         Worker w = GetWorker(0);
