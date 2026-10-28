@@ -10,11 +10,40 @@ Release candidate for 1.0: the public API is frozen from here unless a release c
 
 ### Breaking
 
-- **`QueryFilter` is immutable after construction.** `IncludeFlags`, `ExcludeFlags` and `Predicate` are `init`-only (set them in an object initializer), and `SetAreaCost` is replaced by `WithAreaCost(area, cost)`, which returns a new filter and leaves the original alone. A filter inside `PathOptions` or `CrowdOptions` can therefore be shared by queries, crowds and threads without one caller changing it under another. Migrate `f.SetAreaCost(3, x);` to `f = f.WithAreaCost(3, x);`.
+Changes to names, numbers, namespaces and shapes that are cheap now and costly after 1.0. Compile errors guide most of the migration; the table lists each one.
+
+| Area | Before | After |
+|---|---|---|
+| Status enums | `PathStatus.Found = 0` (`default` read as success); `QueryStatus.Success = 0`; `AreaQueryStatus.Success = 0`; `RaycastStatus.Ok = 0` | Each has `None = 0` and every other value is one higher (`PathStatus`: `Found` 1, `StartInvalid` 2, `GoalInvalid` 3, `NoPath` 4, `BudgetExhausted` 5, `Partial` 6, `InProgress` 7; `QueryStatus.Success` 1 and so on). Code that compares by name is unchanged; code that stored or logged the numbers must map them. `default(PathStatus).HasPath()` is false |
+| `GridSearch.Status` | `SearchStatus` (`NotStarted`, `Running`, `Found`, `NotFound`) | `PathStatus` (`None`, `InProgress`, `Found`, `NoPath`), the type `Step` and `TryBegin` already returned. `SearchStatus` stays on the raw `AStar`, `JumpSearch`, `ThetaSearch` and `GraphAStar` |
+| `FindPathAsync` | `Grid.FindPathAsync(start, goal, options, ct)` ran the sync search on the thread pool; `HexGrid.` and `VoxelGrid.FindPathAsync` the same; `NavMesh.`/`NavMeshQuery.`/`NavWorld.FindPathAsync(start, end, options, int iterationsPerSlice, ct)` sliced on the caller's context; graphs had none | One meaning and one shape, `(start, goal, options, ct)`, on `Grid`, `NavMesh`, `NavMeshQuery` and `NavWorld`: cooperative slices on the caller's context, sized by `GridOptions.IterationsPerSlice` / `PathOptions.IterationsPerSlice` (default 256). `Grid.FindPathAsync` supports A\*, JPS and JPS+ without `RecordExpansions`. `HexGrid` and `VoxelGrid` lose `FindPathAsync` (they were new in the release candidate); for a thread-pool search call `Task.Run(() => grid.FindPath(...))`. Move an `iterationsPerSlice` argument into the options: `mesh.FindPathAsync(a, b, new PathOptions { IterationsPerSlice = 64 }, ct)` |
+| Namespaces | `Mesh.Queries.PathResult`, `PathOptions`, `QueryFilter`, `PathNodeModel`, `StraightPathPoint`; `Crowds.Corridors.FollowerState`; `Mesh.Build3D.PartitionType` | All in `RecursiveAI.OnePath`: drop the `using RecursiveAI.OnePath.Mesh.Queries;` (and the others) from happy-path code |
+| Data errors | `NavMeshFormatException : Exception`; `GridStateException` and `GridFormatException : FormatException`; `GraphFormatException : Exception`; `GltfException : Exception`; `GeometryException : InvalidOperationException`; crowd, corridor and follower state threw `NavMeshFormatException` | One base, `OnePathFormatException : FormatException`; `catch (OnePathFormatException)` covers every bad-data error. `GraphFormatException` is now `GraphStateException`; crowd, corridor and follower state throw the new `CrowdStateException`; `Graph.FromState` garbage throws `GraphStateException` (it threw `GridStateException`); `GeometryException` is no longer an `InvalidOperationException`. Every exception type has the three standard constructors |
+| Options | `GridOptions`, `VoxelOptions`, `PathOptions`, `GraphOptions`, `PointGraphOptions`, `LandmarkOptions` were classes (`GridOptions` and `VoxelOptions` with `Clone()`) | Sealed records beside `NavSettings`, `AgentOptions`, `CrowdOptions` and `FollowerOptions`: `options with { ... }` replaces `options.Clone()`; options with equal values are equal. `NavSettings.OffMeshLinks`, `PointGraphOptions.Links` and `Mesh3DPipeline.Obstacles` are copied when set |
+| Validation | `GridOptions` checked values at init (`ParamName` "value"); `NavSettings`, `AgentOptions`, `CrowdOptions`, `PathOptions` and `GraphOptions` accepted anything until a build or `Add` | Every value is checked where it is set, `ArgumentOutOfRangeException.ParamName` is the property, the message states the range. `Agent.Humanoid with { MaxSpeed = -5 }` throws on the spot |
+| `NavSettings` types | `AgentRadius`, `AgentHeight`, `WalkableClimb`, `AgentMaxSlopeDegrees`, `ContourMaxError` were `float` | `double` like every other length (rounded to float32 once when a build starts, as before, so meshes are unchanged). Drop the `f` suffixes |
+| `NavSettings.Height` | World Y of the 2D floor, beside `AgentHeight` | `NavSettings.FloorY` |
+| `Crowd.CopyAgents` | `CopyAgents(List<Agent>)` appended | `int CopyAgents(Span<Agent>)` fills a span of at least `Count` entries and returns the count; `Crowd` is also enumerable (`foreach (Agent a in crowd)`, no allocation). Replace `var l = new List<Agent>(); crowd.CopyAgents(l);` with `var l = new List<Agent>(crowd);` |
+| `TileStreamer.StreamOut` | returned `List<byte[]>` | returns `IReadOnlyList<byte[]>` |
+| `Mesh3DPipeline.Obstacles` | mutable `IList<TileObstacle>`, silently ignored once a cache existed | read-only, set in an object initializer: `new Mesh3DPipeline(s) { Obstacles = [box] }`. Add obstacles at run time with `TileCache.AddObstacle` |
+| Replanner callbacks | `GridReplanner` and `HexReplanner` had public `OnCellChanged` and `OnRectChanged` | implemented explicitly; they are called by the grid, not by you |
+| Internal helpers | `GridSpace.CheckCoordinate` and `OnePathInfo.FixedToDouble` were public | removed from the surface; use OneMath's `FixedBridge.ToDouble` |
+| `QueryFilter` | `IncludeFlags`, `ExcludeFlags` and `Predicate` were settable; `SetAreaCost(area, cost)` mutated | `init`-only, and `WithAreaCost(area, cost)` returns a new filter and leaves the original alone, so a filter inside `PathOptions` or `CrowdOptions` can be shared by queries, crowds and threads. Migrate `f.SetAreaCost(3, x);` to `f = f.WithAreaCost(3, x);` |
+
+Saved data: no format changed (every fixture file of release 1.0.0 is byte-identical). The enum renumbering changes the numbers some
+hash-matrix scenarios write and the behaviour transcripts recorded beside the 1.0.0 fixtures; those transcripts were rewritten once, before any release.
 
 ### Added
 
-- `HexGrid.FindPathAsync` and `VoxelGrid.FindPathAsync` (cell and world-position forms), shaped like `Grid.FindPathAsync`: the result equals the synchronous one, cancellation and argument errors come through the task, and the grid must not be edited while the task runs. On single-threaded WebAssembly, await the task; never block on it.
+- **Results are bit-identical across every release of a major version:** no 1.x minor or patch release changes an existing path, build, query, search or crowd result (README, "Determinism").
+- **Every 1.x release reads every format written by an earlier 1.x release** (navigation meshes, tile caches, saved states); backward reading only.
+
+- **`NavMesh.TrySamplePosition`, `NavMesh.Raycast` and `NavMesh.TryGetRandomPoint`**, with the small `NavMeshHit` struct: snap a position to the mesh, trace a line along it, and draw a seeded random point, without a query object, polygon reference or callback.
+- **`Agent.SetOptions(AgentOptions)`** changes a live agent's settings in place (id, position, velocity and path are kept). A crowd snapshot already stored per-agent settings, so it carries the change, and restoring a snapshot taken before the change gives the agent its old settings again without invalidating the handle you hold. The snapshot format is unchanged.
+
+### Changed
+
+- **`NavMesh.FindPath` and `FindPathAsync`, `NavWorld.FindPath` and the `TiledNavMesh.FindPath` extension no longer build a query object per call.** A fresh query allocated about 10 MB (a 65,536-node search table), which put a gen-2 collection into most hot loops. The mesh now keeps up to four spare query objects, borrowed per call with an atomic exchange, so concurrent calls never share one; a steady-state call allocates only the returned path (about 250 bytes for a short path, against 10.2 MB before). Results are bit-identical to a fresh query, also across mesh edits.
 
 ## [0.5.0-preview.1]
 

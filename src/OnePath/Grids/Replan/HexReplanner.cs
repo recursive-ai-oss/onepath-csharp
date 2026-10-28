@@ -30,7 +30,7 @@ public sealed partial class HexReplanner : IGridBatchListener, IDisposable
         CheckCell(grid, start, nameof(start));
         CheckCell(grid, goal, nameof(goal));
         _grid = grid;
-        _options = options.Clone();
+        _options = options;
         _algorithm = options.Algorithm == GridAlgorithm.LpaStar ? GridAlgorithm.LpaStar : GridAlgorithm.DStarLite;
         _search = Build(start, goal);
         grid.AddListener(this);
@@ -184,11 +184,10 @@ public sealed partial class HexReplanner : IGridBatchListener, IDisposable
         return new GridPath(PathStatus.Found, cost, cells, expanded, expandedCells, null) { Algorithm = _algorithm };
     }
 
-    /// <inheritdoc/>
-    public void OnCellChanged(int x, int y) => _search.MarkChanged((y * _grid.Width) + x, true);
+    // Observer plumbing: the grid calls these, so they are not part of the replanner's own surface.
+    void IGridChangeListener.OnCellChanged(int x, int y) => _search.MarkChanged((y * _grid.Width) + x, true);
 
-    /// <inheritdoc/>
-    public void OnRectChanged(int x, int y, int width, int height)
+    void IGridBatchListener.OnRectChanged(int x, int y, int width, int height)
     {
         if ((long)width * height > _grid.CellCount / 4)
         {

@@ -9,10 +9,10 @@ using RecursiveAI.OnePath.Mesh.Build2D;
 // Exercises the public surface under NativeAOT and full trimming. Exit code 0 means it ran.
 Console.WriteLine($"OnePath {OnePathInfo.Version}");
 Console.WriteLine($"OneMath {OnePathInfo.OneMathVersion}");
-bool ok = OnePathInfo.FixedToDouble(3L << 31) == 1.5;
+bool ok = FixedBridge.ToDouble(3L << 31) == 1.5;
 try
 {
-    OnePathInfo.FixedToDouble(long.MaxValue);
+    FixedBridge.ToDouble(long.MaxValue);
     ok = false;
 }
 catch (ArgumentOutOfRangeException)
@@ -27,7 +27,7 @@ ok &= asyncPath.Found && asyncPath.Cost == asyncGrid.FindPath(new Cell(0, 0), ne
 var openCells = new bool[16 * 16];
 Array.Fill(openCells, true);
 NavMesh asyncMesh = NavMesh.Build2D(openCells, 16, 16, 1.0, new Vector2D(0, 0));
-PathResult meshAsync = asyncMesh.FindPathAsync(new Vector3D(2, 0, 2), new Vector3D(13, 0, 13), null, 4).GetAwaiter().GetResult();
+PathResult meshAsync = asyncMesh.FindPathAsync(new Vector3D(2, 0, 2), new Vector3D(13, 0, 13), new PathOptions { IterationsPerSlice = 4 }).GetAwaiter().GetResult();
 ok &= meshAsync.Found && meshAsync.Length == asyncMesh.FindPath(new Vector3D(2, 0, 2), new Vector3D(13, 0, 13)).Length;
 Console.WriteLine($"Async forms: {(ok ? "ok" : "FAILED")}");
 bool orca = OrcaSmoke.Run();

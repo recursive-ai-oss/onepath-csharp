@@ -4,7 +4,7 @@
     <PackageId>$(PackagePrefix).OnePath</PackageId>
     <AssemblyName>$(PackagePrefix).OnePath</AssemblyName>
     <RootNamespace>$(PackagePrefix).OnePath</RootNamespace>
-    <Description>Deterministic pathfinding and navigation for .NET: square, hex and voxel grids (A*, JPS, Theta*, HPA*, D* Lite, flow fields), graphs, tiled navigation meshes with 2D and 3D builders and queries, and ORCA crowds. Bit-identical results on every platform.</Description>
+    <Description>Deterministic pathfinding and navigation for .NET: square, hex and voxel grids (A*, JPS, Theta*, HPA*, D* Lite, flow fields), graphs, tiled navigation meshes with 2D and 3D builders and queries, and ORCA crowds. Bit-identical results on every platform and across every release of a major version.</Description>
     <PackageTags>pathfinding;navigation;navmesh;nav-mesh;astar;a-star;jps;jump-point-search;theta-star;hpa-star;flow-field;crowd;orca;rvo;recast;detour;recast-alternative;voxel;gamedev;deterministic;lockstep;nativeaot</PackageTags>
     <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
     <PackageReleaseNotes>See CHANGELOG.md in the repository.</PackageReleaseNotes>

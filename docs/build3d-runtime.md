@@ -114,7 +114,7 @@ so a wall made by an obstacle sits within about a cell of where erosion would pu
 g is the growth above. The yaw turns from the +x axis towards the +z axis. Every number is finite and within ±2^21, as is every extent (centre ± radius, centre ± the
 rotated half size); anything else is rejected with `ArgumentException` or `ArgumentOutOfRangeException` naming the value.
 
-**Baking.** `Mesh3DPipeline.Obstacles` holds obstacles applied to every tile of a build, in list order, before the cache's own and after erosion. A mesh
+**Baking.** `Mesh3DPipeline.Obstacles` (set in an object initializer; the list is copied and fixed, because a built cache never reads it again, and `TileCache.AddObstacle` is the only run-time route) holds obstacles applied to every tile of a build, in list order, before the cache's own and after erosion. A mesh
 rebuilt from a cache after obstacles A, B, C were added equals, tile for tile and byte for byte, a fresh build of the same geometry with
 A, B, C in `Obstacles` (the tests check this), and removing every obstacle gives back the original tiles.
 

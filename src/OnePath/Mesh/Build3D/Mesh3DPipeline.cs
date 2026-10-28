@@ -33,16 +33,17 @@ public sealed class Mesh3DPipeline
         float cs = (float)settings.CellSize, ch = (float)settings.CellHeight;
         SpanOptions = new SpanSettings
         {
-            WalkableSlopeDegrees = settings.AgentMaxSlopeDegrees,
-            WalkableHeight = Math.Max(1, (int)Math.Ceiling(settings.AgentHeight / ch)),
-            WalkableClimb = (int)Math.Floor(settings.WalkableClimb / ch),
-            WalkableRadius = (int)Math.Ceiling(settings.AgentRadius / cs),
+            // Agent quantities are rounded to float32 once, as they always were, so the cell counts below do not depend on double rounding.
+            WalkableSlopeDegrees = (float)settings.AgentMaxSlopeDegrees,
+            WalkableHeight = Math.Max(1, (int)Math.Ceiling((float)settings.AgentHeight / ch)),
+            WalkableClimb = (int)Math.Floor((float)settings.WalkableClimb / ch),
+            WalkableRadius = (int)Math.Ceiling((float)settings.AgentRadius / cs),
         };
         Border = SpanOptions.WalkableRadius + 3;
         Regions = new RegionPipeline(
             SpanOptions,
             new RegionSettings { Partition = settings.Partition, MinRegionArea = settings.MinRegionArea, MergeRegionArea = settings.MergeRegionArea },
-            new ContourSettings { MaxError = settings.ContourMaxError, MaxEdgeLength = (int)((settings.MaxEdgeLength / settings.CellSize) + 0.5) });
+            new ContourSettings { MaxError = (float)settings.ContourMaxError, MaxEdgeLength = (int)((settings.MaxEdgeLength / settings.CellSize) + 0.5) });
         Detail = new DetailSettings { SampleDistance = settings.DetailSampleDistance, MaxError = settings.DetailMaxError };
     }
 
@@ -94,7 +95,7 @@ public sealed class Mesh3DPipeline
         {
             throw new ArgumentOutOfRangeException(nameof(s), "MinRegionArea and MergeRegionArea must not be negative.");
         }
-        new ContourSettings { MaxError = s.ContourMaxError }.Validate();
+        new ContourSettings { MaxError = (float)s.ContourMaxError }.Validate();
         new DetailSettings { SampleDistance = s.DetailSampleDistance, MaxError = s.DetailMaxError }.Validate();
         if (!Enum.IsDefined(s.Partition))
         {
@@ -405,8 +406,12 @@ public sealed class Mesh3DPipeline
 
     // ---------------------------------------------------------------- one tile
 
-    /// <summary>Temporary obstacles baked into every tile this pipeline builds (see <see cref="TileObstacle"/>); applied after erosion with their footprint grown by the agent radius, in list order.</summary>
-    public IList<TileObstacle> Obstacles { get; } = new List<TileObstacle>();
+    /// <summary>
+    /// Temporary obstacles baked into every tile this pipeline builds (see <see cref="TileObstacle"/>); applied after erosion with their footprint
+    /// grown by the agent radius, in list order. Set in an object initializer: the list is copied and fixed, because a built
+    /// <see cref="TileCache"/> never looks at it again. To add or remove obstacles at run time use <see cref="TileCache.AddObstacle"/>.
+    /// </summary>
+    public IReadOnlyList<TileObstacle> Obstacles { get; init => field = FrozenList<TileObstacle>.Of(value); } = FrozenList<TileObstacle>.Empty;
 
     /// <summary>
     /// Runs the stages on one tile's rasterized heightfield (built on the tile's grid with border; see <see cref="TileFrame"/>) and appends the tile data of each layer.

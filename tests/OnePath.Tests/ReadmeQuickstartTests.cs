@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using RecursiveAI.OneMath;
-using RecursiveAI.OnePath.Mesh.Queries;
 using Xunit;
 
 // The README snippets are what a user writes, so they omit the optional cancellation token that xUnit1051 asks tests to pass.

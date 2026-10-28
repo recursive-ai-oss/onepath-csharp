@@ -102,7 +102,7 @@ public class WorldAndStreamingTests
         PolyRef oldRef = m.Tiles.GetPolyRef(m.Tiles.GetTileRef(1, 0, 0), 0);
 
         TileStreamer st = m.CreateStreamer();
-        List<byte[]> out1 = st.StreamOut(1, 0);
+        IReadOnlyList<byte[]> out1 = st.StreamOut(1, 0);
         Assert.Single(out1);
         Assert.Equal(PathStatus.Partial, m.FindPath(new Vector3D(2, 0, 8), new Vector3D(46, 0, 8), cancellationToken: TestContext.Current.CancellationToken).Status);
         Assert.False(m.Tiles.IsValid(oldRef));

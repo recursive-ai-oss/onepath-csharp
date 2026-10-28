@@ -9,13 +9,44 @@ public class PathResultVocabularyTests
     [Fact]
     public void StatusNumbersAreStable()
     {
-        Assert.Equal(0, (int)PathStatus.Found);
-        Assert.Equal(1, (int)PathStatus.StartInvalid);
-        Assert.Equal(2, (int)PathStatus.GoalInvalid);
-        Assert.Equal(3, (int)PathStatus.NoPath);
-        Assert.Equal(4, (int)PathStatus.BudgetExhausted);
-        Assert.Equal(5, (int)PathStatus.Partial);
-        Assert.Equal(6, (int)PathStatus.InProgress);
+        Assert.Equal(0, (int)PathStatus.None);
+        Assert.Equal(1, (int)PathStatus.Found);
+        Assert.Equal(2, (int)PathStatus.StartInvalid);
+        Assert.Equal(3, (int)PathStatus.GoalInvalid);
+        Assert.Equal(4, (int)PathStatus.NoPath);
+        Assert.Equal(5, (int)PathStatus.BudgetExhausted);
+        Assert.Equal(6, (int)PathStatus.Partial);
+        Assert.Equal(7, (int)PathStatus.InProgress);
+    }
+
+    [Fact]
+    public void DefaultNeverReadsAsSuccess()
+    {
+        // An unassigned result, a default struct field or a zeroed array slot must not claim a path.
+        Assert.Equal(PathStatus.None, default);
+        Assert.False(default(PathStatus).HasPath());
+        Assert.Equal(PathStatus.None, default(QueryStatus).ToPathStatus());
+        Assert.Equal(0, (int)QueryStatus.None);
+        Assert.Equal(0, (int)AreaQueryStatus.None);
+        Assert.Equal(0, (int)RaycastStatus.None);
+        Assert.Equal(1, (int)QueryStatus.Success);
+        Assert.Equal(1, (int)AreaQueryStatus.Success);
+        Assert.Equal(1, (int)RaycastStatus.Ok);
+        Assert.Equal(PathStatus.None, new Grid(4, 4).CreateSearch().Status);
+        Assert.Equal(RaycastStatus.None, default(RaycastResult).Status);
+    }
+
+    [Fact]
+    public void GridSearchReportsTheSharedVocabulary()
+    {
+        var grid = new Grid(8, 8);
+        grid.SetWalkable(4, 0, false);
+        GridSearch s = grid.CreateSearch();
+        Assert.Equal(PathStatus.None, s.Status);
+        Assert.Equal(PathStatus.InProgress, s.TryBegin(new Cell(0, 0), new Cell(7, 7)));
+        Assert.Equal(PathStatus.InProgress, s.Status);
+        Assert.Equal(PathStatus.Found, s.Step(100000));
+        Assert.Equal(PathStatus.Found, s.Status);
     }
 
     [Theory]

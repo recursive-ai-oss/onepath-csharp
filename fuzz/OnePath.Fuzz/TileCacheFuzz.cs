@@ -218,11 +218,7 @@ internal static class TileCacheFuzz
             throw new InvalidOperationException("the mesh is inconsistent after an update");
         }
         // From scratch with the surviving obstacles and volumes baked into the build: the same tiles.
-        var baked = new Mesh3DPipeline(s_settings);
-        foreach (TileObstacle o in live)
-        {
-            baked.Obstacles.Add(o);
-        }
+        var baked = new Mesh3DPipeline(s_settings) { Obstacles = [.. live] };
         foreach (ConvexVolume v in liveVolumes)
         {
             baked.Regions.Spans.Volumes.Add(v);

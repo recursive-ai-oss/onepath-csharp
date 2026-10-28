@@ -196,7 +196,7 @@ public class HostSearchTests
         Assert.Equal(PathStatus.StartInvalid, s.TryBegin(new Cell(-1, 0), new Cell(0, 0)));
         Assert.Equal(PathStatus.GoalInvalid, s.TryBegin(new Cell(0, 0), new Cell(2, 1)));
         Assert.Equal(PathStatus.GoalInvalid, s.TryBegin(new Cell(0, 0), new Cell(9, 9)));
-        Assert.Equal(SearchStatus.NotStarted, s.Status);
+        Assert.Equal(PathStatus.None, s.Status);
         Assert.Throws<ArgumentException>(() => s.Begin(new Cell(1, 1), new Cell(0, 0)));
         Assert.Throws<ArgumentException>(() => s.Begin(new Cell(0, 0), new Cell(1, 1)));
         Assert.Throws<InvalidOperationException>(() => s.Step(1));
@@ -300,7 +300,7 @@ public class HostSearchTests
         GridSearch b = g.CreateSearch();
         b.TryBegin(new Cell(0, 0), new Cell(0, 0));
         b.RestoreState(idle);
-        Assert.Equal(SearchStatus.NotStarted, b.Status);
+        Assert.Equal(PathStatus.None, b.Status);
         Assert.True(b.SaveState().AsSpan().SequenceEqual(idle));
 
         GridSearch fast = g.CreateSearch();
@@ -380,13 +380,13 @@ public class HostSearchTests
             {
                 b.RestoreState(bad);
                 // Accepted: it must still run to an end without throwing.
-                if (b.Status != SearchStatus.NotStarted)
+                if (b.Status != PathStatus.None)
                 {
                     int n = 0;
                     while (b.Step(1000) == PathStatus.InProgress && ++n < 100)
                     {
                     }
-                    if (b.Status == SearchStatus.Found)
+                    if (b.Status == PathStatus.Found)
                     {
                         _ = b.CopyPath(new int[b.PathLength]);
                     }

@@ -27,7 +27,7 @@ public enum GraphAlgorithm
 }
 
 /// <summary>Plain options for one-line graph queries; every member is optional. No struct callbacks are needed.</summary>
-public sealed class GraphOptions
+public sealed record GraphOptions
 {
     /// <summary>Plain defaults: the search picks itself (Dijkstra without estimates), no filters, unlimited.</summary>
     public static GraphOptions Default => new();
@@ -67,7 +67,7 @@ public sealed class GraphOptions
     public Func<int, bool>? Blocked { get; init; }
 
     /// <summary>Maximum iterations (expansions); 0 means unlimited. A query that runs out ends with <see cref="PathStatus.BudgetExhausted"/>.</summary>
-    public int IterationBudget { get; init; }
+    public int IterationBudget { get; init => field = Require.That(value >= 0, value, nameof(IterationBudget), "0 (unlimited) or more"); }
 
     /// <summary>When true the result lists the expanded nodes in order (debug data; forward expansions first, then backward ones).</summary>
     public bool RecordExpansions { get; init; }

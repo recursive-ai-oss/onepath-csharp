@@ -20,7 +20,7 @@ Each stage is a public static method over plain types; `Mesh2DPipeline.Build` ru
 ## Plane mapping
 
 The geometry plane maps to the mesh as **x → world X, y → world Z**, and world Y is the constant
-`NavSettings.Height` for every vertex (tile-local Y is 0, the tile's `OriginY` is the height). A polygon that is
+`NavSettings.FloorY` for every vertex (tile-local Y is 0, the tile's `OriginY` is the height). A polygon that is
 counter-clockwise in the plane is counter-clockwise in X (right) / Z (up), which is the format's winding. There is no
 detail mesh, one layer (0), one area id and one flags value for all polygons (`NavSettings.Area`, `NavSettings.Flags`).
 

@@ -63,14 +63,25 @@ public sealed class GridSearch
             throw new ArgumentException($"GridSearch runs A*, JPS and JPS+; the options select {options.Algorithm}. Use Grid.FindPath for other algorithms.", nameof(options));
         }
         _grid = grid;
-        _options = options.Clone();
+        _options = options;
     }
 
     /// <summary>The grid searched.</summary>
     public Grid Grid => _grid;
 
-    /// <summary>Where the search stands: <see cref="SearchStatus.NotStarted"/> until <see cref="TryBegin"/> succeeds.</summary>
-    public SearchStatus Status => !_begun ? SearchStatus.NotStarted : _kind switch
+    /// <summary>
+    /// Where the search stands, in the shared path vocabulary: <see cref="PathStatus.None"/> until <see cref="TryBegin"/> succeeds,
+    /// <see cref="PathStatus.InProgress"/> while it has work left, then <see cref="PathStatus.Found"/> or <see cref="PathStatus.NoPath"/>.
+    /// </summary>
+    public PathStatus Status => EngineStatus switch
+    {
+        SearchStatus.Found => PathStatus.Found,
+        SearchStatus.NotFound => PathStatus.NoPath,
+        SearchStatus.Running => PathStatus.InProgress,
+        _ => PathStatus.None,
+    };
+
+    private SearchStatus EngineStatus => !_begun ? SearchStatus.NotStarted : _kind switch
     {
         Kind.FastAStar => _fast!.Status,
         Kind.FastJump => _jump!.Status,
@@ -103,7 +114,7 @@ public sealed class GridSearch
     };
 
     /// <summary>The cost of the path once <see cref="Status"/> is Found, otherwise +∞. Same value as <see cref="GridPath.Cost"/> from <c>FindPath</c>.</summary>
-    public double PathCost => Status != SearchStatus.Found ? double.PositiveInfinity : _kind switch
+    public double PathCost => EngineStatus != SearchStatus.Found ? double.PositiveInfinity : _kind switch
     {
         Kind.FastAStar => _unitCost * _fast!.PathCost,
         Kind.FastJump => _unitCost * _jump!.PathCost,
@@ -283,13 +294,35 @@ public sealed class GridSearch
         };
     }
 
+    // The result FindPath returns for the same search: used by the cooperative FindPathAsync, which drives this class in slices.
+    internal GridPath ToGridPath(PathStatus status, bool world)
+    {
+        GridAlgorithm used = _kind is Kind.FastJump or Kind.GenericJump ? (_plus ? GridAlgorithm.JpsPlus : GridAlgorithm.Jps) : GridAlgorithm.AStar;
+        if (status != PathStatus.Found)
+        {
+            return new GridPath(status, double.PositiveInfinity, null, ExpandedCount, null, null) { Algorithm = used };
+        }
+        var cells = new Cell[PathLength];
+        CopyPath(cells);
+        WorldPoint[]? points = null;
+        if (world)
+        {
+            points = new WorldPoint[cells.Length];
+            for (int i = 0; i < cells.Length; i++)
+            {
+                points[i] = _grid.CellCenter(cells[i]);
+            }
+        }
+        return new GridPath(PathStatus.Found, PathCost, cells, ExpandedCount, null, points) { Algorithm = used };
+    }
+
     /// <summary>Number of cells on the found path, start and goal included.</summary>
     /// <exception cref="InvalidOperationException">The search has not found a path.</exception>
     public int PathLength
     {
         get
         {
-            if (Status != SearchStatus.Found)
+            if (EngineStatus != SearchStatus.Found)
             {
                 throw new InvalidOperationException("The search has not found a path.");
             }

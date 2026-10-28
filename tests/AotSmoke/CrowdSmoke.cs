@@ -64,7 +64,7 @@ internal static class CrowdSmoke
         {
             crowd.RestoreState(snap.AsSpan(0, snap.Length / 2));
         }
-        catch (RecursiveAI.OnePath.Mesh.NavMeshFormatException)
+        catch (CrowdStateException)
         {
             rejected = true;
         }
@@ -94,7 +94,7 @@ internal static class CrowdSmoke
         var bytes = new List<byte>();
         foreach (Agent a in agents)
         {
-            arrived &= a.State == RecursiveAI.OnePath.Crowds.Corridors.FollowerState.Arrived;
+            arrived &= a.State == RecursiveAI.OnePath.FollowerState.Arrived;
             bytes.AddRange(a.Path.ToBytes());
         }
         debug = CrowdDebug.Collect(crowd).Agents.Count == agents.Count;

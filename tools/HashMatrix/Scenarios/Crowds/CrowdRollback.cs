@@ -85,8 +85,7 @@ internal static class CrowdRollback
     /// <summary>The number of agents standing in an off-mesh crossing.</summary>
     public static int Crossing(Crowd crowd)
     {
-        var list = new List<Agent>();
-        crowd.CopyAgents(list);
+        var list = new List<Agent>(crowd);
         int n = 0;
         foreach (Agent a in list)
         {

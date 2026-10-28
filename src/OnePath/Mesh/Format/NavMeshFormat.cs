@@ -49,7 +49,7 @@ public static class NavMeshFormat
 /// Thrown when mesh or tile data is malformed: a validation failure of hand-built data, or a byte stream that
 /// is truncated, inconsistent or hostile. The message names what was wrong and where.
 /// </summary>
-public class NavMeshFormatException : Exception
+public class NavMeshFormatException : OnePathFormatException
 {
     /// <summary>Creates the exception with a message.</summary>
     public NavMeshFormatException(string message)
@@ -58,7 +58,7 @@ public class NavMeshFormatException : Exception
     }
 
     /// <summary>Creates the exception with a message and an inner exception.</summary>
-    public NavMeshFormatException(string message, Exception innerException)
+    public NavMeshFormatException(string message, Exception? innerException)
         : base(message, innerException)
     {
     }
@@ -81,6 +81,26 @@ public sealed class NavMeshVersionException : NavMeshFormatException
         Expected = expected;
     }
 
+    /// <summary>Creates the exception with a message; <see cref="Found"/> and <see cref="Expected"/> are 0.</summary>
+    /// <param name="message">What was wrong.</param>
+    public NavMeshVersionException(string message)
+        : base(message)
+    {
+    }
+
+    /// <summary>Creates the exception with a message and a cause; <see cref="Found"/> and <see cref="Expected"/> are 0.</summary>
+    /// <param name="message">What was wrong.</param>
+    /// <param name="innerException">The cause.</param>
+    public NavMeshVersionException(string message, Exception? innerException)
+        : base(message, innerException)
+    {
+    }
+
+    /// <summary>Creates the exception with a default message; <see cref="Found"/> and <see cref="Expected"/> are 0.</summary>
+    public NavMeshVersionException()
+    {
+    }
+
     /// <summary>The version found in the data.</summary>
     public int Found { get; }
 
@@ -100,6 +120,26 @@ public sealed class NavMeshFingerprintException : NavMeshFormatException
     {
         Found = found;
         Expected = expected;
+    }
+
+    /// <summary>Creates the exception with a message; <see cref="Found"/> and <see cref="Expected"/> are the default fingerprint.</summary>
+    /// <param name="message">What was wrong.</param>
+    public NavMeshFingerprintException(string message)
+        : base(message)
+    {
+    }
+
+    /// <summary>Creates the exception with a message and a cause; <see cref="Found"/> and <see cref="Expected"/> are the default fingerprint.</summary>
+    /// <param name="message">What was wrong.</param>
+    /// <param name="innerException">The cause.</param>
+    public NavMeshFingerprintException(string message, Exception? innerException)
+        : base(message, innerException)
+    {
+    }
+
+    /// <summary>Creates the exception with a default message; <see cref="Found"/> and <see cref="Expected"/> are the default fingerprint.</summary>
+    public NavMeshFingerprintException()
+    {
     }
 
     /// <summary>The fingerprint carried by the tile.</summary>

@@ -5,8 +5,14 @@ using System.Text.Json;
 namespace RecursiveAI.OnePath.Mesh.Build3D;
 
 /// <summary>Thrown when a glTF file is malformed, uses something the reader does not support, or exceeds a limit; the message names where.</summary>
-public sealed class GltfException : Exception
+public sealed class GltfException : OnePathFormatException
 {
+    /// <summary>Creates the exception with a default message.</summary>
+    public GltfException()
+        : base("The glTF data is malformed.")
+    {
+    }
+
     /// <summary>Creates the exception with a message.</summary>
     public GltfException(string message)
         : base(message)
@@ -14,7 +20,7 @@ public sealed class GltfException : Exception
     }
 
     /// <summary>Creates the exception with a message and a cause.</summary>
-    public GltfException(string message, Exception inner)
+    public GltfException(string message, Exception? inner)
         : base(message, inner)
     {
     }

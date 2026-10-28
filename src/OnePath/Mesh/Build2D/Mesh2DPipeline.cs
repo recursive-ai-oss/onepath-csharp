@@ -25,7 +25,7 @@ public static class Mesh2DPipeline
     /// polygonal arcs stay within a cell of the true circle at any radius.
     /// </summary>
     internal static double ArcTolerance(NavSettings settings) =>
-        Math.Max(settings.CellSize / 4, Math.Min(0.0825 * settings.AgentRadius, settings.CellSize / 2));
+        Math.Max(settings.CellSize / 4, Math.Min(0.0825 * (float)settings.AgentRadius, settings.CellSize / 2));
 
     /// <summary>
     /// Shrinks the walkable area by the agent radius, rounding every reflex corner with an arc polygon of equal area to
@@ -98,13 +98,13 @@ public static class Mesh2DPipeline
         ArgumentNullException.ThrowIfNull(walkable);
         ArgumentNullException.ThrowIfNull(settings);
         NavMeshParams p = settings.ToParams();
-        NavMeshParams.CheckWorld(settings.Height, nameof(settings.Height));
+        NavMeshParams.CheckWorld(settings.FloorY, nameof(settings.FloorY));
         OffMeshLinkBaker.Validate(p, settings.OffMeshLinks);
-        Region shrunk = Shrink(walkable, settings.AgentRadius, ArcTolerance(settings));
+        Region shrunk = Shrink(walkable, (float)settings.AgentRadius, ArcTolerance(settings));
         var tiles = new List<NavTileData>();
         foreach (TilePartition t in TileSlicer.Slice(shrunk, p))
         {
-            tiles.Add(ToTileData(t, p, settings.Height, settings.Area, settings.Flags));
+            tiles.Add(ToTileData(t, p, settings.FloorY, settings.Area, settings.Flags));
         }
         OffMeshLinkBaker.Attach(p, settings.OffMeshLinks, tiles, 0);
         return Assemble(p, tiles);

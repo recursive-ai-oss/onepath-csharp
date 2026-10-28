@@ -167,7 +167,7 @@ public sealed partial class Crowd
     /// </para>
     /// </summary>
     /// <param name="state">Bytes from <see cref="SaveState()"/> of a crowd with the same options.</param>
-    /// <exception cref="NavMeshFormatException">The bytes are truncated, not crowd state, of another version, hold an impossible value (a count beyond the crowd's limits, a NaN, a corridor larger than its capacity, a duplicate agent id) or were saved with different wall-cache settings; the message names which.</exception>
+    /// <exception cref="CrowdStateException">The bytes are truncated, not crowd state, of another version, hold an impossible value (a count beyond the crowd's limits, a NaN, a corridor larger than its capacity, a duplicate agent id) or were saved with different wall-cache settings; the message names which.</exception>
     public void RestoreState(ReadOnlySpan<byte> state)
     {
         Validate(state, KindCrowd, out RestoreHeader h);
@@ -200,7 +200,8 @@ public sealed partial class Crowd
     /// </summary>
     /// <param name="state">Bytes from <see cref="SaveStateWithMesh"/>.</param>
     /// <param name="library">Tiles for a mesh part saved in <see cref="SnapshotMode.Referenced"/> mode; null otherwise.</param>
-    /// <exception cref="NavMeshFormatException">As for <see cref="RestoreState"/> and <see cref="NavMeshSnapshot.RestoreInto"/>.</exception>
+    /// <exception cref="CrowdStateException">As for <see cref="RestoreState"/>.</exception>
+    /// <exception cref="NavMeshFormatException">As for <see cref="NavMeshSnapshot.RestoreInto"/>.</exception>
     public void RestoreStateWithMesh(ReadOnlySpan<byte> state, TileLibrary? library = null)
     {
         var r = new CrowdStateReader(state, "crowd");
@@ -268,17 +269,17 @@ public sealed partial class Crowd
         }
         if ((uint)r.I32() != StateMagic)
         {
-            throw new NavMeshFormatException("Invalid crowd state: bad magic (not crowd state).");
+            throw new CrowdStateException("Invalid crowd state: bad magic (not crowd state).");
         }
         int version = r.U16();
         if (version != StateVersion)
         {
-            throw new NavMeshFormatException($"Invalid crowd state: version {version}, expected {StateVersion}.");
+            throw new CrowdStateException($"Invalid crowd state: version {version}, expected {StateVersion}.");
         }
         int k = r.U16();
         if (k != kind)
         {
-            throw new NavMeshFormatException($"Invalid crowd state: kind {k}, expected {kind}.");
+            throw new CrowdStateException($"Invalid crowd state: kind {k}, expected {kind}.");
         }
     }
 
@@ -509,9 +510,19 @@ public sealed partial class Crowd
             bool reuse = _rsOpt[i] is null;
             if (!reuse)
             {
-                old?.Deactivate();
+                // The same agent with other settings (they were changed with Agent.SetOptions): the handle stays valid.
+                Agent agent;
+                if (old is not null && old.Id == id)
+                {
+                    agent = old;
+                    agent.Options = _rsOpt[i]!;
+                }
+                else
+                {
+                    old?.Deactivate();
+                    agent = new Agent(this, i, id, _rsOpt[i]!);
+                }
                 old = null;
-                var agent = new Agent(this, i, id, _rsOpt[i]!);
                 _agents[i] = agent;
                 _agentOpt[i] = agent.Options;
                 _follow[i] = _rsFollow[i];
@@ -610,58 +621,59 @@ public sealed partial class Crowd
         {
             throw r.Error("path settings flag", hasPath);
         }
-        FollowerOptions? path = null;
-        if (hasPath == 1)
-        {
-            path = new FollowerOptions
-            {
-                MaxSpeed = r.F64("path max speed", false),
-                MaxAcceleration = r.F64("path max acceleration", false),
-                SlowRadius = r.F64("slow radius", false),
-                ArrivalMinSpeed = r.F64("arrival min speed", false),
-                ArrivalRadius = r.F64("path arrival radius", false),
-                MaxCorners = r.I32(),
-                ValidateLookAhead = r.I32(),
-                OptimizeInterval = r.I32(),
-                OptimizeRange = r.F64("optimize range", false),
-                OptimizeBudget = r.I32(),
-                TopologyInterval = r.I32(),
-                TopologyBudget = r.I32(),
-                ReplanBudget = r.I32(),
-                MaxReplanRounds = r.I32(),
-                StuckWindow = r.F64("stuck window", false),
-                StuckProgress = r.F64("stuck progress", false),
-                MaxStuckRecoveries = r.I32(),
-                OffMeshMode = (OffMeshMode)r.U8(),
-                OffMeshSpeed = r.F64("off-mesh speed", false),
-                OffMeshTriggerRadius = r.F64("off-mesh trigger radius", false),
-                SearchExtents = new Vector3D(r.F64("search extents", false), r.F64("search extents", false), r.F64("search extents", false)),
-                CorridorCapacity = r.I32(),
-            };
-        }
-        var o = new AgentOptions
-        {
-            Radius = radius,
-            MaxSpeed = maxSpeed,
-            MaxAcceleration = maxAcc,
-            ArrivalRadius = arrival,
-            Priority = priority,
-            Quality = (AvoidanceQuality)quality,
-            WallClearance = clearance,
-            SeparationDistance = sepDist,
-            SeparationWeight = sepWeight,
-            SidePreference = side,
-            Path = path,
-        };
+        // The option types check each value as it is set, so a damaged value surfaces as an ArgumentOutOfRangeException from the initializer.
         try
         {
+            FollowerOptions? path = null;
+            if (hasPath == 1)
+            {
+                path = new FollowerOptions
+                {
+                    MaxSpeed = r.F64("path max speed", false),
+                    MaxAcceleration = r.F64("path max acceleration", false),
+                    SlowRadius = r.F64("slow radius", false),
+                    ArrivalMinSpeed = r.F64("arrival min speed", false),
+                    ArrivalRadius = r.F64("path arrival radius", false),
+                    MaxCorners = r.I32(),
+                    ValidateLookAhead = r.I32(),
+                    OptimizeInterval = r.I32(),
+                    OptimizeRange = r.F64("optimize range", false),
+                    OptimizeBudget = r.I32(),
+                    TopologyInterval = r.I32(),
+                    TopologyBudget = r.I32(),
+                    ReplanBudget = r.I32(),
+                    MaxReplanRounds = r.I32(),
+                    StuckWindow = r.F64("stuck window", false),
+                    StuckProgress = r.F64("stuck progress", false),
+                    MaxStuckRecoveries = r.I32(),
+                    OffMeshMode = (OffMeshMode)r.U8(),
+                    OffMeshSpeed = r.F64("off-mesh speed", false),
+                    OffMeshTriggerRadius = r.F64("off-mesh trigger radius", false),
+                    SearchExtents = new Vector3D(r.F64("search extents", false), r.F64("search extents", false), r.F64("search extents", false)),
+                    CorridorCapacity = r.I32(),
+                };
+            }
+            var o = new AgentOptions
+            {
+                Radius = radius,
+                MaxSpeed = maxSpeed,
+                MaxAcceleration = maxAcc,
+                ArrivalRadius = arrival,
+                Priority = priority,
+                Quality = (AvoidanceQuality)quality,
+                WallClearance = clearance,
+                SeparationDistance = sepDist,
+                SeparationWeight = sepWeight,
+                SidePreference = side,
+                Path = path,
+            };
             o.Validate();
+            return o;
         }
         catch (ArgumentOutOfRangeException e)
         {
-            throw new NavMeshFormatException($"Invalid crowd state: agent settings: {e.Message}", e);
+            throw new CrowdStateException($"Invalid crowd state: agent settings: {e.Message}", e);
         }
-        return o;
     }
 
     // Little-endian state writer over a caller's span, in one of two modes. Writing: bytes go into the span; what does not fit is

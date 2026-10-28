@@ -176,7 +176,7 @@ public class NavMeshFormatTests
             NavSettings.Humanoid with { CellHeight = 0.25 },
             NavSettings.Humanoid with { MinRegionArea = 10 },
             NavSettings.Humanoid with { DetailMaxError = 0.3 },
-            NavSettings.Humanoid with { Partition = RecursiveAI.OnePath.Mesh.Build3D.PartitionType.Layers },
+            NavSettings.Humanoid with { Partition = RecursiveAI.OnePath.PartitionType.Layers },
             NavSettings.Humanoid with { SnapBits = 8 },
             NavSettings.Humanoid with { AgentRadius = 0.7f },
             NavSettings.Humanoid with { TileSize = 32 },

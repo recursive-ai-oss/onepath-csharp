@@ -303,7 +303,7 @@ internal static class GridTargets
         other.RestoreState(saved);
         foreach (GridSearch h in new[] { search, other })
         {
-            PathStatus s = h == search ? st : other.Status == SearchStatus.Found ? PathStatus.Found : PathStatus.InProgress;
+            PathStatus s = h == search ? st : other.Status == PathStatus.Found ? PathStatus.Found : PathStatus.InProgress;
             while (s == PathStatus.InProgress)
             {
                 s = h.Step(1 + (Next(data, ref pos) % 11));

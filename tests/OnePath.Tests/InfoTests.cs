@@ -1,3 +1,4 @@
+using RecursiveAI.OneMath;
 using RecursiveAI.OnePath;
 using Xunit;
 
@@ -15,7 +16,7 @@ public class InfoTests
     public void OneMathResolvesAndConverts()
     {
         Assert.True(OnePathInfo.OneMathVersion.Major >= 0);
-        Assert.Equal(1.5, OnePathInfo.FixedToDouble(3L << 31));
-        Assert.Throws<System.ArgumentOutOfRangeException>(() => OnePathInfo.FixedToDouble(long.MaxValue));
+        Assert.Equal(1.5, FixedBridge.ToDouble(3L << 31));
+        Assert.Throws<System.ArgumentOutOfRangeException>(() => FixedBridge.ToDouble(long.MaxValue));
     }
 }

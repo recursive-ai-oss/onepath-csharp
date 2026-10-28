@@ -93,11 +93,7 @@ public class TileCacheTests
         All(c);
         Assert.Equal(0, c.PendingCount);
 
-        var baked = new Mesh3DPipeline(Settings);
-        foreach (TileObstacle o in Sample)
-        {
-            baked.Obstacles.Add(o);
-        }
+        var baked = new Mesh3DPipeline(Settings) { Obstacles = [.. Sample] };
         TiledNavMesh full = baked.BuildSoup(s.V.ToArray(), s.I.ToArray());
         AssertSame(full, c.Mesh);
         Assert.Empty(NavMeshValidator.Validate(c.Mesh));
@@ -439,8 +435,7 @@ public class TileCacheTests
         NavSettings st = Make(PartitionType.Layers);
         var p = new Mesh3DPipeline(st);
         TileCache c = p.BuildSoupCached(s.V.ToArray(), s.I.ToArray());
-        var baked = new Mesh3DPipeline(st);
-        baked.Obstacles.Add(TileObstacle.Box(8, 3.5, 8, 12, 5, 12));
+        var baked = new Mesh3DPipeline(st) { Obstacles = [TileObstacle.Box(8, 3.5, 8, 12, 5, 12)] };
         c.AddObstacle(TileObstacle.Box(8, 3.5, 8, 12, 5, 12));
         All(c);
         AssertSame(baked.BuildSoup(s.V.ToArray(), s.I.ToArray()), c.Mesh);

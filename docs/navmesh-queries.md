@@ -108,11 +108,21 @@ occurrence is kept), so every polygon appears once. A buffer shorter than the co
 
 **Slicing.** The result of `UpdatePath` calls totalling any number of iterations followed by completion equals the result of one
 unlimited call, for every budget: slicing only decides where the same loop pauses. `UpdatePath(int)` uses the plain filter given to
-`BeginPath`; `UpdatePath<TFilter>` must be given the same filter value each time. `FindPathAsync` runs slices of
-`iterationsPerSlice` iterations, awaiting `Task.Yield()` between them, checks the cancellation token between slices (throws
+`BeginPath`; `UpdatePath<TFilter>` must be given the same filter value each time. `FindPathAsync(start, end, options, token)` runs slices of
+`PathOptions.IterationsPerSlice` (default 256) iterations on the caller's context, awaiting `Task.Yield()` between them, checks the cancellation token between slices (throws
 `OperationCanceledException`) and returns exactly what the synchronous call returns. The tier-1 `NavMesh.FindPath` takes an optional
 token too (checked every 256 expansions; cancelling throws and abandons the search, which the next call on the same query object
-replaces), and `NavMesh.FindPathAsync` is `NavMeshQuery.FindPathAsync` on a fresh query object.
+replaces), and `NavMesh.FindPathAsync` is `NavMeshQuery.FindPathAsync` on a pooled query object. Nothing moves to the thread pool; to search on another
+thread run `FindPath` inside `Task.Run`.
+
+**Pooled query objects (tier 1).** `NavMesh.FindPath`/`FindPathAsync`, `NavWorld.FindPath`, the `TiledNavMesh.FindPath` extension and the
+tier-1 `TrySamplePosition`, `Raycast` and `TryGetRandomPoint` borrow a default-sized query object (65,536 nodes, polygon node model)
+from the mesh for the length of the call. The mesh keeps up to four spares; a borrow takes one with an atomic exchange, a call that
+finds none builds a new one, and a return that finds all four slots full drops its object. A query holds no result state between
+searches (each search starts by stamping its tables afresh and reads the mesh edit counter), so a pooled object gives exactly the
+bits a new one gives, after any sequence of mesh edits. The tier-1 `Raycast` snaps its start to the nearest polygon within
+(2, 4, 2) first; a start with none is reported as blocked at the start. `TrySamplePosition` searches the box of half extent
+`maxDistance` and accepts a polygon point within `maxDistance` (3D). `TryGetRandomPoint` is `RandomPoint` on the whole mesh.
 
 ## Straight path (string pulling)
 

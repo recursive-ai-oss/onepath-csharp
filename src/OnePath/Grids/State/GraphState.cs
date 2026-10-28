@@ -35,7 +35,7 @@ public sealed partial class Graph
     /// <summary>Creates a graph from bytes written by <see cref="SaveState"/>.</summary>
     /// <param name="state">The bytes.</param>
     /// <returns>A graph equal to the saved one, with the same edge ids.</returns>
-    /// <exception cref="GridStateException">The bytes are truncated, of another kind or version, or name nodes or weights that are not valid.</exception>
+    /// <exception cref="GraphStateException">The bytes are truncated, of another kind or version, or name nodes or weights that are not valid.</exception>
     public static Graph FromState(ReadOnlySpan<byte> state)
     {
         var g = new Graph();
@@ -49,7 +49,7 @@ public sealed partial class Graph
     /// Must not overlap a running query.
     /// </summary>
     /// <param name="state">The bytes.</param>
-    /// <exception cref="GridStateException">The bytes are truncated, of another kind or version, or name nodes or weights that are not valid.</exception>
+    /// <exception cref="GraphStateException">The bytes are truncated, of another kind or version, or name nodes or weights that are not valid.</exception>
     public void RestoreState(ReadOnlySpan<byte> state)
     {
         var r = new StateReader(state, StateKind.Graph);

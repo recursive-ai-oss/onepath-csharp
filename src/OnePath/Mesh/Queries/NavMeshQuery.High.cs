@@ -46,18 +46,16 @@ public sealed partial class NavMeshQuery
     }
 
     /// <summary>
-    /// Same as <see cref="FindPath(Vector3D, Vector3D, PathOptions?, CancellationToken)"/>, run in slices of <paramref name="iterationsPerSlice"/>
-    /// expansions with a yield between slices, so a host stays responsive. The result is identical to the synchronous one.
-    /// Do not use the query object for anything else while the returned task runs.
+    /// Same as <see cref="FindPath(Vector3D, Vector3D, PathOptions?, CancellationToken)"/>, run on the caller's context in slices of
+    /// <see cref="PathOptions.IterationsPerSlice"/> expansions with a yield between slices, so a host stays responsive. The result is
+    /// identical to the synchronous one. Nothing moves to the thread pool. Do not use the query object for anything else while the
+    /// returned task runs.
     /// </summary>
     /// <exception cref="OperationCanceledException">The token was cancelled between slices.</exception>
-    public async Task<PathResult> FindPathAsync(Vector3D start, Vector3D end, PathOptions? options = null, int iterationsPerSlice = 256, CancellationToken cancellationToken = default)
+    public async Task<PathResult> FindPathAsync(Vector3D start, Vector3D end, PathOptions? options = null, CancellationToken cancellationToken = default)
     {
-        if (iterationsPerSlice < 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(iterationsPerSlice), iterationsPerSlice, "A slice must be at least one iteration.");
-        }
         PathOptions o = options ?? s_defaultOptions;
+        int iterationsPerSlice = o.IterationsPerSlice;
         QueryStatus s = BeginHigh(start, end, o, out NearestPoly sn, out NearestPoly en);
         while (s == QueryStatus.InProgress)
         {
@@ -142,6 +140,14 @@ public static class TiledNavMeshQueryExtensions
     public static PathResult FindPath(this TiledNavMesh mesh, Vector3D start, Vector3D end, PathOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(mesh);
-        return new NavMeshQuery(mesh).FindPath(start, end, options, cancellationToken);
+        NavMeshQuery q = mesh.RentQuery();
+        try
+        {
+            return q.FindPath(start, end, options, cancellationToken);
+        }
+        finally
+        {
+            mesh.ReturnQuery(q);
+        }
     }
 }

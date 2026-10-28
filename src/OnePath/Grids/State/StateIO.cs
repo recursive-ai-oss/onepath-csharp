@@ -10,7 +10,7 @@ namespace RecursiveAI.OnePath;
 /// The message names the byte offset and what was wrong. The object being restored may be partly changed when this is thrown;
 /// restore again from good bytes or discard it.
 /// </summary>
-public sealed class GridStateException : FormatException
+public sealed class GridStateException : OnePathFormatException
 {
     /// <summary>Creates the exception with a message.</summary>
     /// <param name="message">What was wrong.</param>
@@ -112,34 +112,37 @@ internal sealed class StateWriter
     internal byte[] ToArray() => _buffer.AsSpan(0, _length).ToArray();
 }
 
-/// <summary>Reads the state format with bounds checks; every failure is a <see cref="GridStateException"/>.</summary>
+/// <summary>Reads the state format with bounds checks; every failure is a <see cref="GridStateException"/> (a <see cref="GraphStateException"/> for graph state).</summary>
 internal ref struct StateReader
 {
     private readonly ReadOnlySpan<byte> _data;
+    private readonly bool _graph;
     private int _pos;
 
     internal StateReader(ReadOnlySpan<byte> data, StateKind expected)
     {
         _data = data;
         _pos = 0;
+        // Graph state is reported as graph state, everything else as grid state, so each error names its own subject.
+        _graph = expected is StateKind.Graph or StateKind.GraphAStar;
         if (data.Length < 8)
         {
-            throw new GridStateException(string.Create(CultureInfo.InvariantCulture, $"The state has {data.Length} bytes; the header alone is 8."));
+            throw Make(string.Create(CultureInfo.InvariantCulture, $"The state has {data.Length} bytes; the header alone is 8."));
         }
         uint magic = U32();
         if (magic != StateWriter.Magic)
         {
-            throw new GridStateException("The bytes are not onepath grid state (bad magic number).");
+            throw Make(_graph ? "The bytes are not onepath graph state (bad magic number)." : "The bytes are not onepath grid state (bad magic number).");
         }
         ushort version = U16();
         if (version != StateWriter.FormatVersion)
         {
-            throw new GridStateException(string.Create(CultureInfo.InvariantCulture, $"State format version {version} is not supported (this build reads {StateWriter.FormatVersion})."));
+            throw Make(string.Create(CultureInfo.InvariantCulture, $"State format version {version} is not supported (this build reads {StateWriter.FormatVersion})."));
         }
         ushort kind = U16();
         if (kind != (ushort)expected)
         {
-            throw new GridStateException(string.Create(CultureInfo.InvariantCulture, $"The state holds object kind {kind} but kind {(ushort)expected} ({expected}) was expected."));
+            throw Make(string.Create(CultureInfo.InvariantCulture, $"The state holds object kind {kind} but kind {(ushort)expected} ({expected}) was expected."));
         }
     }
 
@@ -147,8 +150,10 @@ internal ref struct StateReader
 
     internal readonly int Remaining => _data.Length - _pos;
 
-    internal readonly GridStateException Fail(string message) =>
-        new(string.Create(CultureInfo.InvariantCulture, $"Bad state at byte {_pos}: {message}"));
+    internal readonly OnePathFormatException Fail(string message) =>
+        Make(string.Create(CultureInfo.InvariantCulture, $"Bad state at byte {_pos}: {message}"));
+
+    private readonly OnePathFormatException Make(string message) => _graph ? new GraphStateException(message) : new GridStateException(message);
 
     private ReadOnlySpan<byte> Take(int count)
     {

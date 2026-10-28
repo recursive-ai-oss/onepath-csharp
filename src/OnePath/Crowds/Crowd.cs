@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using RecursiveAI.OneMath;
@@ -21,7 +22,7 @@ namespace RecursiveAI.OnePath;
 /// with of the others. A crowd is not thread-safe; its state is plain data (see <c>docs/crowds.md</c>).
 /// </para>
 /// </summary>
-public sealed partial class Crowd
+public sealed partial class Crowd : IEnumerable<Agent>
 {
     private const int ChunkSize = 32;
     private const int MaxNeighborSlots = 12;
@@ -175,17 +176,85 @@ public sealed partial class Crowd
         return true;
     }
 
-    /// <summary>Appends the agents to <paramref name="destination"/> in slot order (the order a step handles them).</summary>
-    /// <exception cref="ArgumentNullException"><paramref name="destination"/> is null.</exception>
-    public void CopyAgents(List<Agent> destination)
+    /// <summary>
+    /// Copies the agents into <paramref name="destination"/> in slot order (the order a step handles them). Allocates nothing; size the span
+    /// with <see cref="Count"/>. To enumerate without a buffer, use <c>foreach</c> over the crowd.
+    /// </summary>
+    /// <param name="destination">At least <see cref="Count"/> long.</param>
+    /// <returns>The number of agents written, equal to <see cref="Count"/>.</returns>
+    /// <exception cref="ArgumentException"><paramref name="destination"/> is shorter than <see cref="Count"/>.</exception>
+    public int CopyAgents(Span<Agent> destination)
     {
-        ArgumentNullException.ThrowIfNull(destination);
+        if (destination.Length < _count)
+        {
+            throw new ArgumentException($"The destination holds {destination.Length} agents but the crowd has {_count}.", nameof(destination));
+        }
+        int n = 0;
         for (int i = 0; i < _slotCount; i++)
         {
             if (_agents[i] is { } a)
             {
-                destination.Add(a);
+                destination[n++] = a;
             }
+        }
+        return n;
+    }
+
+    /// <summary>
+    /// Enumerates the agents in slot order (the order a step handles them) without allocating. Do not add or remove agents while enumerating.
+    /// </summary>
+    /// <returns>The enumerator.</returns>
+    public AgentEnumerator GetEnumerator() => new(this);
+
+    IEnumerator<Agent> IEnumerable<Agent>.GetEnumerator() => new AgentEnumerator(this);
+
+    IEnumerator IEnumerable.GetEnumerator() => new AgentEnumerator(this);
+
+    /// <summary>Enumerates the agents of a <see cref="Crowd"/> in slot order.</summary>
+    public struct AgentEnumerator : IEnumerator<Agent>
+    {
+        private readonly Crowd _crowd;
+        private int _slot;
+        private Agent? _current;
+
+        internal AgentEnumerator(Crowd crowd)
+        {
+            _crowd = crowd;
+            _slot = -1;
+            _current = null;
+        }
+
+        /// <summary>The current agent.</summary>
+        public readonly Agent Current => _current ?? throw new InvalidOperationException("The enumerator is not on an agent.");
+
+        readonly object IEnumerator.Current => Current;
+
+        /// <summary>Moves to the next agent.</summary>
+        /// <returns>False at the end.</returns>
+        public bool MoveNext()
+        {
+            while (++_slot < _crowd._slotCount)
+            {
+                if (_crowd._agents[_slot] is { } a)
+                {
+                    _current = a;
+                    return true;
+                }
+            }
+            _current = null;
+            return false;
+        }
+
+        /// <summary>Starts over.</summary>
+        public void Reset()
+        {
+            _slot = -1;
+            _current = null;
+        }
+
+        /// <summary>Does nothing.</summary>
+        public readonly void Dispose()
+        {
         }
     }
 
@@ -232,6 +301,17 @@ public sealed partial class Crowd
     internal double PriorityAt(int slot) => _priority[slot];
 
     internal void SetPriorityAt(int slot, double value) => _priority[slot] = value;
+
+    internal void SetOptionsAt(int slot, AgentOptions options)
+    {
+        options.Validate();
+        _follow[slot]!.ReplaceOptions(options.ToFollowerOptions());
+        _agentOpt[slot] = options;
+        _priority[slot] = options.Priority;
+        // The wall cache was gathered with the old reach (speed, clearance); gather it again on the next step.
+        _wallStamp[slot] = -1;
+        _wallCount[slot] = 0;
+    }
 
     internal QueryStatus SetDestinationAt(int slot, Vector3D destination)
     {

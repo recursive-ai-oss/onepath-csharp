@@ -5,17 +5,6 @@ using RecursiveAI.OnePath.Graphs;
 
 namespace RecursiveAI.OnePath;
 
-/// <summary>Thrown when serialized landmark data is malformed or was built for a different graph.</summary>
-public sealed class GraphFormatException : Exception
-{
-    /// <summary>Creates the exception.</summary>
-    /// <param name="message">What was wrong and where.</param>
-    public GraphFormatException(string message)
-        : base(message)
-    {
-    }
-}
-
 /// <summary>How <see cref="Landmarks.Build"/> picks landmark nodes.</summary>
 public enum LandmarkSelection
 {
@@ -31,10 +20,10 @@ public enum LandmarkSelection
 }
 
 /// <summary>Options for <see cref="Graph.BuildLandmarks"/> and <see cref="PointGraph.BuildLandmarks"/>.</summary>
-public sealed class LandmarkOptions
+public sealed record LandmarkOptions
 {
     /// <summary>Requested number of landmarks, at least 1; capped at the node count. Default 16, a good value for road-like graphs.</summary>
-    public int Count { get; init; } = 16;
+    public int Count { get; init => field = Require.That(value >= 1, value, nameof(Count), "at least 1"); } = 16;
 
     /// <summary>How landmarks are chosen. Default <see cref="LandmarkSelection.Avoid"/>.</summary>
     public LandmarkSelection Selection { get; init; } = LandmarkSelection.Avoid;
@@ -240,42 +229,42 @@ public sealed class Landmarks
     /// <param name="graph">The graph the table must belong to.</param>
     /// <returns>The table.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="graph"/> is null.</exception>
-    /// <exception cref="GraphFormatException">The data is truncated, has a wrong magic, version or size, holds an out-of-range node id or an invalid distance, or was built for another graph.</exception>
+    /// <exception cref="GraphStateException">The data is truncated, has a wrong magic, version or size, holds an out-of-range node id or an invalid distance, or was built for another graph.</exception>
     public static Landmarks Deserialize(ReadOnlySpan<byte> data, CsrGraph graph)
     {
         ArgumentNullException.ThrowIfNull(graph);
         if (data.Length < 24)
         {
-            throw new GraphFormatException($"Landmark data is {data.Length} bytes; the header alone needs 24.");
+            throw new GraphStateException($"Landmark data is {data.Length} bytes; the header alone needs 24.");
         }
         if (!data[..4].SequenceEqual(Magic))
         {
-            throw new GraphFormatException("Landmark data does not start with the OPLM magic.");
+            throw new GraphStateException("Landmark data does not start with the OPLM magic.");
         }
         uint version = BinaryPrimitives.ReadUInt32LittleEndian(data[4..]);
         if (version != FormatVersion)
         {
-            throw new GraphFormatException($"Landmark data has format version {version}; this build reads version {FormatVersion}.");
+            throw new GraphStateException($"Landmark data has format version {version}; this build reads version {FormatVersion}.");
         }
         int n = BinaryPrimitives.ReadInt32LittleEndian(data[8..]);
         int k = BinaryPrimitives.ReadInt32LittleEndian(data[12..]);
         ulong fingerprint = BinaryPrimitives.ReadUInt64LittleEndian(data[16..]);
         if (n != graph.NodeCount)
         {
-            throw new GraphFormatException($"Landmark data is for {n} nodes but the graph has {graph.NodeCount}.");
+            throw new GraphStateException($"Landmark data is for {n} nodes but the graph has {graph.NodeCount}.");
         }
         if (k < 1 || k > n)
         {
-            throw new GraphFormatException($"Landmark count {k} is outside 1..{n}.");
+            throw new GraphStateException($"Landmark count {k} is outside 1..{n}.");
         }
         long expected = 24L + (4L * k) + (16L * k * n);
         if (data.Length != expected)
         {
-            throw new GraphFormatException($"Landmark data is {data.Length} bytes; {k} landmarks over {n} nodes need exactly {expected}.");
+            throw new GraphStateException($"Landmark data is {data.Length} bytes; {k} landmarks over {n} nodes need exactly {expected}.");
         }
         if (fingerprint != graph.Fingerprint())
         {
-            throw new GraphFormatException("Landmark data was built for a different graph (fingerprint mismatch).");
+            throw new GraphStateException("Landmark data was built for a different graph (fingerprint mismatch).");
         }
         var nodes = new int[k];
         int p = 24;
@@ -284,7 +273,7 @@ public sealed class Landmarks
             int node = BinaryPrimitives.ReadInt32LittleEndian(data[p..]);
             if ((uint)node >= (uint)n)
             {
-                throw new GraphFormatException($"Landmark {i} is node {node}, outside 0..{n - 1}.");
+                throw new GraphStateException($"Landmark {i} is node {node}, outside 0..{n - 1}.");
             }
             nodes[i] = node;
         }
@@ -296,7 +285,7 @@ public sealed class Landmarks
         {
             if (from[(i * n) + nodes[i]] != 0.0 || to[(i * n) + nodes[i]] != 0.0)
             {
-                throw new GraphFormatException($"Landmark {i} (node {nodes[i]}) has a nonzero distance to itself.");
+                throw new GraphStateException($"Landmark {i} (node {nodes[i]}) has a nonzero distance to itself.");
             }
         }
         return new Landmarks(n, nodes, from, to, fingerprint, graph);
@@ -309,7 +298,7 @@ public sealed class Landmarks
             double d = BitConverter.UInt64BitsToDouble(BinaryPrimitives.ReadUInt64LittleEndian(data[p..]));
             if (!(d >= 0.0))
             {
-                throw new GraphFormatException(string.Create(CultureInfo.InvariantCulture, $"Landmark {name} table entry {i} is {d}; distances must be 0 or more."));
+                throw new GraphStateException(string.Create(CultureInfo.InvariantCulture, $"Landmark {name} table entry {i} is {d}; distances must be 0 or more."));
             }
             table[i] = d;
         }

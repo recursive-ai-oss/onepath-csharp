@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>RecursiveAI.OnePath.FormatFixtures</RootNamespace>
+    <AssemblyName>FormatFixtures</AssemblyName>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/OnePath/OnePath.csproj" />
+    <!-- The scenes reuse the worlds of the hash-matrix scenarios; the probes (FixtureProbes.cs) use the public API alone. -->
+    <Compile Include="../HashMatrix/Scenarios/Orca/OrcaWorlds.cs" Link="Support/OrcaWorlds.cs" />
+    <Compile Include="../HashMatrix/Scenarios/NavMesh/NavMeshWorlds.cs" Link="Support/NavMeshWorlds.cs" />
+    <Compile Include="../HashMatrix/Scenarios/NavMesh/NavMeshMutations.cs" Link="Support/NavMeshMutations.cs" />
+    <Compile Include="../HashMatrix/Scenarios/Crowds/CorridorWorlds.cs" Link="Support/CorridorWorlds.cs" />
+    <Compile Include="../HashMatrix/Scenarios/Crowds/CrowdWorlds.cs" Link="Support/CrowdWorlds.cs" />
+    <Compile Include="../HashMatrix/Scenarios/Crowds/CrowdRollback.cs" Link="Support/CrowdRollback.cs" />
+  </ItemGroup>
+
+</Project>

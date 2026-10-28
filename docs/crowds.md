@@ -211,7 +211,7 @@ for a one-unit-per-metre world; none was tuned against a reference.
 
 Little-endian; doubles by IEEE bit pattern; the same state gives the same bytes on every platform. Written by `Write`/`ToBytes`, read
 by `Read` (validated: truncation, version, ranges, finite coordinates within ±2^21, flag bits and trailing bytes are errors,
-`NavMeshFormatException`; a follower is unchanged if its read fails).
+`CrowdStateException`; a follower is unchanged if its read fails).
 
 **Corridor** (`1 + 1 + 4 + 4 + 48 + 8 + 8·n` bytes): version u8 (= 1); flags u8 (1 complete, 2 needs replan, 4 replan from start); capacity
 i32; count *n* i32; position 3 × f64; target 3 × f64; target polygon u64; *n* × polygon u64.
@@ -248,6 +248,13 @@ Agents live in *slots* 0, 1, 2, …; `Add` takes the lowest free slot (so the sl
 agent with `PathFollower.Place` (the nearest accepted polygon within the follower's search extents; an agent with no polygon near is
 refused with `ArgumentException`), standing still with no destination. The crowd's `Filter` (null = everything, cost 1) is the filter of every
 follower and wall query.
+
+`Agent.SetOptions(options)` replaces a live agent's settings: the options are validated as `Add` validates them, the follower's tuning is swapped in
+place (its position, velocity, destination and corridor are untouched; `CorridorCapacity` and `MaxCorners` of `Path` cannot change, `ArgumentException`),
+the slot's priority becomes `options.Priority`, and the slot's wall cache is marked invalid so the next step gathers walls with the new reach. Nothing else
+changes, so the next step is a function of the new settings and the old state. The snapshot already writes every slot's settings in full, so the change is
+saved with no format change; restoring a snapshot into a crowd that holds the same agent id in that slot with different settings keeps the `Agent` object and
+replaces its settings and follower.
 
 ## Step
 
@@ -391,9 +398,9 @@ Kind 2 is: header, i32 mesh length, the mesh snapshot (`navmesh-snapshot.md`, in
 same validation as `Crowd.Add`; each follower is read by `PathFollower.Read` (its corridor must fit the capacity the options give);
 slots below the lowest-free hint must be active; the active slots must number the agent count. The reader is structural: positions,
 corridors and cached walls are not checked against the mesh (a snapshot of your own memory; stale ones are repaired by the steps),
-but nothing indexes out of range. Failures throw `NavMeshFormatException` naming the field and byte offset. **A restore is all or
+but nothing indexes out of range. Failures throw `CrowdStateException` naming the field and byte offset. **A restore is all or
 nothing**: everything is parsed into new objects first and nothing changes if any part is rejected (`RestoreStateWithMesh` also
-checks the crowd part before touching the mesh, and the mesh restore is itself all or nothing).
+checks the crowd part before touching the mesh, and the mesh restore is itself all or nothing; a bad mesh part throws `NavMeshFormatException`, a bad crowd part `CrowdStateException`).
 
 **Span forms, size and hash.** `Crowd.GetStateSize()` is the length of the bytes above; `TrySaveState(Span<byte>, out int)` writes
 exactly the bytes `SaveState()` returns (both run one code path, so they cannot drift) and reports `false`, writing nothing it
@@ -414,7 +421,7 @@ own: a host calls these on each crowd of `WorldCrowd.Crowds`, in class order.
 
 **Agent objects.** Agents that are in the snapshot and still in the crowd keep their `Agent` object and their follower object (read in
 place). Agents added since are deactivated. Agents in the snapshot but removed since come back as new `Agent` objects with the same id
-(`Crowd.GetAgent(id)`, `CopyAgents`): a removed `Agent` is never revived. The next added agent gets the rewound id and the lowest
+(`Crowd.GetAgent(id)`, `CopyAgents`, enumerating the crowd): a removed `Agent` is never revived. The next added agent gets the rewound id and the lowest
 free slot, as in the saved run.
 
 **Order for a host** that also holds other state: restore the mesh (or use the combined call), then the crowd, then anything built

@@ -423,35 +423,83 @@ public sealed partial class Grid
     }
 
     /// <summary>
-    /// Same as <see cref="FindPath(Cell, Cell, GridOptions?, CancellationToken)"/>, run on the thread pool so the calling thread
-    /// (a frame loop, a UI thread) is not blocked. The result equals the synchronous one for the same grid and options; nothing
-    /// depends on timing or on which thread runs it. Do not edit the grid until the task has completed. On single-threaded
-    /// WebAssembly the work runs on the same thread when you yield: always await the task, never block on it.
+    /// Same as <see cref="FindPath(Cell, Cell, GridOptions?, CancellationToken)"/>, searched cooperatively: the search runs on the caller's
+    /// synchronization context in slices of <see cref="GridOptions.IterationsPerSlice"/> iterations with a yield between slices, so a frame loop stays
+    /// responsive and <see cref="GridOptions.Blocked"/> and <see cref="GridOptions.StepCost"/> run on the caller's thread. The result equals the
+    /// synchronous one (slices count iterations, never time) and nothing moves to the thread pool: to search on another thread call
+    /// <see cref="FindPath(Cell, Cell, GridOptions?, CancellationToken)"/> inside <c>Task.Run</c>. Slicing needs a resumable search, so
+    /// the options must select <see cref="GridAlgorithm.AStar"/>, <see cref="GridAlgorithm.Jps"/> or <see cref="GridAlgorithm.JpsPlus"/> and leave
+    /// <see cref="GridOptions.RecordExpansions"/> off (see <see cref="GridSearch"/>). Do not edit the grid until the task has completed.
     /// </summary>
     /// <param name="start">Start cell.</param>
     /// <param name="goal">Goal cell.</param>
     /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
-    /// <param name="cancellationToken">Checked every 256 iterations; the task then ends cancelled.</param>
+    /// <param name="cancellationToken">Checked between slices; the task then ends cancelled.</param>
     /// <returns>A task for the result.</returns>
+    /// <exception cref="ArgumentException">The options select another algorithm or record expansions (thrown through the task).</exception>
     /// <exception cref="OperationCanceledException">Cancellation was requested (thrown through the task).</exception>
-    public Task<GridPath> FindPathAsync(Cell start, Cell goal, GridOptions? options = null, CancellationToken cancellationToken = default)
-    {
-        GridOptions o = options ?? DefaultOptions;
-        // Task.Run only moves the work; the search is the synchronous one, so the result is the same.
-        return Task.Run(() => FindPathCore(start, goal, o, false, cancellationToken), cancellationToken);
-    }
+    public Task<GridPath> FindPathAsync(Cell start, Cell goal, GridOptions? options = null, CancellationToken cancellationToken = default) =>
+        FindPathSlicedAsync(start, goal, options ?? DefaultOptions, false, cancellationToken);
 
     /// <summary>World-position form of <see cref="FindPathAsync(Cell, Cell, GridOptions?, CancellationToken)"/>; the result carries world-space cell centres.</summary>
     /// <param name="start">Start position.</param>
     /// <param name="goal">Goal position.</param>
     /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
-    /// <param name="cancellationToken">Checked every 256 iterations; the task then ends cancelled.</param>
+    /// <param name="cancellationToken">Checked between slices; the task then ends cancelled.</param>
     /// <returns>A task for the result.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is NaN or beyond ±2^21 (thrown through the task).</exception>
+    /// <exception cref="ArgumentException">The options select another algorithm or record expansions (thrown through the task).</exception>
     /// <exception cref="OperationCanceledException">Cancellation was requested (thrown through the task).</exception>
     public Task<GridPath> FindPathAsync(WorldPoint start, WorldPoint goal, GridOptions? options = null, CancellationToken cancellationToken = default)
     {
-        return Task.Run(() => FindPath(start, goal, options, cancellationToken), cancellationToken);
+        bool s = TryGetCell(start, out Cell sc);
+        bool g = TryGetCell(goal, out Cell gc);
+        if (!s)
+        {
+            return Task.FromResult(new GridPath(PathStatus.StartInvalid, double.PositiveInfinity, null, 0, null, null));
+        }
+        if (!g)
+        {
+            return Task.FromResult(new GridPath(PathStatus.GoalInvalid, double.PositiveInfinity, null, 0, null, null));
+        }
+        return FindPathSlicedAsync(sc, gc, options ?? DefaultOptions, true, cancellationToken);
+    }
+
+    private async Task<GridPath> FindPathSlicedAsync(Cell start, Cell goal, GridOptions o, bool world, CancellationToken token)
+    {
+        if (o.Algorithm is not (GridAlgorithm.AStar or GridAlgorithm.Jps or GridAlgorithm.JpsPlus))
+        {
+            throw new ArgumentException($"FindPathAsync searches in slices and supports A*, JPS and JPS+; the options select {o.Algorithm}. Call FindPath (inside Task.Run to leave the calling thread).", nameof(o));
+        }
+        if (o.RecordExpansions)
+        {
+            throw new ArgumentException("FindPathAsync does not record expansions; call FindPath for debug data.", nameof(o));
+        }
+        token.ThrowIfCancellationRequested();
+        var search = new GridSearch(this, o);
+        PathStatus status = search.TryBegin(start, goal);
+        if (status is PathStatus.StartInvalid or PathStatus.GoalInvalid)
+        {
+            return new GridPath(status, double.PositiveInfinity, null, 0, null, null);
+        }
+        // The slices add up to IterationBudget, the same total FindPath spends, and any split gives the unsliced result.
+        int remaining = o.IterationBudget;
+        while (status == PathStatus.InProgress)
+        {
+            if (remaining <= 0)
+            {
+                return search.ToGridPath(PathStatus.BudgetExhausted, world);
+            }
+            token.ThrowIfCancellationRequested();
+            int slice = Math.Min(remaining, o.IterationsPerSlice);
+            status = search.Step(slice);
+            remaining -= slice;
+            if (status == PathStatus.InProgress && remaining > 0)
+            {
+                await Task.Yield();
+            }
+        }
+        return search.ToGridPath(status, world);
     }
 
     /// <summary>

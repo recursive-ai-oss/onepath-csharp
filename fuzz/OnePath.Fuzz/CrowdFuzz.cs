@@ -299,7 +299,7 @@ internal static class CrowdFuzz
                                 edited = true;
                                 tainted = true;
                             }
-                            catch (NavMeshFormatException)
+                            catch (OnePathFormatException)
                             {
                                 if (crowd.StateHash() != beforeHash || !crowd.SaveStateWithMesh().AsSpan().SequenceEqual(before))
                                 {
@@ -332,7 +332,7 @@ internal static class CrowdFuzz
     private static void Resync(Crowd crowd, List<Agent> agents)
     {
         agents.Clear();
-        crowd.CopyAgents(agents);
+        agents.AddRange(crowd);
     }
 
     // After the mesh was edited an agent may stand where the mesh no longer is (until it is relocated), so only finiteness is checked then.

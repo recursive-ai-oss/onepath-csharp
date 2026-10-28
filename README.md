@@ -13,7 +13,7 @@
 | Package | What it is |
 |---|---|
 | `RecursiveAI.OnePath` | Grids (square, hex, voxel), graphs, the navmesh builders, the query layer, the run-time tile cache and crowds. Trimming drops the parts an app does not use: an app that only uses grids trims the navmesh builders away. |
-| [`RecursiveAI.OneMath`](https://www.nuget.org/packages/RecursiveAI.OneMath) | The only dependency: vectors, our own transcendental functions, exact geometric predicates and the fixed-point bridge. Installed automatically. |
+| [`RecursiveAI.OneMath`](https://www.nuget.org/packages/RecursiveAI.OneMath) | The only dependency (1.0 or later): vectors, our own transcendental functions, exact geometric predicates and the fixed-point bridge. Installed automatically. |
 
 ## Install
 
@@ -29,15 +29,14 @@ Each tier is built on the one below. **The happy path** (this page's snippets) i
 
 ## Quick start
 
-One `using RecursiveAI.OnePath;` reaches every grid and graph type below (the navmesh examples also use OneMath's
-vectors and the query result types). Options are plain objects with named presets and optional
+One `using RecursiveAI.OnePath;` reaches every type below, grids, graphs, navmeshes and crowds alike (the navmesh examples also
+use OneMath's vectors); `PathResult`, `PathOptions`, `QueryFilter`, `FollowerState` and `PartitionType` live there too. Options are plain objects with named presets and optional
 delegates; you never write a struct to use the happy path (the struct-generic search cores are there for tuning, in
 `RecursiveAI.OnePath.Grids` and `.Graphs`). World positions are doubles within ±2^21.
 
 ```csharp
 using RecursiveAI.OneMath;
 using RecursiveAI.OnePath;
-using RecursiveAI.OnePath.Mesh.Queries;
 ```
 
 **Square grid.** `.` is open, `#` a wall, `1`-`9` are area ids (give an area a cost with `grid.Areas[id] = 3.0`). You can
@@ -192,6 +191,9 @@ For a deterministic game host (lockstep, rollback) that means:
 - **Snapshot and restore.** Grid searches, replanners, flow fields, dynamic meshes (rebuilt tiles, obstacles) and crowds save to bytes and restore to the same state; the same state writes the same bytes on every platform.
 - **Debug geometry** (polygons, links, paths, corridors, agent velocities) comes out as plain data.
 
+- **Across versions.** Within a major version, every release gives the same bits for the same inputs and options. No 1.x minor or patch release changes an existing path, mesh build, query, search or crowd step. A change that would alter an existing result, even a better one, does one of two things. It ships behind a new option whose default keeps the old result. Or it waits for the next major version and is listed in the changelog. Features added in a minor release then keep their results for the rest of that major version. The math underneath, `RecursiveAI.OneMath`, makes the same promise, so updating either package within its major version never moves a result. Peers in a lockstep session, and replays recorded on another 1.x release, stay in sync. The hash matrix checks this: every line of the previous release's manifest must appear unchanged in the next one's.
+- **Saved data.** Every 1.x release reads every format written by an earlier 1.x release: navigation meshes, tile caches and every saved state (grids, searches, replanners, flow fields, dynamic meshes, crowds). This promise is backward reading only. A later release may write a newer format version, and an earlier release need not read it. Fixtures written by 1.0.0 are kept in the tests and loaded by every later release.
+
 The formats, tie-breaks and budget units are written down in [docs/](docs/README.md) so a port can reproduce the same bits from the text.
 
 ## What it does not do
@@ -290,7 +292,7 @@ builds everything, including the WASM smoke app, which needs the `wasm-tools` wo
   `src/` the calls that could make results machine-dependent (platform maths functions, fused
   multiply-add, `Vector<T>`, clocks, `Random`, processor count).
 - **Math package:** `src/OnePath` depends on `RecursiveAI.OneMath` (version in `Directory.Packages.props`),
-  its only runtime dependency. Until it is published, set `ONEMATH_FEED` to a folder containing the
+  its only runtime dependency (1.0.0, restored from nuget.org). To use another build, set `ONEMATH_FEED` to a folder containing the
   `.nupkg` and restore picks it up; the `ci/` scripts default it to `~/onepath/feed` when that exists.
   On a machine that cannot see the folder, `tools/install-feed.sh <folder-with-nupkg>` copies the package
   into `~/onepath/feed`. (For a remote job runner that only syncs the git tree, ship the package with the
