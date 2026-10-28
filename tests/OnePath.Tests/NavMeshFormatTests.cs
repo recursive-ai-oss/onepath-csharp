@@ -67,14 +67,127 @@ public class NavMeshFormatTests
     }
 
     [Fact]
-    public void UnstableMarkerIsInTheHeader()
+    public void FrozenHeaderIsVersionTwoWithNoDraftFlag()
     {
         NavTile t = NavMeshWorlds.MakeTile(NavMeshWorlds.Params(), 3, 0, 0, 0, false, 0);
         byte[] a = NavMeshSerializer.WriteTile(t);
         Assert.Equal((byte)'O', a[0]);
+        Assert.Equal(2, NavMeshFormat.Version);
         Assert.Equal(NavMeshFormat.Version, BitConverter.ToUInt16(a, 4));
-        Assert.Equal(NavMeshFormat.FlagUnstable, BitConverter.ToUInt16(a, 6));
-        Assert.True(NavMeshFormat.IsUnstable);
+        Assert.Equal(0, BitConverter.ToUInt16(a, 6));
+        Assert.False(NavMeshFormat.IsUnstable);
+        Assert.True(a.AsSpan(8, 16).SequenceEqual(FingerprintBytes(NavMeshWorlds.Params())));
+    }
+
+    private static byte[] FingerprintBytes(NavMeshParams p)
+    {
+        var b = new byte[16];
+        p.Fingerprint.CopyTo(b);
+        return b;
+    }
+
+    [Fact]
+    public void VersionOneAndUnknownVersionsAreRejectedWithTheVersionsNamed()
+    {
+        NavMeshParams p = NavMeshWorlds.Params();
+        byte[] tile = NavMeshSerializer.WriteTile(NavMeshWorlds.MakeTile(p, 3, 0, 0, 0, false, 0));
+        byte[] mesh = NavMeshSerializer.WriteMesh(NavMeshWorlds.RandomMesh(5, 0, 0, 2, 2, 1, false, 0));
+        foreach (ushort v in new ushort[] { 1, 3, 0, 65535 })
+        {
+            byte[] t = (byte[])tile.Clone();
+            BitConverter.TryWriteBytes(t.AsSpan(4), v);
+            var e = Assert.Throws<NavMeshVersionException>(() => NavMeshSerializer.ReadTile(t, p));
+            Assert.Equal(v, e.Found);
+            Assert.Equal(2, e.Expected);
+            Assert.Contains($"version {v}", e.Message);
+            byte[] m = (byte[])mesh.Clone();
+            BitConverter.TryWriteBytes(m.AsSpan(4), v);
+            Assert.Throws<NavMeshVersionException>(() => NavMeshSerializer.ReadMesh(m));
+        }
+        byte[] draft = (byte[])tile.Clone();
+        draft[6] = 1; // the unstable flag is not valid in a frozen version
+        Assert.Throws<NavMeshFormatException>(() => NavMeshSerializer.ReadTile(draft, p));
+    }
+
+    [Fact]
+    public void TileFromOtherSettingsIsRejectedOnAddReadAndStreamIn()
+    {
+        NavMeshParams p = NavMeshWorlds.Params();
+        TiledNavMesh mesh = new(p);
+        NavTile good = NavMeshWorlds.MakeTile(p, 3, 0, 0, 0, false, 0);
+        mesh.AddTile(good);
+
+        // Same grid, other agent class and other build digest: every variant must be refused.
+        NavMeshParams[] others =
+        [
+            Variant(p, radius: p.AgentRadius + 0.1f),
+            Variant(p, climb: p.WalkableClimb + 0.1f),
+            Variant(p, digest: 1),
+        ];
+        foreach (NavMeshParams o in others)
+        {
+            NavTile foreign = NavMeshWorlds.MakeTile(o, 4, 1, 0, 0, false, 0);
+            Assert.NotEqual(p.Fingerprint, o.Fingerprint);
+            var e = Assert.Throws<NavMeshFingerprintException>(() => mesh.AddTile(foreign));
+            Assert.Equal(p.Fingerprint, e.Expected);
+            Assert.Equal(o.Fingerprint, e.Found);
+            Assert.Throws<NavMeshFingerprintException>(() => mesh.ReplaceTile(foreign));
+            byte[] bytes = NavMeshSerializer.WriteTile(foreign);
+            Assert.Throws<NavMeshFingerprintException>(() => NavMeshSerializer.ReadTile(bytes, p));
+            var streamer = new TileStreamer(mesh);
+            streamer.QueueAdd(bytes);
+            Assert.Throws<NavMeshFingerprintException>(() => streamer.UpdateAll(TestContext.Current.CancellationToken));
+            Assert.Equal(0, streamer.PendingCount);
+        }
+        Assert.Equal(1, mesh.TileCount);
+
+        // The right tile streams in and the mesh round-trips.
+        byte[] ok = NavMeshSerializer.WriteTile(NavMeshWorlds.MakeTile(p, 5, 1, 0, 0, false, 0));
+        var s2 = new TileStreamer(mesh);
+        s2.QueueAdd(ok);
+        s2.UpdateAll(TestContext.Current.CancellationToken);
+        Assert.Equal(2, mesh.TileCount);
+        byte[] a = NavMeshSerializer.WriteMesh(mesh);
+        Assert.True(a.AsSpan().SequenceEqual(NavMeshSerializer.WriteMesh(NavMeshSerializer.ReadMesh(a))));
+    }
+
+    private static NavMeshParams Variant(NavMeshParams p, float? radius = null, float? climb = null, ulong? digest = null) => new()
+    {
+        OriginX = p.OriginX,
+        OriginY = p.OriginY,
+        OriginZ = p.OriginZ,
+        TileSize = p.TileSize,
+        CellSize = p.CellSize,
+        MaxVertsPerPoly = p.MaxVertsPerPoly,
+        WalkableClimb = climb ?? p.WalkableClimb,
+        AgentRadius = radius ?? p.AgentRadius,
+        AgentHeight = p.AgentHeight,
+        AgentMaxSlopeDegrees = p.AgentMaxSlopeDegrees,
+        SettingsDigest = digest ?? p.SettingsDigest,
+    };
+
+    [Fact]
+    public void FingerprintIsFixedAndSettingsDigestFollowsBuildSettings()
+    {
+        NavMeshParams a = NavSettings.Humanoid.ToParams();
+        Assert.Equal(a.Fingerprint, NavSettings.Humanoid.ToParams().Fingerprint);
+        NavSettings[] changed =
+        [
+            NavSettings.Humanoid with { CellHeight = 0.25 },
+            NavSettings.Humanoid with { MinRegionArea = 10 },
+            NavSettings.Humanoid with { DetailMaxError = 0.3 },
+            NavSettings.Humanoid with { Partition = RecursiveAI.OnePath.Mesh.Build3D.PartitionType.Layers },
+            NavSettings.Humanoid with { SnapBits = 8 },
+            NavSettings.Humanoid with { AgentRadius = 0.7f },
+            NavSettings.Humanoid with { TileSize = 32 },
+        ];
+        var seen = new HashSet<NavMeshFingerprint> { a.Fingerprint };
+        foreach (NavSettings s in changed)
+        {
+            Assert.True(seen.Add(s.ToParams().Fingerprint), "each changed setting changes the fingerprint");
+        }
+        // A frozen value: any change to the canonical encoding changes this and needs a new format version.
+        Assert.Equal("6316e2fbf9f85bbf39246de10d1a5c22", NavSettings.Humanoid.ToParams().Fingerprint.ToString());
     }
 
     [Fact]

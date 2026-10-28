@@ -1,7 +1,8 @@
 # Navigation mesh snapshots
 
-Status: follows the draft mesh format (`navmesh-format.md`); the snapshot header carries the same version and
-unstable flag as the mesh format and changes with it.
+Status: follows the frozen mesh format, version 2 (`navmesh-format.md`); the snapshot header carries the same version as
+the mesh format. Its parameter block includes the settings digest, so a snapshot carries the build fingerprint: restoring it into a mesh
+with a different fingerprint, or against library tiles built with another one, fails with `NavMeshFingerprintException`.
 
 A deterministic host that rolls back and resimulates needs to put a mesh back exactly as it was. A **snapshot** is the
 dynamic state of a `TiledNavMesh`, as bytes. Restoring it gives a mesh in which every query, every stitched link and
@@ -64,11 +65,11 @@ Little-endian throughout; the same conventions as the mesh format.
 | Offset | Size | Field |
 |---|---|---|
 | 0 | 4 | magic `4F 4E 50 53` ("ONPS") |
-| 4 | 2 | version (1) |
-| 6 | 2 | flags (as the mesh format: bit 0 = unstable/draft) |
-| 8 | 60 | the mesh parameters, exactly as in the mesh format (offsets 8..67) |
-| 68 | 4 | section count *N* (≤ remaining bytes / 8) |
-| 72 | … | *N* sections |
+| 4 | 2 | version (2) |
+| 6 | 2 | flags (0) |
+| 8 | 68 | the mesh parameters, exactly as in the mesh format (offsets 8..75) |
+| 76 | 4 | section count *N* (≤ remaining bytes / 8) |
+| 80 | … | *N* sections |
 
 ### Sections
 

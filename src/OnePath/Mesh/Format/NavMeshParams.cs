@@ -56,6 +56,32 @@ public sealed class NavMeshParams
     /// <summary>Steepest walkable slope of the agent class, in degrees. Default 45.</summary>
     public float AgentMaxSlopeDegrees { get; init; } = 45f;
 
+    /// <summary>
+    /// A 64-bit digest of the builder settings that change tile content but are not fields of this class (cell height, partition,
+    /// region, contour and detail settings, authored links and so on). <see cref="NavSettings.ToParams"/> fills it; hand-built
+    /// parameters leave it 0. It is part of <see cref="Fingerprint"/>.
+    /// </summary>
+    public ulong SettingsDigest { get; init; }
+
+    private NavMeshFingerprint? _fingerprint;
+
+    /// <summary>
+    /// The fingerprint of these parameters: the first 16 bytes of SHA-256 over the ASCII tag <c>ONFP</c>, the format version (u16) and the
+    /// parameter block exactly as the mesh header stores it. Identical on every platform.
+    /// </summary>
+    public NavMeshFingerprint Fingerprint => _fingerprint ??= ComputeFingerprint();
+
+    private NavMeshFingerprint ComputeFingerprint()
+    {
+        var w = new NavMeshSerializer.Writer(96);
+        w.U32(0x5046_4E4F); // "ONFP"
+        w.U16(NavMeshFormat.Version);
+        NavMeshSerializer.WriteParams(w, this);
+        Span<byte> h = stackalloc byte[32];
+        Sha256.Hash(w.ToArray(), h);
+        return NavMeshFingerprint.From(h);
+    }
+
     /// <summary>Largest absolute tile-local coordinate (world units).</summary>
     public double MaxLocalExtent => CellSize * MaxLocalCells;
 
@@ -154,5 +180,6 @@ public sealed class NavMeshParams
         && BitConverter.SingleToInt32Bits(WalkableClimb) == BitConverter.SingleToInt32Bits(o.WalkableClimb)
         && BitConverter.SingleToInt32Bits(AgentRadius) == BitConverter.SingleToInt32Bits(o.AgentRadius)
         && BitConverter.SingleToInt32Bits(AgentHeight) == BitConverter.SingleToInt32Bits(o.AgentHeight)
-        && BitConverter.SingleToInt32Bits(AgentMaxSlopeDegrees) == BitConverter.SingleToInt32Bits(o.AgentMaxSlopeDegrees);
+        && BitConverter.SingleToInt32Bits(AgentMaxSlopeDegrees) == BitConverter.SingleToInt32Bits(o.AgentMaxSlopeDegrees)
+        && SettingsDigest == o.SettingsDigest;
 }

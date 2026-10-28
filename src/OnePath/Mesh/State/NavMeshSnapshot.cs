@@ -140,6 +140,10 @@ public static class NavMeshSnapshot
         }
         NavMeshSerializer.CheckVersion(ref r);
         NavMeshParams p = NavMeshSerializer.ReadParams(ref r);
+        if (target is not null && target.Params.Fingerprint != p.Fingerprint)
+        {
+            throw new NavMeshFingerprintException(p.Fingerprint, target.Params.Fingerprint, "The snapshot");
+        }
         if (target is not null && !target.Params.SameAs(p))
         {
             throw new NavMeshFormatException("The snapshot was taken from a mesh with different parameters than the mesh being restored.");
@@ -230,6 +234,10 @@ public static class NavMeshSnapshot
                 if (library is null || !library.TryGet(id, out NavTile? found))
                 {
                     throw new NavMeshFormatException($"Slot {s}: the snapshot refers to tile {id}, which is not in the tile library.");
+                }
+                if (found.Params.Fingerprint != p.Fingerprint)
+                {
+                    throw new NavMeshFingerprintException(found.Params.Fingerprint, p.Fingerprint, $"Slot {s}: library tile {id}");
                 }
                 if (!found.Params.SameAs(p))
                 {

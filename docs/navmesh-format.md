@@ -1,8 +1,9 @@
-# Tiled navigation mesh format (frozen candidate, unstable flag still set)
+# Tiled navigation mesh format (version 2, frozen)
 
-Status: **freeze candidate**. The 3D builder, authored links, agent classes and streaming have landed and none forced a layout
-change; every file still carries `Version = 1` and header flag bit 0 (`Unstable`) set. Freezing bumps the version and clears the
-flag, so draft files are never mistaken for stable ones. See "Freeze decisions" below.
+Status: **frozen at version 2**. Header flag bit 0 (the draft marker) is always 0. The reader accepts version 2 only: version 1 (the
+draft layout) and every unknown version are rejected with `NavMeshVersionException`, whose message and `Found`/`Expected`
+properties name the version found and the one expected. Any later layout change is version 3 with a reader for version 2.
+See "Version policy" and "Build fingerprint" below.
 
 The format serves two builders (an exact 2D polygon builder and a voxel-based 3D builder), the query layer and
 crowds. Nothing here is specific to one builder.
@@ -127,12 +128,13 @@ bytes on every platform.
 | Offset | Size | Field |
 |---|---|---|
 | 0 | 4 | magic `4F 4E 50 54` |
-| 4 | 2 | version (1) |
-| 6 | 2 | flags (bit 0 = unstable/draft; other bits must be 0) |
-| 8 | 12 | TileX, TileZ, Layer (int32) |
-| 20 | 24 | origin X, Y, Z (double). X and Z must equal the grid formula bitwise |
-| 44 | 24 | counts (uint32): vertices *nv*, polygons *np*, indices *ni*, detail vertices *ndv*, detail triangles *ndt*, off-mesh links *nom* |
-| 68 | 12·nv | vertices (float32 x, y, z) |
+| 4 | 2 | version (2) |
+| 6 | 2 | flags (0; any bit set is an error) |
+| 8 | 16 | build fingerprint of the mesh the tile was built for (below) |
+| 24 | 12 | TileX, TileZ, Layer (int32) |
+| 36 | 24 | origin X, Y, Z (double). X and Z must equal the grid formula bitwise |
+| 60 | 24 | counts (uint32): vertices *nv*, polygons *np*, indices *ni*, detail vertices *ndv*, detail triangles *ndt*, off-mesh links *nom* |
+| 84 | 12·nv | vertices (float32 x, y, z) |
 | | 16·np | polygon records: u8 vertex count, u8 area, u16 flags, u32 detail vertex base, u32 detail triangle base, u16 detail vertex count, u16 detail triangle count |
 | | 2·ni | polygon indices (uint16) |
 | | 4·ni | edge neighbours (int32) |
@@ -142,32 +144,33 @@ bytes on every platform.
 | | 36·nom | off-mesh records: 7 float32 (start xyz, end xyz, radius), u8 area, u8 flags (bit 0 bidirectional; other bits 0), u16 poly flags, u32 user id |
 
 The body must be exactly as long as the counts imply; the reader checks this before allocating. Anything else
-(trailing bytes included) is an error. A tile is read against the mesh parameters (bounds, `MaxVertsPerPoly`).
+(trailing bytes included) is an error. A tile is read against the mesh parameters (bounds, `MaxVertsPerPoly`), and its fingerprint must equal the parameters' fingerprint, otherwise `NavMeshFingerprintException` (a `NavMeshFormatException`) is thrown.
 
 ### Mesh (`ONPM`)
 
 | Offset | Size | Field |
 |---|---|---|
 | 0 | 4 | magic `4F 4E 50 4D` |
-| 4 | 2 | version (1) |
-| 6 | 2 | flags (bit 0 = unstable) |
+| 4 | 2 | version (2) |
+| 6 | 2 | flags (0) |
 | 8 | 40 | OriginX, OriginY, OriginZ, TileSize, CellSize (double) |
 | 48 | 2 | MaxVertsPerPoly (u16) |
 | 50 | 2 | reserved, 0 |
 | 52 | 16 | WalkableClimb, AgentRadius, AgentHeight, AgentMaxSlopeDegrees (float32) |
-| 68 | 4 | slot count *S* (uint32, ≤ 1 048 575, and ≤ remaining bytes / 5) |
-| 72 | … | per slot, in slot order: u32 salt (1..0xFFFFFF), u8 present (0/1), and if present u32 byte length followed by a tile |
+| 68 | 8 | settings digest (u64; below) |
+| 76 | 4 | slot count *S* (uint32, ≤ 1 048 575, and ≤ remaining bytes / 5) |
+| 80 | … | per slot, in slot order: u32 salt (1..0xFFFFFF), u8 present (0/1), and if present u32 byte length followed by a tile |
 
-Reading restores the slots exactly (free slots and generations too) and stitches once. Duplicate (column, row, layer)
+The parameter block is offsets 8..75 (68 bytes); snapshots reuse it verbatim. Reading restores the slots exactly (free slots and generations too) and stitches once. Duplicate (column, row, layer)
 positions are an error.
 
 ## Behaviour on bad input
 
 Deserialization and `NavTile.Create` never index out of range on hostile input: counts are checked against the remaining
-bytes first, then every rule above. All failures are `NavMeshFormatException` (parameters outside their bounds read
+bytes first, then every rule above. All failures are `NavMeshFormatException` or a subclass (`NavMeshVersionException`, `NavMeshFingerprintException`) (parameters outside their bounds read
 from a file are reported the same way). The mesh API throws `ArgumentOutOfRangeException` for world coordinates beyond the
-bound, `InvalidOperationException` for adding a tile into an occupied position, and `ArgumentException` for a tile built with
-other parameters.
+bound, `InvalidOperationException` for adding a tile into an occupied position, and `NavMeshFingerprintException` for adding, replacing,
+streaming in or restoring a tile built with other settings.
 
 ## Debug geometry
 
@@ -189,8 +192,8 @@ for an off-mesh link), in slot / polygon / link order.
 
 ## Freeze decisions (candidates collected through the 3D builder, authored links, agent classes and streaming)
 
-Every item the draft listed as possibly changing, with what the builders, queries, crowds, authoring and streaming showed. Nothing below
-changes a byte of the layout: the draft layout is the proposed frozen layout, so freezing is the version bump and clearing the flag.
+Every item the draft listed as possibly changing, with what the builders, queries, crowds, authoring and streaming showed. Only the fingerprint row
+changes the layout; the others are decisions to keep it.
 
 | Candidate | Decision | Reason |
 |---|---|---|
@@ -204,10 +207,36 @@ changes a byte of the layout: the draft layout is the proposed frozen layout, so
 | Off-mesh start/end polygon indices baked into the tile | **Reject** | They depend on the neighbouring tile (the end may be in another tile) and would make a tile's bytes depend on its neighbours. Stitching resolves them (rules above); authored links need nothing more than the slot. |
 | Detail edge-flag semantics | **Keep** (bit *k* = triangle edge *k* lies on the polygon boundary) | The 3D builder follows it. |
 | Wider layer index | **Keep** 0 to 1023 | Builders report the layer count needed; no level needs more than a few. |
-| A parameter fingerprint in the tile header | **Open: owner decision before freezing** | A tile's bytes carry no mesh parameters, so a tile built for another mesh (other cell size or tile size) is read against this mesh's parameters and accepted if its numbers happen to pass validation. Streaming from separately stored tiles makes this a real hazard. Adding a 4-byte fingerprint of the parameters to the tile header fixes it, but changes every tile's bytes, content ids and hashes, so it is a deliberate step, not a side effect. Until then the host stores tiles with the mesh header they came from (`WriteMesh`) or one mesh per directory. |
+| A parameter fingerprint in the tile header | **Add** (version 2) | A tile built for another mesh (other cell size, tile size, agent class, partition, detail) would otherwise be accepted when streamed in whenever its numbers pass validation. The 16-byte fingerprint below is compared on add, replace, stream-in and snapshot restore. |
 
-Proposed frozen header: `Version = 2`, flag bit 0 clear (draft files stay readable only with the draft reader; a frozen reader
-rejects version 1 with a typed error).
+Nothing else in the draft layout changed: version 2 is the draft layout plus the tile fingerprint, the settings digest in the parameter
+block, version 2 and flag bit 0 clear.
+
+## Build fingerprint
+
+A 128-bit value identifying every setting that changes a tile's content. It is **not** stored in the mesh header (the mesh recomputes it
+from its parameter block); every tile header carries it.
+
+- **Input bytes:** the 4 ASCII bytes `ONFP`, the format version as u16 (2), then the 68-byte parameter block exactly as the mesh header
+  stores it (origin X/Y/Z, tile size, cell size as f64; max vertices per polygon u16; 0 u16; walkable climb, agent radius, agent height,
+  agent maximum slope as f32; settings digest u64), all little-endian IEEE bit patterns.
+- **Hash:** SHA-256 (FIPS 180-4) of those 74 bytes; the fingerprint is the first 16 bytes of the digest, written to the tile in digest order.
+- **Settings digest:** the builder settings that change tile content but are not parameter fields. `NavSettings.ToParams` writes the first
+  8 bytes of SHA-256 over: `ONSD` (ASCII), then CellHeight (f64), SnapBits (i32; -1 when automatic), Partition (i32 enum value),
+  MinRegionArea (i32), MergeRegionArea (i32), ContourMaxError (f32), MaxEdgeLength (f64), DetailSampleDistance (f64), DetailMaxError (f64),
+  Height (f64), Area (u8), Flags (u16), authored link count (u32) and per link start xyz, end xyz, radius (f64 each), bidirectional (u8),
+  area (u8), flags (u16), user id (u32); read as a little-endian u64. Hand-built parameters have digest 0.
+- **Where it is checked:** `TiledNavMesh.AddTile`/`ReplaceTile`, `NavMeshSerializer.ReadTile` (so `TileStreamer`), and snapshot restore
+  (the snapshot's parameter block carries the digest, and library tiles and target meshes must have the same fingerprint). The check
+  precedes every other validation of the tile.
+- Tiles take the fingerprint from the parameters they are created against (`NavTile.Create`), so builders set nothing. Because it is part of
+  a tile's bytes it is part of the tile content id.
+
+## Version policy
+
+The layout above is frozen. A change to any byte of a tile, mesh or snapshot layout, to a rule that decides validity, or to the
+fingerprint's encoding is **version 3**, and its reader also reads version 2. A reader rejects any version it does not know, and any set
+flag bit, with a typed error. Adding a field is never done in place.
 
 ## Authoring: off-mesh links, agent classes, streaming
 

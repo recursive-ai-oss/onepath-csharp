@@ -91,6 +91,49 @@ public sealed record NavSettings
     /// <summary>3D builder: largest vertical distance between the heightfield and the detail surface before a vertex is added (world units). Default 0.2.</summary>
     public double DetailMaxError { get; init; } = 0.2;
 
+    // Digest of the settings that change tile content and are not mesh parameters, so tiles built with other values are
+    // refused by a mesh. Canonical encoding (little-endian): tag "ONSD", f64 CellHeight, i32 SnapBits (-1 = automatic),
+    // i32 Partition, i32 MinRegionArea, i32 MergeRegionArea, f32 ContourMaxError, f64 MaxEdgeLength, f64 DetailSampleDistance,
+    // f64 DetailMaxError, f64 Height, u8 Area, u16 Flags, u32 link count, then per link f64 start xyz, end xyz, radius,
+    // u8 bidirectional, u8 area, u16 flags, u32 user id. The digest is the first 8 bytes of SHA-256, read little-endian.
+    private ulong SettingsDigest()
+    {
+        var w = new NavMeshSerializer.Writer(128);
+        w.U32(0x4453_4E4F);
+        w.F64(CellHeight);
+        w.I32(SnapBits ?? -1);
+        w.I32((int)Partition);
+        w.I32(MinRegionArea);
+        w.I32(MergeRegionArea);
+        w.F32(ContourMaxError);
+        w.F64(MaxEdgeLength);
+        w.F64(DetailSampleDistance);
+        w.F64(DetailMaxError);
+        w.F64(Height);
+        w.U8(Area);
+        w.U16(Flags);
+        System.Collections.Generic.IReadOnlyList<OffMeshLinkDefinition> links = OffMeshLinks ?? System.Array.Empty<OffMeshLinkDefinition>();
+        w.U32((uint)links.Count);
+        for (int i = 0; i < links.Count; i++)
+        {
+            OffMeshLinkDefinition l = links[i];
+            w.F64(l.Start.X);
+            w.F64(l.Start.Y);
+            w.F64(l.Start.Z);
+            w.F64(l.End.X);
+            w.F64(l.End.Y);
+            w.F64(l.End.Z);
+            w.F64(l.Radius);
+            w.U8(l.Bidirectional ? (byte)1 : (byte)0);
+            w.U8(l.Area);
+            w.U16(l.Flags);
+            w.U32(l.UserId);
+        }
+        System.Span<byte> h = stackalloc byte[32];
+        Sha256.Hash(w.ToArray(), h);
+        return System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(h);
+    }
+
     /// <summary>The mesh parameters these settings describe.</summary>
     /// <exception cref="ArgumentOutOfRangeException">A value is out of range; the message names it.</exception>
     public NavMeshParams ToParams()
@@ -106,6 +149,7 @@ public sealed record NavSettings
             AgentRadius = AgentRadius,
             AgentHeight = AgentHeight,
             AgentMaxSlopeDegrees = AgentMaxSlopeDegrees,
+            SettingsDigest = SettingsDigest(),
         };
         p.Validate();
         if (!(Area <= NavMeshFormat.MaxArea))
