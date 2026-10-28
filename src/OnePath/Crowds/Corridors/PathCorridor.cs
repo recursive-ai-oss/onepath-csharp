@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System;
 using RecursiveAI.OneMath;
 using RecursiveAI.OnePath.Mesh;
@@ -120,6 +121,7 @@ public sealed class PathCorridor
     /// and the next <see cref="Replan"/> searches from the agent's polygon.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The target is not finite or is beyond ±2^21.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void SetTarget(Vector3D target)
     {
         NavMeshQuery.CheckPos(target, nameof(target));
@@ -148,6 +150,7 @@ public sealed class PathCorridor
     /// <param name="complete">True if the last polygon is <paramref name="targetPoly"/>. A path cut to the capacity is never complete.</param>
     /// <exception cref="ArgumentException">The path is empty.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The target is not finite or is beyond ±2^21.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void SetPath(Vector3D target, PolyRef targetPoly, ReadOnlySpan<PolyRef> path, bool complete)
     {
         NavMeshQuery.CheckPos(target, nameof(target));
@@ -176,6 +179,7 @@ public sealed class PathCorridor
     /// </summary>
     /// <returns>False, changing nothing, if the first polygon is invalid or does not hold the position, or the move crossed more polygons than the capacity.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite or is beyond ±2^21.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public bool MovePosition(NavMeshQuery query, Vector3D newPosition, QueryFilter? filter = null)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -206,6 +210,7 @@ public sealed class PathCorridor
     /// <param name="polygonLimit">How many polygons from the start may hold the point, at least 1.</param>
     /// <returns>False, changing nothing, if no polygon within the limit holds the point (within 1e-7 horizontally) or one is invalid: use <see cref="MovePosition"/> instead.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite or is beyond ±2^21.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public bool MoveAlong(NavMeshQuery query, Vector3D to, int polygonLimit = int.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -252,6 +257,7 @@ public sealed class PathCorridor
     /// </summary>
     /// <returns>False, changing nothing, if the last polygon is invalid or does not hold the target, or the move crossed more polygons than the capacity.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The position is not finite or is beyond ±2^21.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public bool MoveTarget(NavMeshQuery query, Vector3D newTarget, QueryFilter? filter = null)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -288,6 +294,7 @@ public sealed class PathCorridor
     // Merges a polygon chain that starts at the first polygon into the front of the corridor: the chain is walked back from
     // its last polygon to the farthest corridor polygon it touches, and what follows that polygon in the corridor is kept.
     // The result is connected, starts at the chain's last polygon and holds no polygon twice (the kept tail has no chain polygon).
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private bool MergeFront(ReadOnlySpan<PolyRef> chain, bool truncate)
     {
         int bestI = -1, bestJ = -1;
@@ -344,6 +351,7 @@ public sealed class PathCorridor
     /// <param name="corners">Receives the points.</param>
     /// <param name="count">Number written.</param>
     /// <returns><see cref="PathStatus.Success"/>, or <see cref="PathStatus.InvalidCorridor"/> (nothing written) when a polygon is stale or two polygons no longer touch: call <see cref="Validate"/>.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public PathStatus FindCorners(NavMeshQuery query, Span<StraightPathPoint> corners, out int count)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -370,6 +378,7 @@ public sealed class PathCorridor
     /// <param name="budget">Most polygons considered, at least 2 (smaller values do nothing). At most <see cref="Capacity"/> are used.</param>
     /// <returns>True if the corridor changed.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A coordinate is not finite or is beyond ±2^21, or the range is not positive.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public bool OptimizeVisibility(NavMeshQuery query, Vector3D point, double maxRange, QueryFilter? filter = null, int budget = 32)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -449,6 +458,7 @@ public sealed class PathCorridor
     /// <param name="budget">Most search iterations (node expansions), at least 1. Default 32. An unfinished search changes nothing.</param>
     /// <param name="window">How many polygons ahead the search aims, at least 3. Default 16.</param>
     /// <returns>True if the corridor changed.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public bool OptimizeTopology(NavMeshQuery query, QueryFilter? filter = null, int budget = 32, int window = 16)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -504,6 +514,7 @@ public sealed class PathCorridor
     }
 
     // Removes loops in place: a polygon met again cuts everything between its two occurrences (the first stays).
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     internal static int CutLoops(PolyRef[] path, int count)
     {
         int w = 0;
@@ -542,6 +553,7 @@ public sealed class PathCorridor
     /// <param name="query">The query object (only its mesh is used).</param>
     /// <param name="filter">The polygon filter (null accepts everything).</param>
     /// <param name="lookAhead">How many polygons to check, at least 1. Default 8; <see cref="int.MaxValue"/> checks all.</param>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public CorridorStatus Validate(NavMeshQuery query, QueryFilter? filter = null, int lookAhead = 8)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -584,11 +596,13 @@ public sealed class PathCorridor
         return CorridorStatus.Trimmed;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static bool PolyOk(TiledNavMesh mesh, PolyRef p, QueryFilter f) =>
         mesh.TryGetPoly(p, out NavTile t, out int pi) && f.Accepts(t.PolyFlags[pi], t.PolyAreas[pi]);
 
     // True if b can be entered from a: through a shared in-tile edge, a tile-portal link or an off-mesh link (which the
     // filter must accept by the link's own flags and area), and b itself passes the filter.
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     internal static bool Connected(TiledNavMesh mesh, PolyRef a, PolyRef b, QueryFilter f)
     {
         if (!mesh.TryGetPoly(a, out NavTile ta, out int pa) || !mesh.TryGetPoly(b, out NavTile tb, out int pb) || !f.Accepts(tb.PolyFlags[pb], tb.PolyAreas[pb]))
@@ -638,6 +652,7 @@ public sealed class PathCorridor
     /// <param name="filter">The polygon filter.</param>
     /// <param name="searchExtents">Half-size of the search box around the position; null means (2, 4, 2).</param>
     /// <returns>False if no accepted polygon is near (nothing changed).</returns>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public bool Relocate(NavMeshQuery query, QueryFilter? filter = null, Vector3D? searchExtents = null)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -668,6 +683,7 @@ public sealed class PathCorridor
     /// <param name="budget">Most search iterations (node expansions), at least 1.</param>
     /// <param name="searchExtents">Half-size of the box searched for the polygon nearest an unresolved target; null means (2, 4, 2).</param>
     /// <returns><see cref="PathStatus.Success"/> (complete), <see cref="PathStatus.Partial"/> (no route; corridor ends at the closest polygon), <see cref="PathStatus.InProgress"/> (budget used up; corridor extended), or why no search could start (<see cref="PathStatus.InvalidStartPoly"/>, <see cref="PathStatus.NoEndNearby"/>); then nothing changed.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public PathStatus Replan(NavMeshQuery query, QueryFilter? filter = null, int budget = 2048, Vector3D? searchExtents = null)
     {
         _session ??= new CorridorReplan();
@@ -685,6 +701,7 @@ public sealed class PathCorridor
 
     internal PolyRef[] PathArray => _path;
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     internal int ReplaceFrom(int keep, ReadOnlySpan<PolyRef> found, Vector3D target, PolyRef targetPoly, bool complete, bool needsReplan)
     {
         // keep = number of leading corridor polygons that stay; found follows them (found[0] is the polygon that was at keep, or the start).
@@ -735,6 +752,7 @@ public sealed class PathCorridor
     }
 
     // Trims the corridor so the polygon `poly` (found among the first few) is first. Used to snap to an off-mesh link entry.
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     internal bool TrimTo(PolyRef poly)
     {
         for (int i = 0; i < _count; i++)

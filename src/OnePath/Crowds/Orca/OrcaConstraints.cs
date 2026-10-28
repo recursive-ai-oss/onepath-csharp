@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System;
 using RecursiveAI.OneMath;
 
@@ -26,6 +27,7 @@ public static class OrcaConstraints
     /// <param name="responsibility">The share of the avoidance A takes on: 0.5 when B reciprocates, 1 when B ignores A.</param>
     /// <returns>The half-plane; its normal has unit length.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="timeHorizon"/>, <paramref name="timeStep"/> or <paramref name="combinedRadius"/> is out of range.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static HalfPlane ForAgent(
         Vector2D relativePosition,
         Vector2D ownVelocity,
@@ -36,8 +38,13 @@ public static class OrcaConstraints
         double responsibility = 0.5)
     {
         Validate(combinedRadius, timeHorizon, timeStep);
-        return Build(relativePosition, relativePosition, combinedRadius, timeHorizon, timeStep, ownVelocity - otherVelocity, responsibility, ownVelocity);
+        return BuildPoint(relativePosition, combinedRadius, timeHorizon, timeStep, ownVelocity - otherVelocity, responsibility, ownVelocity);
     }
+
+    /// <summary><see cref="ForAgent"/> without the argument checks, for callers that validated the radius, horizon and step already.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    internal static HalfPlane ForAgentUnchecked(Vector2D relativePosition, Vector2D ownVelocity, Vector2D otherVelocity, double combinedRadius, double timeHorizon, double timeStep, double responsibility) =>
+        BuildPoint(relativePosition, combinedRadius, timeHorizon, timeStep, ownVelocity - otherVelocity, responsibility, ownVelocity);
 
     /// <summary>
     /// The half-plane of velocities permitted to an agent with respect to a static line-segment obstacle (section 5.4 of the
@@ -51,6 +58,7 @@ public static class OrcaConstraints
     /// <param name="timeHorizon">The obstacle look-ahead time; greater than 0.</param>
     /// <param name="timeStep">The simulation step, used instead of <paramref name="timeHorizon"/> while the agent overlaps the segment; greater than 0.</param>
     /// <exception cref="ArgumentOutOfRangeException">An argument is out of range.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static HalfPlane ForSegment(Vector2D a, Vector2D b, double radius, double timeHorizon, double timeStep)
     {
         Validate(radius, timeHorizon, timeStep);
@@ -73,6 +81,7 @@ public static class OrcaConstraints
     /// <param name="u">The vector from <paramref name="x"/> to the closest boundary point (zero length when <paramref name="x"/> is on the boundary).</param>
     /// <param name="normal">The unit outward normal of a supporting line of the obstacle at that point.</param>
     /// <exception cref="ArgumentOutOfRangeException">An argument is out of range.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static void ClosestBoundaryPoint(Vector2D a, Vector2D b, double radius, double timeHorizon, double timeStep, Vector2D x, out Vector2D u, out Vector2D normal)
     {
         Validate(radius, timeHorizon, timeStep);
@@ -97,6 +106,7 @@ public static class OrcaConstraints
     /// <param name="halfPlane">The constraint, when the result is true.</param>
     /// <returns>False (no constraint) when the stretch is degenerate or the agent does not project strictly inside it.</returns>
     /// <exception cref="ArgumentOutOfRangeException">An argument is out of range.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static bool ForBoundary(Vector2D a, Vector2D b, double clearance, double timeHorizon, out HalfPlane halfPlane)
     {
         if (!(clearance >= 0 && double.IsFinite(clearance)))
@@ -136,6 +146,7 @@ public static class OrcaConstraints
     }
 
     /// <summary>The squared distance from the origin to the segment <paramref name="a"/>-<paramref name="b"/>.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static double SegmentDistanceSquared(Vector2D a, Vector2D b)
     {
         Vector2D e = b - a;
@@ -150,6 +161,7 @@ public static class OrcaConstraints
         return Vector2D.Dot(q, q);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static void Validate(double radius, double tau, double dt)
     {
         if (!(radius >= 0 && double.IsFinite(radius)))
@@ -168,6 +180,7 @@ public static class OrcaConstraints
 
     // Shared by agents (a == b) and segments. x is the relative optimization velocity, origin the point the half-plane's
     // anchor is measured from, share the fraction of u that is taken.
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     internal static HalfPlane Build(Vector2D a, Vector2D b, double r, double tau, double dt, Vector2D x, double share, Vector2D origin)
     {
         bool overlapping = SegmentDistanceSquared(a, b) <= r * r;
@@ -176,6 +189,70 @@ public static class OrcaConstraints
         // The closest boundary point is x - d*n, so u = -d*n.
         Vector2D u = new(-d * n.X, -d * n.Y);
         return new HalfPlane(origin + u * share, n);
+    }
+
+    // Build for a point obstacle (a == b), which is what another agent is. It performs exactly the operations Build and Boundary perform
+    // when both ends are equal (so the result is bit for bit the same) and skips the ones that repeat a value: the second end's
+    // offset, tolerance and domain test equal the first's, and the minimum of two equal dot products is that product.
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    private static HalfPlane BuildPoint(Vector2D a, double r, double tau, double dt, Vector2D x, double share, Vector2D origin)
+    {
+        double aa = Vector2D.Dot(a, a);
+        bool overlapping = aa <= r * r;
+        bool domain = !overlapping;
+        double t = overlapping ? dt : tau;
+        Vector2D wa = x - a / t;
+        double tol = 0;
+        if (domain)
+        {
+            tol = ArcTolerance * (a.Length() + r);
+        }
+        double best = double.NegativeInfinity;
+        Vector2D bestN = default;
+        double lenA = wa.Length();
+        if (lenA > 0)
+        {
+            ConsiderPoint(wa / lenA, wa, domain, a, r, tol, ref best, ref bestN);
+        }
+        if (domain)
+        {
+            double l2 = aa - r * r;
+            if (l2 > 0)
+            {
+                double l = Math.Sqrt(l2);
+                double cx = -r * a.X;
+                double cy = -r * a.Y;
+                double px = -a.Y * l;
+                double py = a.X * l;
+                ConsiderPoint(new Vector2D((cx + px) / aa, (cy + py) / aa), wa, true, a, r, tol, ref best, ref bestN);
+                ConsiderPoint(new Vector2D((cx - px) / aa, (cy - py) / aa), wa, true, a, r, tol, ref best, ref bestN);
+            }
+        }
+        if (double.IsNegativeInfinity(best))
+        {
+            Vector2D c = a + a;
+            double lc = c.Length();
+            bestN = lc > 0 ? new Vector2D(-c.X / lc, -c.Y / lc) : new Vector2D(1, 0);
+            best = Vector2D.Dot(bestN, wa);
+        }
+        double d = best - r / t;
+        Vector2D u = new(-d * bestN.X, -d * bestN.Y);
+        return new HalfPlane(origin + u * share, bestN);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    private static void ConsiderPoint(Vector2D n, Vector2D wa, bool domain, Vector2D a, double r, double tol, ref double best, ref Vector2D bestN)
+    {
+        if (domain && Vector2D.Dot(n, a) + r > tol)
+        {
+            return;
+        }
+        double g = Vector2D.Dot(n, wa);
+        if (g > best)
+        {
+            best = g;
+            bestN = n;
+        }
     }
 
     // The signed distance from x to the boundary of S, positive outside, and the outward normal n at the closest boundary point.
@@ -187,6 +264,7 @@ public static class OrcaConstraints
     // The maximum of a minimum of two cosines over an arc is at one of a few candidates: the direction of either w_i = x - p_i/tau,
     // the two normals of the segment (where the two cosines cross) and the ends of the arc (the leg normals, n.p_i = -r).
     // When overlapping, S is the bounded capsule and there is no domain restriction.
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static void Boundary(Vector2D a, Vector2D b, double r, double tau, Vector2D x, bool domain, out Vector2D normal, out double distance)
     {
         Vector2D wa = x - a / tau;
@@ -245,6 +323,7 @@ public static class OrcaConstraints
     }
 
     // The two unit normals n with n.p = -r: n = (-r*p +- l*perp(p)) / |p|^2 with l = sqrt(|p|^2 - r^2), perp(p) = (-p.y, p.x).
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static void Legs(Vector2D p, double r, Vector2D wa, Vector2D wb, Vector2D a, Vector2D b, double tolA, double tolB, ref double best, ref Vector2D bestN)
     {
         double rho2 = Vector2D.Dot(p, p);
@@ -262,6 +341,7 @@ public static class OrcaConstraints
         Consider(new Vector2D((cx - px) / rho2, (cy - py) / rho2), wa, wb, true, a, b, r, tolA, tolB, ref best, ref bestN);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static void Consider(Vector2D n, Vector2D wa, Vector2D wb, bool domain, Vector2D a, Vector2D b, double r, double tolA, double tolB, ref double best, ref Vector2D bestN)
     {
         if (domain && (Vector2D.Dot(n, a) + r > tolA || Vector2D.Dot(n, b) + r > tolB))

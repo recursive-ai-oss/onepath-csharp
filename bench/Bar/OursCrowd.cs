@@ -18,7 +18,7 @@ namespace RecursiveAI.OnePath.Bar;
 /// <list type="bullet">
 /// <item><c>circle</c> (against RVO2 and RVO2-CS): N agents spread on a circle walk to the antipodal point with no obstacles, the reference's
 /// documented default agent settings (neighbour distance 15, 10 neighbours, horizons 10 and 5, radius 2, speed 2), dt 0.25; our side is the
-/// ORCA solver itself (<see cref="OrcaSimulator"/>), one thread unless <c>--threads</c> says otherwise.</item>
+/// ORCA solver itself (<see cref="OrcaSimulator"/>), one thread unless <c>--threads</c> says otherwise (<c>--threads auto</c> = every core).</item>
 /// <item><c>crowd</c> (against DetourCrowd and DotRecast): N agents with the harness's start/goal rule on the point set, speed 3.5, acceleration 8,
 /// dt 0.05; our side is <see cref="Crowd"/>, one thread. With an <c>--obj</c> level the mesh is our 3D builder's on the reference settings and the points are
 /// used as they are, like the query rows; without one it is the format test generator's with the points scaled onto it (<c>mesh_source</c> says which).</item>
@@ -48,6 +48,10 @@ internal static class OursCrowd
 
     private static int Int(string[] t, string name, int fallback) => int.Parse(Arg(t, name, fallback.ToString(CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture);
 
+    // "--threads auto" runs on every core, the footing of a reference that parallelises over all of them by default (RVO2-CS).
+    private static int Threads(string[] t) =>
+        Arg(t, "threads", "1") == "auto" ? Environment.ProcessorCount : Int(t, "threads", 1);
+
     private static double Num(string[] t, string name, double fallback) => double.Parse(Arg(t, name, fallback.ToString("R", CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture);
 
     private static Row R(SuiteRow row, string metric, double v, string unit) =>
@@ -57,7 +61,7 @@ internal static class OursCrowd
 
     private static List<Row> Circle(SuiteRow row, string[] t)
     {
-        int n = Int(t, "agents", 250), steps = Int(t, "steps", 200), warm = Int(t, "warmup", 20), threads = Int(t, "threads", 1);
+        int n = Int(t, "agents", 250), steps = Int(t, "steps", 200), warm = Int(t, "warmup", 20), threads = Threads(t);
         double dt = Num(t, "dt", 0.25);
         double radiusOfCircle = 200.0 * Math.Sqrt(n / 250.0);
         var sim = new OrcaSimulator { MaxThreads = threads };
