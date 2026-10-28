@@ -88,6 +88,24 @@ internal ref struct StateReader
         }
     }
 
+    public int U16()
+    {
+        Need(2);
+        int v = BinaryPrimitives.ReadUInt16LittleEndian(_s[Position..]);
+        Position += 2;
+        return v;
+    }
+
+    public ReadOnlySpan<byte> Bytes(int n)
+    {
+        Need(n);
+        ReadOnlySpan<byte> b = _s.Slice(Position, n);
+        Position += n;
+        return b;
+    }
+
+    public readonly int Remaining => _s.Length - Position;
+
     public int I32()
     {
         Need(4);
@@ -113,6 +131,8 @@ internal ref struct StateReader
         }
         return v;
     }
+
+    public double F64(string field) => F64(field, false);
 
     // The remaining distance: not negative, positive infinity allowed (unknown).
     public double F64Remaining()

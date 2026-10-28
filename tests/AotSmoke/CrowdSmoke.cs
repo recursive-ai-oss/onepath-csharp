@@ -32,7 +32,43 @@ internal static class CrowdSmoke
         {
             rejected = true;
         }
-        return arrived && onMesh && debug && rejected && one.AsSpan().SequenceEqual(many);
+        return arrived && onMesh && debug && rejected && one.AsSpan().SequenceEqual(many) && RollsBack(nm);
+    }
+
+    // Snapshot mid-walk, go on, restore, go on again: the state bytes must match those of the first pass.
+    private static bool RollsBack(NavMesh nm)
+    {
+        Crowd crowd = nm.CreateCrowd(new CrowdOptions { MaxThreads = 2 });
+        for (int i = 0; i < 12; i++)
+        {
+            Agent a = crowd.Add(new Vector3D(1.5 + (i % 4), 0, 1.5 + ((i / 4) * 1.5)), Agent.Small);
+            a.SetDestination(new Vector3D(14.5 + (i % 4), 0, 1.5 + ((i / 4) * 1.5)));
+        }
+        for (int step = 0; step < 100; step++)
+        {
+            crowd.Step(1.0 / 30);
+        }
+        byte[] snap = crowd.SaveStateWithMesh();
+        for (int step = 0; step < 150; step++)
+        {
+            crowd.Step(1.0 / 30);
+        }
+        byte[] first = crowd.SaveState();
+        crowd.RestoreStateWithMesh(snap);
+        for (int step = 0; step < 150; step++)
+        {
+            crowd.Step(1.0 / 30);
+        }
+        bool rejected = false;
+        try
+        {
+            crowd.RestoreState(snap.AsSpan(0, snap.Length / 2));
+        }
+        catch (RecursiveAI.OnePath.Mesh.NavMeshFormatException)
+        {
+            rejected = true;
+        }
+        return rejected && first.AsSpan().SequenceEqual(crowd.SaveState());
     }
 
     private static byte[] Walk(NavMesh nm, int threads, out bool arrived, out bool onMesh, out bool debug)

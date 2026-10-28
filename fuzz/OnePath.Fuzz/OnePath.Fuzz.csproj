@@ -13,5 +13,6 @@
     <Compile Include="../../tests/OnePath.Tests/Grids/AnyAngleOracle.cs" Link="Support/AnyAngleOracle.cs" />
     <Compile Include="../../tools/HashMatrix/Scenarios/Crowds/CorridorWorlds.cs" Link="Support/CorridorWorlds.cs" />
     <Compile Include="../../tools/HashMatrix/Scenarios/Crowds/CrowdWorlds.cs" Link="Support/CrowdWorlds.cs" />
+    <Compile Include="../../tools/HashMatrix/Scenarios/Crowds/CrowdRollback.cs" Link="Support/CrowdRollback.cs" />
   </ItemGroup>
 </Project>

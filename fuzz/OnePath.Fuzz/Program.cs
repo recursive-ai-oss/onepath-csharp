@@ -119,5 +119,6 @@ public static class Targets
         ["grid-replan"] = GridTargets.Replan,
         ["corridor-follow"] = CorridorFuzz.Run,
         ["crowd"] = CrowdFuzz.Run,
+        ["crowd-state"] = CrowdStateFuzz.Run,
     };
 }
