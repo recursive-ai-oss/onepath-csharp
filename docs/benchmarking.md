@@ -8,12 +8,15 @@ settings. This page is normative: a later port of the bar runner must produce co
 - **Warm, in-process, best of N.** Every driver loads its input, does untimed warm-up work, then times the measured
   work repeatedly inside one process and reports the best (minimum) time, plus the median. The bar runner repeats the
   whole process `--reps` times and keeps the best per row. Times are monotonic-clock wall times of the measured section
-  only (no process start, no file loading), except where a metric says otherwise.
+  only (no process start, no file loading), except where a metric says otherwise. Our query rows warm up for about half a
+  second per phase (path, raycast, nearest) before timing: a short row otherwise runs mostly in the .NET runtime's first-tier
+  code, which a native reference has no counterpart of. The wall clock decides only how long the warm-up lasts, never a result.
 - **Same inputs and settings.** Navmesh builds read the same OBJ with the same settings (below); query sets are the same
   point file; crowds and grid scenarios are the same parameters. Settings for the builders default to a humanoid:
   cell 0.3, cell height 0.2, agent height 2.0, radius 0.6, max climb 0.9, max slope 45 degrees, min region 8, merge region
   20, max edge length 12, max edge error 1.3, 6 vertices per polygon, detail sample distance 6, detail max error 1,
-  64-cell tiles for tiled builds.
+  64-cell tiles for tiled builds. The maximum edge length is a length in world units (12 units, 40 cells), not 12 cells, on every side.
+  Our solo 3D builds use one tile that covers the level's bounds plus one cell, like the references' grid over the input bounds.
 - **Memory** is the peak resident set of the whole process from `/usr/bin/time -v` (Linux) or `/usr/bin/time -l`
   (macOS), reported as `peak_rss` in MB. The managed runtime's own overhead is therefore part of a .NET row.
 - **Machines.** x64 rows run on the Linux benchmark host and arm64 rows on a Mac, one heavy job at a time, with the
@@ -32,7 +35,7 @@ Drivers print one measurement per line on stdout:
 ROW,<part>,<scenario>,<side>,<metric>,<value>,<unit>
 ```
 
-`part` is `build`, `query`, `crowd` or `grid`; `side` names the implementation and version (`recast-1.6.0`,
+`part` is `build`, `query`, `crowd`, `grid` or `tilecache`; `side` names the implementation and version (`recast-1.6.0`,
 `dotrecast-2026.3.1`, `rvo2-2.0.2`, `rvo2cs-2.0.1`, `warthog-0.6.2`, `warthog-jps-0.6.2`, `onepath-<version>`); `unit` is
 `ms`, `count`, `MB`, `world_units`, `world_units2`, `1/s`, `agent-steps/ms`, `cost` or `text`. The bar runner replaces
 `scenario` by the suite row id and writes everything, ours and reference, to `rows.csv` in long format:
@@ -48,15 +51,18 @@ the rest the last run's value.
 
 | part | metrics |
 |---|---|
-| build | `time_best`, `time_median` (ms, whole build of all tiles from triangles to navmesh data), `polys`, `verts`, `coverage_area` (sum of polygon areas projected on the ground plane, world units²), `tiles`, `input_tris`, `peak_rss`, `settings` |
+| build | `time_best`, `time_median` (ms, whole build of all tiles from triangles to navmesh data), `polys`, `verts`, `coverage_area` (sum of polygon areas projected on the ground plane, world units²), `tiles`, `input_tris`, `peak_rss`, `settings`; our tile-map rows add `exact_area` and `delta_vs_exact_pct` (the 2D gate, below) |
 | query | `points_snapped`, `pairs`; `path_time_best`, `path_per_sec`, `path_mean_length` (string-pulled path, world units), `path_found`, `path_partial`; `raycast_time_best`, `raycast_per_sec`, `raycast_hits`; `nearest_time_best`, `nearest_per_sec` |
+| tilecache | `time_best`, `time_median` (ms, one whole obstacle cycle), `cache_build_time` (ms, the level built with its tile cache), `obstacles`, `polys_initial`, `polys` (all obstacles in force), `polys_restored`, `coverage_area_initial`, `coverage_area`, `coverage_area_restored`, `tiles`, `layers`, `input_tris`, `peak_rss`, `settings` |
 | crowd | `agents`, `steps`, `time` (ms for the timed steps), `agents_per_ms` (agent-steps per ms), `moving_at_end` or `position_checksum`, `threads` where the library has them |
-| grid | per scenario file: `instances`, `search_time` (sum of per-instance search time, ms), `wall_time` (whole process, ms), `expanded`, `generated`, `cost_sum`, `cost_mismatch_vs_scenario` (instances whose cost differs from the scenario file's optimal cost) |
+| grid | per scenario file: `instances`, `reference_exit_code` (only when non-zero: Warthog's `--checkopt` exits with its count of cost mismatches after printing every instance; the rows are kept), `search_time` (sum of per-instance search time, ms), `wall_time` (whole process, ms), `expanded`, `generated`, `cost_sum`, `cost_mismatch_vs_scenario` (instances whose cost differs from the scenario file's optimal cost) |
 
 The query set pairs consecutive points of the level's `.points` file (point 0 with 1, 2 with 3, …); each point is
 snapped to the nearest polygon within a (2, 4, 2) box and pairs with an unsnapped end are dropped. Path queries are
 `findPath` followed by `findStraightPath`; an incomplete path (goal unreachable) is counted in `path_partial` and
 measured to the closest reachable point. Raycasts go from the first to the second point of each pair.
+
+Our side of a crowd row is run untimed in the same process, repeatedly (with a pause after each so the JIT finishes promoting hot methods) until two runs in a row agree within 3%, before the timed run: a native reference is optimized from its first instruction, and a few dozen steps of a small crowd never reach the JIT's promotion thresholds. The row argument `--prewarm 0` turns it off.
 
 The crowd scenarios: **navmesh crowd** — N agents start at the query points and walk to other query points
 (humanoid parameters: radius 0.6, height 2.0, max speed 3.5, max acceleration 8, separation weight 2, all steering flags on),
@@ -74,12 +80,19 @@ variable for that run. Our side is whatever `OurScenarios.Run` returns for the r
 scenarios the report shows "no ours yet" beside the reference's numbers.
 
 ```
-tools/bench/run-bar.sh <suite|file.tsv> [--out dir] [--reps N] [--only substring] [--machine name]
+tools/bench/run-bar.sh <suite|file.tsv> [--out dir] [--reps N] [--only substring] [--machine name] [--light] [--in-process]
 ```
 
 writes `rows.csv`, `env.json` and `report.md` (per row: ours, reference, ratio, memory, verdict; then every reference
-metric). Suites: `smoke` (tiny; proves every driver on a machine; no timing claims) and `references` (the full reference
-rows).
+metric; for tile-map rows also the 2D gate table). Suites: `smoke` (tiny; proves every driver on a machine; no timing claims),
+`references` (the full reference rows), `quality3d` and `shapes` (coverage and path-length rows, no timing).
+
+Our side of a row runs in a fresh child process under `/usr/bin/time`, exactly like a reference driver, so its `peak_rss` is that
+row's own peak and its timing starts from a cold process (the row's own `--reps` give the warm best). `--in-process` runs it inside the
+runner instead (debugging only; memory is then the runner's peak so far).
+
+**Light check.** `--light` proves that every row of a suite runs and prints every metric: levels of size 96 instead of 256, one repetition
+of every row, 20 crowd steps and at most 200 agents. Label such a run `--machine light-check`; its numbers are never published.
 
 ## References
 
@@ -92,9 +105,11 @@ command line.
 |---|---|---|---|
 | Recast, Detour, DetourCrowd | 1.6.0 | `bench/Harness/Native/recast_harness.cpp`, written from the public API reference | static libraries, CMake Release (`-O3`), no `-march` flags |
 | RVO2 | 2.0.2 | `bench/Harness/Native/rvo_harness.cpp`, from the library documentation | parallel with OpenMP where the compiler has it; rows set `OMP_NUM_THREADS=1` for the single-thread comparison and report `threads` |
-| DotRecast | 2026.3.1 (NuGet) | `bench/Harness/RefHarness` (C#), compiled against the package | same settings as Recast; per-polygon areas set after the build as in the native driver |
-| RVO2-CS | 2.0.1 | `bench/Harness/RefHarness`, library sources compiled as shipped by `bench/Harness/Rvo2CsLib` | not on NuGet; its own projects target an old .NET Framework |
-| Warthog (core, JPS) | 0.6.2 | the documented `warthog` and `warthog-jps` command lines on Moving AI scenario files; on macOS built with a private LLVM 22.1.5 toolchain (below) | `search_time` sums the per-instance times the program prints; JPS+ preprocessing is not in it, so `wall_time` is reported too |
+| DetourTileCache | 1.6.0 (same release) | the `tilecache` command of `recast_harness.cpp`, from the class reference at recastnav.com (`dtTileCache`, `dtTileCacheParams`, `dtTileCacheLayerHeader`, `dtTileCacheCompressor`, `dtTileCacheMeshProcess`, `DetourTileCacheBuilder.h` and `Recast.h` function pages) | layers are stored uncompressed (a pass-through compressor), so the rows measure the rebuild and not LZ compression |
+| DotRecast | 2026.3.1 (NuGet) | `bench/Harness/RefHarness` (C#), compiled against the package | same settings as Recast; per-polygon areas set after the build as in the native driver; tiled builds hand the library the bounds of the whole input and the tile's grid position (it offsets the box itself) |
+| DotRecast tile cache | 2026.3.1 (NuGet `DotRecast.Detour.TileCache`) | `bench/Harness/RefHarness/DotRecastTileCache.cs` | its own layer builder over the whole tile grid on one thread, the same pass-through storage and the same scenario as the native driver |
+| RVO2-CS | 2.0.1 | `bench/Harness/RefHarness`, library sources compiled as shipped by `bench/Harness/Rvo2CsLib` | not on NuGet; its own projects target an old .NET Framework. It spreads each step over all cores by default (about 5 cores busy at 5000 agents on an 8-core machine: 2.9 s of CPU in 0.57 s of wall time), so its rows run our side with `--threads auto` (every core); the single-thread comparison is the RVO2 C++ row |
+| Warthog (core, JPS) | 0.6.2 | the documented `warthog` and `warthog-jps` command lines on Moving AI scenario files; on macOS built with a private LLVM 22.1.5 toolchain (below) | `search_time` sums the per-instance times the program prints; JPS+ preprocessing is not in it, so `wall_time` is reported too; maps with swamp or water (the wc3 set) are given as a converted copy through the documented `--map` option (swamp as free ground, water as blocked, the reading of the published optimal costs), since the programs otherwise stop at the first instance crossing one |
 
 **Warthog on macOS.** Warthog's logger calls `std::chrono::current_zone`, which Apple's C++ library does not have.
 `refs.sh` therefore builds a private toolchain under `$ONEPATH_HOME/tools` on macOS and compiles Warthog, unmodified,
@@ -127,13 +142,44 @@ own `next() < 0.6`), extruded to two flat up-facing triangles per floor tile at 
 square. The reference builds it from the triangles (`--cell 0.25 --agent-radius 0.5`, tiled rows with `--tile-size 128`
 cells = 32 units, a solo row without); ours is `NavMesh.Build2D` from the tiles, which `bench/Shared/TileMapWorld.cs`
 recovers from the OBJ (each triangle belongs to the tile its centroid is in; `OnePath.Micro --check-tilemap` checks
-this against its own generator) and times from tiles to mesh (best of `--reps` builds in one process). Ours takes
-`agent radius + cell size` as its radius: on this level the reference's coverage matches ours at that radius (16407
-against 16431 world units^2 tiled, 0.15% apart) and ours at the nominal radius would be 45% above it, so the extra cell is
-part of what the reference's radius means; the `settings` row says so. Quality rows to read beside the times:
-`coverage_area` (sum of polygon areas on the ground plane), `polys`, `verts`, and the query row
+this against its own generator) and times from tiles to mesh (best of `--reps` builds in one process). Ours builds at the nominal agent radius, after untimed
+builds until three in a row are within 5% of each other (at most 40): the first builds run the runtime's unoptimized code, which
+the native reference never pays and the warm method excludes (the first build of a process takes about 300 ms against 75 ms warm).
+
+**The gate.** The 2D builder is judged against the exact eroded area of the same tile map, not against Recast: the area of the floor
+points at least the agent radius away from every wall (solid tiles and everything outside the map), with round joins at convex corners.
+`TileMapWorld.ExactErodedArea` computes it in closed form without any builder. For a radius up to half a tile (2 units), wall tiles two or
+more tiles away are farther than the radius from every point of a floor tile, so each floor tile only sees its eight neighbours; the lost
+area inside a tile of side T is a strip of width r along each side that borders a wall plus a quarter disc of radius r at each corner whose
+two adjacent sides border floor and whose diagonal neighbour is a wall, and these overlap only in r x r corner squares where two strips
+meet: lost = 2 r S - r^2 C + (pi r^2 / 4) D for S wall sides, C wall-side pairs meeting at a corner and D discs. The only inexact step is
+the double rounding of pi, so the result is within 1e-9 relative of the true area; it agrees with the point-sampling in
+`tools/geom/gen_shapes.py` (`exact.tsv`, sampled at 1/200 unit) to 0.03% on the shape rows. Our rows print `exact_area` and
+`delta_vs_exact_pct`, and the report's "2D gate" table lists, per row, the exact area, ours, ours against exact (pass within 1%), then
+the reference's coverage, its delta against exact and ours against it, as information. Recast's coverage equals the exact area at
+radius + one cell (its ledge filter and minimum region area), so it falls below the exact area by construction: on the 256 tile map at
+radius 0.5 and cell 0.25, exact 23819, ours 23761 (-0.25%), Recast 16407 (-31%).
+
+Quality rows to read beside the times: `coverage_area` (sum of polygon areas on the ground plane), `polys`, `verts`, and the query row
 `query/tilemap-tiled/recast` (`path_mean_length` over the level's own points; each side snaps the points itself, so
 the pairs it answers differ slightly).
+
+## The run-time rebuild rows
+
+`tilecache` rows compare temporary-obstacle rebuilds on a tiled level (`--mode tiled --tile-size 64`, cell 0.3): ours `TileCache`
+(`Mesh3DPipeline.BuildSoupCached`, `AddObstacle`, `UpdateAll`) against DetourTileCache and DotRecast's tile cache. Obstacle k of
+`--obstacles` (16) is a cylinder of radius 2 and height 3 whose base is half a unit under the k-th of every (points / obstacles) query
+points. One timed cycle adds every obstacle in turn, each followed by rebuilding the tiles it touches until the cache is up to date, then
+removes them the same way; `time_best` is the best cycle of `--reps`, on one cache built before the cycles (`cache_build_time` is the best
+of `--reps` builds of the level with its cache, layers stored uncompressed). Quality rows: polygon count and walkable area before, with all
+obstacles in force and after they are removed (`polys_restored` and `coverage_area_restored` must equal the initial values).
+
+Warm-up: our 3D build and tile-cache rows run untimed builds (obstacle cycles for `tilecache`) first, until three in a row are within 5%
+(at most 40, or 30 s; the clock bounds only the warm-up). Setting `ONEPATH_PROFILE=1` adds per-stage rows to our side: `stage_*_ms` is the
+time spent in each replaceable stage of `Mesh3DPipeline` (the public hooks, wrapped with a clock; summed over tiles, best of several
+runs), `stage_other_ms` the rest (triangle binning, voxelizing, tile data, stitching) and `stage_voxelize_standalone_ms` the voxelize step
+timed alone. Our `tilecache` rows use the partition and detail work DetourTileCache does on a rebuild (layer partition, no detail sampling) by
+default; `ONEPATH_TC_VARIANT=watershed` uses watershed with detail sampling instead. The settings row says which one ran.
 
 ## Running the full reference rows
 

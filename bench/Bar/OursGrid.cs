@@ -32,7 +32,7 @@ internal static class GridBar
                 scen = a[i + 1];
             }
         }
-        if (alg is not ("astar" or "jps" or "jps+") || scen is null || !scen.EndsWith(".scen", StringComparison.Ordinal))
+        if (alg is not ("astar" or "jps" or "jpsP" or "jps+" or "jpsP+") || scen is null || !scen.EndsWith(".scen", StringComparison.Ordinal))
         {
             return null;
         }
@@ -40,63 +40,83 @@ internal static class GridBar
         // Loading is outside the timed section, as for the reference drivers.
         Grid grid = MovingAiMap.Parse(File.ReadAllBytes(scen[..^5])).ToGrid();
         ScenarioEntry[] entries = MovingAiScenarios.Parse(File.ReadAllBytes(scen));
-        var buffers = new GridSearchBuffers(grid.CellCount);
-        var heuristic = new OctileHeuristic(grid.Width);
         Func<int, int, SearchStatus> run;
         Func<double> cost;
         Func<int> expandedCount;
         long preTicks = 0;
         switch (alg)
         {
-            case "jps":
+            case "jps" or "jpsP":
             {
-                var map = new BlockMap(grid);
-                var js = new JumpSearch<BlockJumper, OctileHeuristic>(new BlockJumper(map), heuristic, 1.0, buffers);
-                run = (from, to) => { js.Begin(from, to); return js.Run(); };
+                long p0 = Stopwatch.GetTimestamp();
+                var map = new OctileMap(grid);
+                preTicks = Stopwatch.GetTimestamp() - p0;
+                var js = new OctileJump<BitFinder>(new BitFinder(map, alg == "jpsP"), grid.Width, grid.Height);
+                run = (from, to) => js.Run(from, to, false, int.MaxValue, false);
                 cost = () => js.PathCost;
                 expandedCount = () => js.ExpandedCount;
                 break;
             }
-            case "jps+":
+            case "jps+" or "jpsP+":
             {
                 long p0 = Stopwatch.GetTimestamp();
+                var map = new OctileMap(grid);
                 var index = new JpsPlusIndex(grid);
                 preTicks = Stopwatch.GetTimestamp() - p0;
-                var js = new JumpSearch<TableJumper, OctileHeuristic>(new TableJumper(index), heuristic, 1.0, buffers);
-                run = (from, to) => { js.Begin(from, to); return js.Run(); };
+                var js = new OctileJump<TableFinder>(new TableFinder(index, map, alg == "jpsP+"), grid.Width, grid.Height);
+                run = (from, to) => js.Run(from, to, false, int.MaxValue, false);
                 cost = () => js.PathCost;
                 expandedCount = () => js.ExpandedCount;
                 break;
             }
             default:
             {
-                var astar = new AStar<SquareTopology, DefaultStepCost, OctileHeuristic>(grid.CreateTopology(), default, heuristic, buffers);
-                run = (from, to) => { astar.Begin(from, to); return astar.Run(); };
+                var astar = new OctileAStar(grid);
+                run = (from, to) => astar.Run(from, to, false, int.MaxValue, false);
                 cost = () => astar.PathCost;
                 expandedCount = () => astar.ExpandedCount;
                 break;
             }
         }
 
+        // Untimed warm-up (docs/benchmarking.md): the first instances run once so that the JIT has compiled the search loops and the
+        // buffers are touched before the clock starts, as the reference drivers' native code is ready when they start.
+        for (int i = 0; i < Math.Min(entries.Length, 40); i++)
+        {
+            ScenarioEntry e = entries[i];
+            run((e.StartY * grid.Width) + e.StartX, (e.GoalY * grid.Width) + e.GoalX);
+        }
+
+        // ONEPATH_GRID_PASSES=N times N passes over the scenario in this process and keeps the fastest (docs/benchmarking.md: best of N);
+        // the default is one pass, as the reference drivers run once per process.
+        int passes = int.TryParse(Environment.GetEnvironmentVariable("ONEPATH_GRID_PASSES"), NumberStyles.None, CultureInfo.InvariantCulture, out int pe) && pe > 0 ? pe : 1;
         double costSum = 0;
         long expanded = 0;
         int mismatches = 0;
-        long ticks = 0;
-        for (int i = 0; i < entries.Length; i++)
+        long ticks = long.MaxValue;
+        for (int pass = 0; pass < passes; pass++)
         {
-            ScenarioEntry e = entries[i];
-            int s = (e.StartY * grid.Width) + e.StartX;
-            int g = (e.GoalY * grid.Width) + e.GoalX;
-            long t0 = Stopwatch.GetTimestamp();
-            SearchStatus st = run(s, g);
-            ticks += Stopwatch.GetTimestamp() - t0;
-            expanded += expandedCount();
-            double c = st == SearchStatus.Found ? cost() : double.PositiveInfinity;
-            costSum += c;
-            if (!(Math.Abs(c - e.OptimalLength) <= 1e-6 * Math.Max(1.0, e.OptimalLength)))
+            costSum = 0;
+            expanded = 0;
+            mismatches = 0;
+            long passTicks = 0;
+            for (int i = 0; i < entries.Length; i++)
             {
-                mismatches++;
+                ScenarioEntry e = entries[i];
+                int s = (e.StartY * grid.Width) + e.StartX;
+                int g = (e.GoalY * grid.Width) + e.GoalX;
+                long t0 = Stopwatch.GetTimestamp();
+                SearchStatus st = run(s, g);
+                passTicks += Stopwatch.GetTimestamp() - t0;
+                expanded += expandedCount();
+                double c = st == SearchStatus.Found ? cost() : double.PositiveInfinity;
+                costSum += c;
+                if (!(Math.Abs(c - e.OptimalLength) <= 1e-6 * Math.Max(1.0, e.OptimalLength)))
+                {
+                    mismatches++;
+                }
             }
+            ticks = Math.Min(ticks, passTicks);
         }
         double ms = ticks * 1000.0 / Stopwatch.Frequency;
         string scenario = row.Id;

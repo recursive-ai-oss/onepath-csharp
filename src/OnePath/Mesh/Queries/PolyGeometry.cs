@@ -22,9 +22,30 @@ internal static class PolyGeometry
         if (m.TriangleCount > 0)
         {
             ReadOnlySpan<byte> dt = t.DetailTriangles;
+            ReadOnlySpan<float> dv = t.DetailVertices;
+            int vb = (int)m.VertexBase;
+            int tb = (int)m.TriangleBase;
+            // Pass 1 tries only the triangles a lookup grid lists for the point's cell (in index order, every ill-shaped
+            // triangle included), so the first triangle that contains the point is the one a scan of all of them would
+            // find. Pass 2 (only when none contains the point) is the full scan that picks the least-violating plane.
+            if (m.TriangleCount >= DetailHeightGrid.MinTriangles)
+            {
+                DetailHeightGrid g = t.GetHeightGrid();
+                ReadOnlySpan<int> cand = g.Candidates(p, x, z);
+                for (int ci = 0; ci < cand.Length; ci++)
+                {
+                    int o = 4 * (tb + cand[ci]);
+                    DetailHeightGrid.Corners(v, dv, idx, b, n, vb, dt, o, out double ax, out double ay, out double az, out double bx, out double by, out double bz, out double cx, out double cy, out double cz);
+                    double dummyMin = double.NegativeInfinity, dummyY = 0;
+                    if (Tri(ax, ay, az, bx, by, bz, cx, cy, cz, x, z, ref dummyMin, ref dummyY))
+                    {
+                        return dummyY;
+                    }
+                }
+            }
             for (int k = 0; k < m.TriangleCount; k++)
             {
-                int o = 4 * (int)(m.TriangleBase + (uint)k);
+                int o = 4 * (tb + k);
                 Corner(t, p, dt[o], out double ax, out double ay, out double az);
                 Corner(t, p, dt[o + 1], out double bx, out double by, out double bz);
                 Corner(t, p, dt[o + 2], out double cx, out double cy, out double cz);
@@ -70,7 +91,7 @@ internal static class PolyGeometry
 
     // Barycentric test in X/Z. Returns true (with y) if the point is inside within a tiny tolerance; otherwise keeps the
     // least-violating triangle's plane height in bestY.
-    private static bool Tri(double ax, double ay, double az, double bx, double by, double bz, double cx, double cy, double cz, double x, double z, ref double bestMin, ref double bestY)
+    internal static bool Tri(double ax, double ay, double az, double bx, double by, double bz, double cx, double cy, double cz, double x, double z, ref double bestMin, ref double bestY)
     {
         double d = ((bz - cz) * (ax - cx)) + ((cx - bx) * (az - cz));
         if (d == 0)
@@ -334,5 +355,152 @@ internal sealed class TileBvh
                 stack[sp++] = _a[node];
             }
         }
+    }
+}
+
+/// <summary>
+/// A lookup grid over each polygon's detail triangles, so a height query tests the few triangles near the point and not
+/// all of them. Candidate lists are in triangle order and include every triangle the containment test could accept at
+/// a point in the cell, so the first accepted candidate is the first accepted triangle overall. Built once per tile,
+/// deterministically, and cached on it.
+/// </summary>
+internal sealed class DetailHeightGrid
+{
+    /// <summary>Polygons with fewer detail triangles are scanned directly.</summary>
+    public const int MinTriangles = 12;
+
+    private readonly int[] _cellBase;   // per polygon: first cell index, or -1 when scanned directly
+    private readonly int[] _dim;        // per polygon: cells per side
+    private readonly double[] _box;     // per polygon: minX, minZ, 1/cellX, 1/cellZ
+    private int[] _cellStart = [];      // CSR over cells (cell + 1 for the end)
+    private int[] _items = [];
+
+    private DetailHeightGrid(int polys)
+    {
+        _cellBase = new int[polys];
+        _dim = new int[polys];
+        _box = new double[4 * polys];
+    }
+
+    public static void Corners(ReadOnlySpan<float> v, ReadOnlySpan<float> dv, ReadOnlySpan<ushort> idx, int b, int n, int vb, ReadOnlySpan<byte> dt, int o,
+        out double ax, out double ay, out double az, out double bx, out double by, out double bz, out double cx, out double cy, out double cz)
+    {
+        Corner(v, dv, idx, b, n, vb, dt[o], out ax, out ay, out az);
+        Corner(v, dv, idx, b, n, vb, dt[o + 1], out bx, out by, out bz);
+        Corner(v, dv, idx, b, n, vb, dt[o + 2], out cx, out cy, out cz);
+    }
+
+    private static void Corner(ReadOnlySpan<float> v, ReadOnlySpan<float> dv, ReadOnlySpan<ushort> idx, int b, int n, int vb, int i, out double x, out double y, out double z)
+    {
+        if (i < n)
+        {
+            int vi = 3 * idx[b + i];
+            x = v[vi];
+            y = v[vi + 1];
+            z = v[vi + 2];
+        }
+        else
+        {
+            int di = 3 * (vb + i - n);
+            x = dv[di];
+            y = dv[di + 1];
+            z = dv[di + 2];
+        }
+    }
+
+    public ReadOnlySpan<int> Candidates(int p, double x, double z)
+    {
+        int cb = _cellBase[p];
+        if (cb < 0)
+        {
+            return default;
+        }
+        int d = _dim[p];
+        int cx = ClampCell((x - _box[4 * p]) * _box[(4 * p) + 2], d);
+        int cz = ClampCell((z - _box[(4 * p) + 1]) * _box[(4 * p) + 3], d);
+        int cell = cb + (cz * d) + cx;
+        return _items.AsSpan(_cellStart[cell], _cellStart[cell + 1] - _cellStart[cell]);
+    }
+
+    private static int ClampCell(double f, int d) => !(f > 0) ? 0 : (f >= d ? d - 1 : (int)f);
+
+    public static DetailHeightGrid Build(NavTile t)
+    {
+        int polys = t.PolyCount;
+        var g = new DetailHeightGrid(polys);
+        var starts = new System.Collections.Generic.List<int>();
+        var items = new System.Collections.Generic.List<int>();
+        int cells = 0;
+        ReadOnlySpan<float> v = t.Vertices;
+        ReadOnlySpan<float> dv = t.DetailVertices;
+        ReadOnlySpan<ushort> idx = t.PolyIndices;
+        ReadOnlySpan<byte> dt = t.DetailTriangles;
+        for (int p = 0; p < polys; p++)
+        {
+            DetailMesh m = t.DetailMeshes[p];
+            g._cellBase[p] = -1;
+            if (m.TriangleCount < MinTriangles)
+            {
+                continue;
+            }
+            int n = t.PolyVertexCounts[p];
+            int b = t.PolyStart[p];
+            int vb = (int)m.VertexBase;
+            int tb = (int)m.TriangleBase;
+            int tc = m.TriangleCount;
+            var lo = new double[2 * tc];
+            var hi = new double[2 * tc];
+            var bad = new bool[tc];
+            double minX = double.PositiveInfinity, minZ = double.PositiveInfinity, maxX = double.NegativeInfinity, maxZ = double.NegativeInfinity;
+            for (int k = 0; k < tc; k++)
+            {
+                Corners(v, dv, idx, b, n, vb, dt, 4 * (tb + k), out double ax, out _, out double az, out double bx, out _, out double bz, out double cx, out _, out double cz);
+                double tx0 = Math.Min(ax, Math.Min(bx, cx)), tx1 = Math.Max(ax, Math.Max(bx, cx));
+                double tz0 = Math.Min(az, Math.Min(bz, cz)), tz1 = Math.Max(az, Math.Max(bz, cz));
+                double ext = Math.Max(tx1 - tx0, tz1 - tz0);
+                double margin = (1e-6 * ext) + 1e-9;
+                lo[2 * k] = tx0 - margin;
+                lo[(2 * k) + 1] = tz0 - margin;
+                hi[2 * k] = tx1 + margin;
+                hi[(2 * k) + 1] = tz1 + margin;
+                // Containment is a division by twice the signed area; when that is tiny next to the triangle's size the
+                // quotients are unreliable, so such a triangle is a candidate everywhere.
+                bad[k] = !(Math.Abs(((bz - cz) * (ax - cx)) + ((cx - bx) * (az - cz))) >= 1e-6 * ext * ext);
+                minX = Math.Min(minX, tx0);
+                minZ = Math.Min(minZ, tz0);
+                maxX = Math.Max(maxX, tx1);
+                maxZ = Math.Max(maxZ, tz1);
+            }
+            int dim = Math.Clamp((int)Math.Sqrt(tc / 2.0), 2, 32);
+            double cw = Math.Max((maxX - minX) / dim, 1e-9), ch = Math.Max((maxZ - minZ) / dim, 1e-9);
+            g._box[4 * p] = minX;
+            g._box[(4 * p) + 1] = minZ;
+            g._box[(4 * p) + 2] = 1.0 / cw;
+            g._box[(4 * p) + 3] = 1.0 / ch;
+            g._dim[p] = dim;
+            g._cellBase[p] = cells;
+            for (int cz = 0; cz < dim; cz++)
+            {
+                for (int cx = 0; cx < dim; cx++)
+                {
+                    starts.Add(items.Count);
+                    // The cell's box, widened a little so rounding of the cell lookup never drops a triangle.
+                    double x0 = minX + (cx * cw) - (1e-6 * cw), x1 = minX + ((cx + 1) * cw) + (1e-6 * cw);
+                    double z0 = minZ + (cz * ch) - (1e-6 * ch), z1 = minZ + ((cz + 1) * ch) + (1e-6 * ch);
+                    for (int k = 0; k < tc; k++)
+                    {
+                        if (bad[k] || (lo[2 * k] <= x1 && hi[2 * k] >= x0 && lo[(2 * k) + 1] <= z1 && hi[(2 * k) + 1] >= z0))
+                        {
+                            items.Add(k);
+                        }
+                    }
+                }
+            }
+            cells += dim * dim;
+        }
+        starts.Add(items.Count);
+        g._cellStart = starts.ToArray();
+        g._items = items.ToArray();
+        return g;
     }
 }

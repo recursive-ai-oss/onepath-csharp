@@ -114,17 +114,17 @@ public class TileCacheTests
         var q = new NavMeshQuery(c.Mesh);
         var a = new Vector3D(2, 0, 3);
         var b = new Vector3D(38, 0, 3);
-        Assert.Equal(PathStatus.Success, FindPath(q, a, b));
+        Assert.Equal(PathStatus.Found, FindPath(q, a, b));
 
         int wall = c.AddObstacle(TileObstacle.Box(19, 0, -1, 21, 3, 7));
-        Assert.Equal(PathStatus.Success, FindPath(q, a, b)); // not rebuilt yet: the old mesh is still in force
+        Assert.Equal(PathStatus.Found, FindPath(q, a, b)); // not rebuilt yet: the old mesh is still in force
         All(c);
-        Assert.NotEqual(PathStatus.Success, FindPath(q, a, b));
+        Assert.NotEqual(PathStatus.Found, FindPath(q, a, b));
 
         Assert.True(c.RemoveObstacle(wall));
         Assert.False(c.RemoveObstacle(wall));
         All(c);
-        Assert.Equal(PathStatus.Success, FindPath(q, a, b));
+        Assert.Equal(PathStatus.Found, FindPath(q, a, b));
         AssertSame(new Mesh3DPipeline(Settings).BuildSoup(s.V.ToArray(), s.I.ToArray()), c.Mesh);
         Assert.Equal(before.Length, NavMeshSerializer.WriteMesh(c.Mesh).Length);
     }
@@ -369,6 +369,54 @@ public class TileCacheTests
         Assert.Throws<ArgumentNullException>(() => c.AddObstacle(null!));
         Assert.Throws<ArgumentOutOfRangeException>(() => c.Update(-1, CancellationToken.None));
         Assert.Equal(0, Upd(c, 0));
+    }
+
+    [Fact]
+    public void ObstacleKeepsTheAgentRadiusClear()
+    {
+        // The obstacle is marked after erosion with its footprint grown by the agent radius, so no walkable point may come closer to it than
+        // about the radius (within a cell for the chamfer of the cell grid).
+        Soup s = Level();
+        TileCache c = Cache(s);
+        c.AddObstacle(TileObstacle.Cylinder(15.9, 0, 14, 2, 2));
+        All(c);
+        var refs = new TileRef[8];
+        double nearest = double.MaxValue;
+        for (int z = -2; z < 6; z++)
+        {
+            for (int x = -2; x < 6; x++)
+            {
+                int n = c.Mesh.GetTilesAt(x, z, refs);
+                for (int i = 0; i < n; i++)
+                {
+                    NavTile t = c.Mesh.GetTile(refs[i])!;
+                    ReadOnlySpan<float> v = t.Vertices;
+                    for (int k = 0; k < v.Length; k += 3)
+                    {
+                        double dx = t.OriginX + v[k] - 15.9, dz = t.OriginZ + v[k + 2] - 14;
+                        nearest = Math.Min(nearest, Math.Sqrt((dx * dx) + (dz * dz)));
+                    }
+                }
+            }
+        }
+        Assert.True(nearest >= 2 + 0.5 - 0.3, $"a mesh vertex is {nearest} from the obstacle's centre");
+    }
+
+    [Fact]
+    public void ObstaclesOverOtherTilesSkipTheirRebuildButStayCorrect()
+    {
+        // Adding and removing an obstacle in a far corner queues tiles whose areas do not change; the mesh must still equal a fresh build.
+        Soup s = Level();
+        TileCache c = Cache(s);
+        TiledNavMesh fresh = new Mesh3DPipeline(Settings).BuildSoup(s.V.ToArray(), s.I.ToArray());
+        int id = c.AddObstacle(TileObstacle.Cylinder(2, 0, 2, 1, 2));
+        int id2 = c.AddObstacle(TileObstacle.Cylinder(37, 0, 27, 1, 2));
+        All(c);
+        c.RemoveObstacle(id);
+        All(c);
+        c.RemoveObstacle(id2);
+        All(c);
+        AssertSame(fresh, c.Mesh);
     }
 
     [Fact]

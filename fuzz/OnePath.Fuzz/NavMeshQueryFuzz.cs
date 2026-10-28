@@ -107,9 +107,9 @@ internal static class NavMeshQueryFuzz
                             break;
                         case 2:
                         {
-                            PathStatus s = s_query.BeginPath(b.Ref(true), b.Ref(true), b.Vec(), b.Vec(), filter);
+                            QueryStatus s = s_query.BeginPath(b.Ref(true), b.Ref(true), b.Vec(), b.Vec(), filter);
                             int budget = 1 + (b.U8() % 40);
-                            while (s == PathStatus.InProgress)
+                            while (s == QueryStatus.InProgress)
                             {
                                 s = s_query.UpdatePath(budget);
                                 if (b.U8() < 8)

@@ -54,7 +54,7 @@ public class AuthoredLinkTests
     {
         NavMesh m = Islands().Build(Settings(Jump()));
         PathResult r = m.FindPath(A, B);
-        Assert.Equal(PathStatus.Success, r.Status);
+        Assert.Equal(PathStatus.Found, r.Status);
         int marks = 0;
         foreach (StraightPathPoint p in r.Points)
         {
@@ -67,7 +67,7 @@ public class AuthoredLinkTests
         // Straight line 26 long; the link's ends are on that line.
         Assert.InRange(r.Length, 25.9, 26.3);
         // Two-way by default.
-        Assert.Equal(PathStatus.Success, m.FindPath(B, A).Status);
+        Assert.Equal(PathStatus.Found, m.FindPath(B, A).Status);
         // The slot carries what was authored, in the tile that holds the start.
         NavTile? owner = null;
         for (int s = 0; s < m.Tiles.SlotCount; s++)
@@ -95,7 +95,7 @@ public class AuthoredLinkTests
     public void One_way_links_only_go_one_way()
     {
         NavMesh m = Islands().Build(Settings(Jump().OneWay()));
-        Assert.Equal(PathStatus.Success, m.FindPath(A, B).Status);
+        Assert.Equal(PathStatus.Found, m.FindPath(A, B).Status);
         Assert.Equal(PathStatus.Partial, m.FindPath(B, A).Status);
     }
 
@@ -108,7 +108,7 @@ public class AuthoredLinkTests
         Assert.True(t.SetOffMeshLinkEnabled(owner, 0, false));
         Assert.Equal(PathStatus.Partial, m.FindPath(A, B).Status);
         Assert.True(t.SetOffMeshLinkEnabled(owner, 0, true));
-        Assert.Equal(PathStatus.Success, m.FindPath(A, B).Status);
+        Assert.Equal(PathStatus.Found, m.FindPath(A, B).Status);
         var closed = new PathOptions { Filter = new QueryFilter().SetAreaCost(4, double.PositiveInfinity) };
         Assert.Equal(PathStatus.Partial, m.FindPath(A, B, closed).Status);
     }
@@ -146,13 +146,13 @@ public class AuthoredLinkTests
         var s = Islands();
         TileCache cache = pipeline.BuildSoupCached(s.V.ToArray(), s.I.ToArray());
         string before = TileHashes(cache.Mesh);
-        Assert.True(cache.Mesh.FindPath(A, B).HasPath && cache.Mesh.FindPath(A, B).Status == PathStatus.Success);
+        Assert.True(cache.Mesh.FindPath(A, B).HasPath && cache.Mesh.FindPath(A, B).Status == PathStatus.Found);
         // The cached build is the plain build.
         Assert.Equal(before, TileHashes(Islands().Build(Settings(Jump())).Tiles));
 
         int id = cache.AddObstacle(TileObstacle.Cylinder(5, 0, 8, 1.2, 2));
         cache.UpdateAll(TestContext.Current.CancellationToken);
-        Assert.Equal(PathStatus.Success, cache.Mesh.FindPath(A, B).Status);
+        Assert.Equal(PathStatus.Found, cache.Mesh.FindPath(A, B).Status);
         // The tile that owns the link was rebuilt and still holds it.
         Assert.Single(cache.Mesh.GetTile(cache.Mesh.GetTileRef(0, 0, 0))!.OffMeshLinks.ToArray());
         cache.RemoveObstacle(id);
@@ -166,7 +166,7 @@ public class AuthoredLinkTests
         NavMesh m = Islands().Build(Settings(Jump()));
         Crowd crowd = m.CreateCrowd();
         Agent a = crowd.Add(A);
-        Assert.NotEqual(PathStatus.NoEndNearby, a.SetDestination(B));
+        Assert.NotEqual(PathStatus.GoalInvalid, a.SetDestination(B));
         bool crossed = false;
         for (int i = 0; i < 3000 && !a.ReachedTarget; i++)
         {
@@ -184,7 +184,7 @@ public class AuthoredLinkTests
         Outline Rect(double x0, double x1) => new(new List<Vector2D> { new(x0, 0), new(x1, 0), new(x1, 10), new(x0, 10) });
         var settings = new NavSettings { CellSize = 0.25, TileSize = 16, AgentRadius = 0.5f, OffMeshLinks = [Jump()] };
         NavMesh m = NavMesh.Build2D([Rect(0, 10), Rect(20, 30)], settings);
-        Assert.Equal(PathStatus.Success, m.FindPath(A, B).Status);
+        Assert.Equal(PathStatus.Found, m.FindPath(A, B).Status);
         NavMesh plain = NavMesh.Build2D([Rect(0, 10), Rect(20, 30)], settings with { OffMeshLinks = [] });
         Assert.Equal(PathStatus.Partial, plain.FindPath(A, B).Status);
     }
@@ -194,8 +194,8 @@ public class AuthoredLinkTests
     {
         var s = Islands();
         NavWorld w = NavWorld.Build(s.V.ToArray(), s.I.ToArray(), Settings(Jump()), Settings(Jump()) with { AgentRadius = 0.3f });
-        Assert.Equal(PathStatus.Success, w[0].FindPath(A, B).Status);
-        Assert.Equal(PathStatus.Success, w[1].FindPath(A, B).Status);
+        Assert.Equal(PathStatus.Found, w[0].FindPath(A, B).Status);
+        Assert.Equal(PathStatus.Found, w[1].FindPath(A, B).Status);
     }
 
     [Fact]

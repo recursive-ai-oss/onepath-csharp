@@ -63,8 +63,8 @@ internal static class StateWorlds
                 I(c.X);
                 I(c.Y);
             }
-            I(p.WorldPoints.Length);
-            foreach (WorldPoint w in p.WorldPoints)
+            I(p.Points.Length);
+            foreach (WorldPoint w in p.Points)
             {
                 D(w.X);
                 D(w.Y);
@@ -326,7 +326,7 @@ internal static class StateWorlds
                 tx.I(c.Z);
             }
             tx.I(p.ExpandedCells.Length);
-            foreach (VoxelPoint w in p.WorldPoints)
+            foreach (VoxelPoint w in p.Points)
             {
                 tx.D(w.X);
                 tx.D(w.Y);

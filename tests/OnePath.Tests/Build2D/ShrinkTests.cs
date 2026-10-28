@@ -62,4 +62,39 @@ public class ShrinkTests
         Region small = Mesh2DPipeline.Shrink(sq, 0.5);
         Assert.InRange(small.Area, 0.98, 1.0);
     }
+
+    // A 3x3-tile room (2 units per tile) with a pillar tile in the middle, on an 8x8 map. The exact eroded area is
+    // 8 tiles minus, per tile, 2 r per wall side, plus r^2 per wall corner pair, plus a quarter disc per inside corner.
+    private static Region PillarRoom()
+    {
+        var cells = new bool[64];
+        for (int j = 1; j <= 3; j++) { for (int i = 1; i <= 3; i++) { cells[(j * 8) + i] = !(i == 2 && j == 2); } }
+        return Region.FromTileMap(cells, 8, 8, 2.0, new Vector2D(0, 0));
+    }
+
+    // The circumscribed arc polygon used to take the whole excess of its tangent polygon off every round corner: with
+    // 16 sides that was 0.0103 per quarter disc, 4.7% of the four slivers left at radius 1 (pillar tile cusps), and an
+    // 8-gon at radius 0.75 and tolerance 0.0625 lost 1.1% of the room. The arc polygon now has a quarter disc's area.
+    [Theory]
+    [InlineData(0.75, 0.0625, 8.482854132355742)]
+    [InlineData(0.75, 0.03125, 8.482854132355742)]
+    [InlineData(1.0, 0.0625, 0.8584073464102069)]
+    [InlineData(1.0, 0.03125, 0.8584073464102069)]
+    public void Shrinking_round_corners_keeps_the_exact_eroded_area(double radius, double tolerance, double exact)
+    {
+        Region shrunk = Mesh2DPipeline.Shrink(PillarRoom(), radius, tolerance);
+        GeoOracle.ValidateRegion(shrunk);
+        Assert.InRange(shrunk.Area / exact, 0.995, 1.005);
+    }
+
+    // An L of five tiles at radius 1: the reflex corner leaves a 1x1 square minus a quarter disc, with a cusp at each end.
+    [Fact]
+    public void Shrinking_leaves_the_cusp_between_a_quarter_disc_and_two_walls()
+    {
+        var cells = new bool[64];
+        foreach ((int i, int j) in new[] { (1, 1), (1, 2), (1, 3), (2, 3), (3, 3) }) { cells[(j * 8) + i] = true; }
+        Region shrunk = Mesh2DPipeline.Shrink(Region.FromTileMap(cells, 8, 8, 2.0, new Vector2D(0, 0)), 1.0, 0.0625);
+        GeoOracle.ValidateRegion(shrunk);
+        Assert.InRange(shrunk.Area / (1 - (Math.PI / 4)), 0.99, 1.01);
+    }
 }

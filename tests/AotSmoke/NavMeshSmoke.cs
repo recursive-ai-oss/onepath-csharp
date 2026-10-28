@@ -1,4 +1,5 @@
 using System;
+using RecursiveAI.OnePath;
 using RecursiveAI.OneMath;
 using RecursiveAI.OnePath.Mesh;
 using RecursiveAI.OnePath.Mesh.Queries;
@@ -23,7 +24,7 @@ internal static class NavMeshSmoke
         var visited = new PolyRef[8];
         RaycastResult free = q.Raycast(a.Poly(0), new Vector3D(1, 0, 3), new Vector3D(14, 0, 3), null, visited, out int vc);
         RaycastResult blocked = q.Raycast(a.Poly(0), new Vector3D(1, 0, 3), new Vector3D(14, 0, 5), null, visited, out _);
-        bool queries = path.Status == PathStatus.Success && System.Math.Abs(path.Length - 15.0) < 1e-9 && near.Poly == a.Poly(0)
+        bool queries = path.Status == PathStatus.Found && System.Math.Abs(path.Length - 15.0) < 1e-9 && near.Poly == a.Poly(0)
             && !free.Hit && vc == 2 && blocked.Hit;
         return same && linked && queries && NavMeshValidator.Validate(back).Count == 0 && Snapshot(back, a, b);
     }

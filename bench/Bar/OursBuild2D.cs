@@ -48,6 +48,7 @@ internal static class OursBuild2D
         NavSettings settings = SettingsFor(t, extent);
         var times = new List<double>();
         NavMesh? mesh = null;
+        WarmUp(cells, tiles, settings);
         for (int rep = 0; rep < reps; rep++)
         {
             long start = Stopwatch.GetTimestamp();
@@ -56,6 +57,8 @@ internal static class OursBuild2D
         }
         (int polys, int verts, int tileCount, double area) = Measure(mesh!);
         times.Sort();
+        // The 2D gate's yardstick: the exact eroded area of the same tile map, computed without any builder (TileMapWorld.ExactErodedArea).
+        double exact = TileMapWorld.ExactErodedArea(cells, tiles, settings.AgentRadius);
         string side = OurScenarios.Side;
         Row R(string metric, double v, string unit) => new(row.Part, row.Id, side, metric, v.ToString("R", CultureInfo.InvariantCulture), unit);
         return new List<Row>
@@ -65,11 +68,34 @@ internal static class OursBuild2D
             R("polys", polys, "count"),
             R("verts", verts, "count"),
             R("coverage_area", area, "world_units2"),
+            R("exact_area", exact, "world_units2"),
+            R("delta_vs_exact_pct", exact > 0 ? (area - exact) * 100.0 / exact : (area == 0 ? 0 : double.PositiveInfinity), "percent"),
             R("tiles", tileCount, "count"),
             R("input_tris", triangles, "count"),
             R("peak_rss", Process.GetCurrentProcess().PeakWorkingSet64 / (1024.0 * 1024.0), "MB"),
             new Row(row.Part, row.Id, side, "settings", $"cell={settings.CellSize:R} r={settings.AgentRadius:R} tile={settings.TileSize:R} nvp={settings.MaxVertsPerPoly}; tile map {tiles}x{tiles}", "text"),
         };
+    }
+
+    /// <summary>
+    /// Untimed builds until the runtime has finished optimizing the builder: the first builds run unoptimized code (tiered
+    /// compilation promotes methods in the background after they have been called many times), which the native reference
+    /// never pays and which the "warm" method excludes. Stops when three builds in a row are within 5% of each other,
+    /// after at most 40.
+    /// </summary>
+    private static void WarmUp(bool[] cells, int tiles, NavSettings settings)
+    {
+        var last = new double[3];
+        for (int i = 0; i < 40; i++)
+        {
+            long start = Stopwatch.GetTimestamp();
+            _ = NavMesh.Build2D(cells, tiles, tiles, TileMapWorld.TileUnits, new Vector2D(0, 0), settings);
+            last[i % 3] = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
+            if (i >= 4 && last.Max() <= last.Min() * 1.05)
+            {
+                return;
+            }
+        }
     }
 
     /// <summary>Polygon, vertex and tile counts and the walkable area (sum of polygon areas projected on the ground plane).</summary>

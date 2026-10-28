@@ -9,7 +9,9 @@ smoke/build/city-tiled/dotrecast	build	dotrecast	time_best	lower	1.15	build --ob
 smoke/query/city/dotrecast	query	dotrecast	path_per_sec	higher	1.15	query --obj {geomsmall}/city.obj --points {geomsmall}/city.points --reps 2
 smoke/crowd/city-100/dotrecast	crowd	dotrecast	agents_per_ms	higher	1.15	crowd --obj {geomsmall}/city.obj --points {geomsmall}/city.points --agents 100 --steps 40 --warmup 5
 smoke/crowd/circle-250/rvo2	crowd	rvo2	agents_per_ms	higher	1.15	circle --agents 250 --steps 50 env:OMP_NUM_THREADS=1
-smoke/crowd/circle-250/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 250 --steps 50
+smoke/crowd/circle-250/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 250 --steps 50 --threads auto
 smoke/grid/dao-arena2/astar	grid	warthog	search_time	lower	1.0	--alg astar --scen {maps}/dao/arena2.map.scen --checkopt
 smoke/grid/dao-arena2/jps	grid	jps	search_time	lower	1.0	--alg jps --scen {maps}/dao/arena2.map.scen --checkopt
 smoke/grid/dao-arena2/jps+	grid	jps	search_time	lower	1.0	--alg jps+ --scen {maps}/dao/arena2.map.scen --checkopt
+smoke/tilecache/city/recast	tilecache	recast	time_best	lower	1.15	tilecache --obj {geomsmall}/city.obj --points {geomsmall}/city.points --mode tiled --tile-size 48 --obstacles 8 --reps 2
+smoke/tilecache/city/dotrecast	tilecache	dotrecast	time_best	lower	1.15	tilecache --obj {geomsmall}/city.obj --points {geomsmall}/city.points --mode tiled --tile-size 48 --obstacles 8 --reps 2

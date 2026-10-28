@@ -84,6 +84,8 @@ internal static class CrowdFuzz
         var mut = new NavMeshWorlds.Rng(data[3]);
         var agents = new List<Agent>();
         bool edited = false;
+        byte[]? saved = null;
+        bool tainted = false;
         for (int op = 0; op < 120 && inp.More; op++)
         {
             switch (inp.Byte() % 10)
@@ -192,7 +194,87 @@ internal static class CrowdFuzz
                     edited = true;
                     break;
                 default:
-                    _ = CrowdDebug.Collect(crowd);
+                    switch (inp.Byte() % 5)
+                    {
+                        case 0:
+                            _ = CrowdDebug.Collect(crowd);
+                            break;
+                        case 1:
+                            saved = crowd.SaveStateWithMesh();
+                            break;
+                        case 2:
+                            if (saved is not null)
+                            {
+                                crowd.RestoreStateWithMesh(saved);
+                                Resync(crowd, agents);
+                                byte[] again = crowd.SaveStateWithMesh();
+                                // After damaged bytes were accepted the state may hold values a save normalises, so the byte checks wait for a clean start.
+                                if (!tainted && !again.AsSpan().SequenceEqual(saved))
+                                {
+                                    int di = 0; while (di < Math.Min(again.Length, saved.Length) && again[di] == saved[di]) di++;
+                                    throw new InvalidOperationException($"Restoring a snapshot and saving again gave different bytes. lens {saved.Length} {again.Length} first diff {di} edited={edited} tainted={tainted}");
+                                }
+                            }
+                            break;
+                        case 3:
+                            if (saved is not null)
+                            {
+                                // Rollback: the same steps from the same snapshot give the same state, byte for byte.
+                                int k = 1 + inp.Byte() % 6;
+                                crowd.RestoreStateWithMesh(saved);
+                                Resync(crowd, agents);
+                                for (int s = 0; s < k; s++)
+                                {
+                                    crowd.Step(1.0 / 30);
+                                }
+                                byte[] first = crowd.SaveStateWithMesh();
+                                crowd.RestoreStateWithMesh(saved);
+                                Resync(crowd, agents);
+                                for (int s = 0; s < k; s++)
+                                {
+                                    crowd.Step(1.0 / 30);
+                                }
+                                if (!tainted && !crowd.SaveStateWithMesh().AsSpan().SequenceEqual(first))
+                                {
+                                    throw new InvalidOperationException("The same steps from the same snapshot gave different state.");
+                                }
+                            }
+                            break;
+                        default:
+                        {
+                            // Damaged bytes are rejected with the documented exception and leave the crowd unchanged.
+                            byte[] before = crowd.SaveStateWithMesh();
+                            byte[] bad = (byte[])(saved ?? before).Clone();
+                            if (bad.Length > 0)
+                            {
+                                int at = inp.Byte() * 257 % bad.Length;
+                                if (inp.Byte() < 128)
+                                {
+                                    Array.Resize(ref bad, at);
+                                }
+                                else
+                                {
+                                    bad[at] ^= (byte)(1 + inp.Byte() % 255);
+                                }
+                            }
+                            try
+                            {
+                                crowd.RestoreStateWithMesh(bad);
+                                Resync(crowd, agents);
+                                // Damage that still parses may have moved an agent off the mesh.
+                                edited = true;
+                                tainted = true;
+                            }
+                            catch (NavMeshFormatException)
+                            {
+                                if (!crowd.SaveStateWithMesh().AsSpan().SequenceEqual(before))
+                                {
+                                    throw new InvalidOperationException("A rejected restore changed the crowd.");
+                                }
+                            }
+                            break;
+                        }
+                    }
                     break;
             }
         }
@@ -200,6 +282,13 @@ internal static class CrowdFuzz
         {
             throw new InvalidOperationException("The crowd's count does not match the agents added and removed.");
         }
+    }
+
+    // A restore removes agents added since the snapshot and makes new objects for agents removed since: take the crowd's own list.
+    private static void Resync(Crowd crowd, List<Agent> agents)
+    {
+        agents.Clear();
+        crowd.CopyAgents(agents);
     }
 
     // After the mesh was edited an agent may stand where the mesh no longer is (until it is relocated), so only finiteness is checked then.

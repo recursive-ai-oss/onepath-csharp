@@ -121,9 +121,9 @@ internal static class CorridorFuzz
                         c.SetTarget(new Vector3D(x0 + inp.Coord(-1, span), inp.Coord(-1, 5), x0 + inp.Coord(-1, span)));
                         break;
                     case 10:
-                        if (replan.Begin(q, c, filter) == PathStatus.InProgress)
+                        if (replan.Begin(q, c, filter) == QueryStatus.InProgress)
                         {
-                            for (int s = 0, n = 1 + (inp.Byte() % 5); s < n && replan.Update(1 + inp.Byte()) == PathStatus.InProgress; s++)
+                            for (int s = 0, n = 1 + (inp.Byte() % 5); s < n && replan.Update(1 + inp.Byte()) == QueryStatus.InProgress; s++)
                             {
                             }
                             replan.Apply();

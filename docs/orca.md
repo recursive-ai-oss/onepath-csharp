@@ -48,6 +48,24 @@ Value of a candidate: `min(n.wa, n.wb)`. Domain test for a candidate `n`: `n.a +
 the obstacle, `-(a + b)/|a + b|` (or `(1, 0)` if `a + b = 0`), with its value computed the same way.
 The result is `d = best - r/tau` and `n = bestN`.
 
+### The agent construction in cases (what the code does for agents)
+
+For another agent (`a = b`, `|a| > r`) the closest boundary point is computed case by case on the truncated cone of section 4 of the paper (the
+cone from the origin around `a`, cut off at time `tau` by the disc of radius `r/tau` around `a/tau`), which is the same point the
+support-function form above finds (a test checks that on random inputs). With `x` the relative optimization velocity:
+
+1. `w = x - a/tau` (each component divided); `dot1 = w.a`.
+2. **Cutoff case** when `dot1 < 0` and `dot1*dot1 > r*r * (w.w)`: `x` projects onto the arc. `n = w / |w|` and `u = n * (r/tau - |w|)`.
+3. **Leg case** otherwise. `leg = sqrt(a.a - r*r)`. When `cross(a, w) = a.x*w.y - a.y*w.x` is greater than 0 the left leg is used, else the right leg.
+   The left leg's unit direction is `dir = ((a.x*leg - a.y*r), (a.x*r + a.y*leg)) / a.a` and the normal `n = (-dir.y, dir.x)`; the right leg's is
+   `dir = ((a.x*leg + a.y*r), (a.y*leg - a.x*r)) / a.a` and `n = (dir.y, -dir.x)`. `along = x.dir` and `u = dir * along - x`.
+   (`/ a.a` divides each component; the cutoff normal divides each component of `w` by `|w|`.)
+4. `P = vA + responsibility * u`, `N = n`, component-wise `u * share` added to the origin.
+
+The tie `cross = 0` (relative velocity exactly along the axis) takes the right leg for both agents of a pair, so a symmetric pair turns the same way.
+The construction for an overlapping pair, and the one for segments, stay as described in the support-function form.
+The support-function text above remains the definition; the case form is its closed evaluation for agents.
+
 ### Overlap (collision) case
 
 When the origin is within `r` of the segment (`distance^2 <= r*r`, the squared distance from the origin to the segment computed with
@@ -130,6 +148,8 @@ number of workers, gives the same bits. There is no clock. Zero agents is a no-o
 ## Where the paper is silent (choices)
 
 - **Overlap:** time-step cutoff capsule, above. (A black-box comparison with a reference implementation is pending.)
+- **Agents that touch from outside** (`|a|` within rounding of `r`): the cone is nearly a half-plane and the normal is fixed by the leg or cutoff case
+  that the position of `x` selects; the two forms of this document agree to the rounding of `sqrt(a.a - r*r)`, not bit for bit.
 - **Order of constraints:** fixed (obstacles by distance, then agents by distance), not random. Equal distances break by index.
 - **Fallback with ties:** the program above returns one of possibly several equally good velocities in a fixed way.
 - **Exact head-on symmetry:** two agents meeting exactly head on with zero perturbation stop in front of each other (the permitted

@@ -397,9 +397,13 @@ public sealed class Region
         double unit = Pow2(SnapBits);
         double radius = Math.Abs(distance) * unit; // in grid units
         var edges = new List<InEdge>();
+        if (oneSided)
+        {
+            AppendShrinkEdges(edges, radius, arcTolerance * unit, distance);
+            return Resolve(edges, BoolOp.Difference, SnapBits);
+        }
         AppendEdges(edges, 0);
         List<P[]> pieces = join == JoinStyle.Square ? SquarePieces(radius)
-            : oneSided ? RoundPiecesOneSided(radius, arcTolerance * unit)
             : RoundPieces(radius, arcTolerance * unit);
         foreach (P[] piece in pieces)
         {
@@ -416,19 +420,27 @@ public sealed class Region
         return Resolve(edges, distance > 0 ? BoolOp.Union : BoolOp.Difference, SnapBits);
     }
 
-    // Round pieces for shrinking: the interior side (left) of each edge. At each vertex that is reflex for the interior,
+    // Edges of the shrink pieces: the interior side (left) of each edge. At each vertex that is reflex for the interior,
     // the swept disc only matters between the two edge normals, so the piece is that circular sector (its two straight
     // sides are the rectangles' end sides, rounded by the same expression, so the pieces meet exactly).
-    private List<P[]> RoundPiecesOneSided(double radius, double tol)
+    //
+    // The pieces are not emitted as closed polygons. A rectangle's side along the region's own edge is the region edge
+    // itself, so that edge is added once, counting for both operands. Where a sector exists, its two straight sides
+    // and the rectangles' end sides they meet run over the same points in opposite directions, so they cancel in the
+    // arrangement; leaving them out gives the same planar subdivision with far fewer edges to node.
+    private void AppendShrinkEdges(List<InEdge> edges, double radius, double tol, double distance)
     {
-        var pieces = new List<P[]>();
-        double[] disc = DiscUnitVectors(radius, tol, out int m);
+        double[] disc = DiscUnitVectors(radius, tol, out int m, equalArea: true);
         var selected = new List<int>(m);
+        var sector = new List<P>(m + 3);
         foreach (P[] r in _rings)
         {
-            for (int i = 0; i < r.Length; i++)
+            int n = r.Length;
+            // Per vertex: the arc chain (tip on the outgoing normal, arc vertices, tip on the incoming normal), or null.
+            var arcs = new P[n][];
+            for (int i = 0; i < n; i++)
             {
-                P prev = r[(i + r.Length - 1) % r.Length], a = r[i], b = r[(i + 1) % r.Length];
+                P prev = r[(i + n - 1) % n], a = r[i], b = r[(i + 1) % n];
                 double dx = b.X - a.X, dy = b.Y - a.Y;
                 double len = Math.Sqrt((dx * dx) + (dy * dy));
                 if (len == 0)
@@ -436,7 +448,6 @@ public sealed class Region
                     continue;
                 }
                 double nx = -dy / len * radius, ny = dx / len * radius;
-                pieces.Add(new[] { a, b, Round(b.X + nx, b.Y + ny), Round(a.X + nx, a.Y + ny) });
 
                 // Interior on the left: a right turn is reflex for the interior.
                 if (Geo.Orient(prev, a, b) >= 0)
@@ -471,12 +482,13 @@ public sealed class Region
                         break;
                     }
                 }
-                var poly = new List<P>(selected.Count + 3) { a };
+                sector.Clear();
+                sector.Add(a);
                 void Push(P q)
                 {
-                    if (poly[^1] != q)
+                    if (sector[^1] != q)
                     {
-                        poly.Add(q);
+                        sector.Add(q);
                     }
                 }
                 Push(Round(a.X + fx, a.Y + fy));
@@ -486,17 +498,59 @@ public sealed class Region
                     Push(Round(a.X + disc[2 * k], a.Y + disc[(2 * k) + 1]));
                 }
                 Push(Round(a.X + tx, a.Y + ty));
-                if (poly.Count > 1 && poly[^1] == poly[0])
+                if (sector.Count > 1 && sector[^1] == sector[0])
                 {
-                    poly.RemoveAt(poly.Count - 1);
+                    sector.RemoveAt(sector.Count - 1);
                 }
-                if (poly.Count >= 3)
+                if (sector.Count >= 3)
                 {
-                    pieces.Add(poly.ToArray());
+                    arcs[i] = sector.GetRange(1, sector.Count - 1).ToArray();
+                }
+            }
+
+            for (int i = 0; i < n; i++)
+            {
+                P a = r[i], b = r[(i + 1) % n];
+                double dx = b.X - a.X, dy = b.Y - a.Y;
+                double len = Math.Sqrt((dx * dx) + (dy * dy));
+                if (len == 0)
+                {
+                    continue;
+                }
+                double nx = -dy / len * radius, ny = dx / len * radius;
+                P bq = Round(b.X + nx, b.Y + ny), aq = Round(a.X + nx, a.Y + ny);
+                CheckOffsetRange(a, distance);
+                CheckOffsetRange(bq, distance);
+                CheckOffsetRange(aq, distance);
+                edges.Add(new InEdge(a, b, 2));
+                if (arcs[(i + 1) % n] == null)
+                {
+                    edges.Add(new InEdge(b, bq, 1));
+                }
+                edges.Add(new InEdge(bq, aq, 1));
+                if (arcs[i] == null)
+                {
+                    edges.Add(new InEdge(aq, a, 1));
+                }
+                else
+                {
+                    P[] chain = arcs[i];
+                    for (int q = 0; q + 1 < chain.Length; q++)
+                    {
+                        CheckOffsetRange(chain[q], distance);
+                        edges.Add(new InEdge(chain[q], chain[q + 1], 1));
+                    }
                 }
             }
         }
-        return pieces;
+    }
+
+    private static void CheckOffsetRange(P a, double distance)
+    {
+        if (Math.Abs(a.X) > Geo.MaxGrid / 2 || Math.Abs(a.Y) > Geo.MaxGrid / 2)
+        {
+            throw new ArgumentOutOfRangeException(nameof(distance), distance, "The offset would move the boundary beyond ±2^21.");
+        }
     }
 
     private static void AddDiscs(List<P[]> pieces, List<P> verts, double radius, double tol)
@@ -560,7 +614,7 @@ public sealed class Region
     // Vertex offsets (x0, y0, x1, y1, ...) of a counter-clockwise regular polygon circumscribed about a circle of the
     // given radius, with m = 8, 16, ... 256 vertices chosen so the vertices stay within tol of the circle. Uses only
     // + - * / and sqrt (half-angle recurrences), so it is identical everywhere.
-    private static double[] DiscUnitVectors(double radius, double tol, out int m)
+    private static double[] DiscUnitVectors(double radius, double tol, out int m, bool equalArea = false)
     {
         if (!(tol >= 1.0))
         {
@@ -594,7 +648,99 @@ public sealed class Region
             x = nx;
             y = ny;
         }
+        if (equalArea)
+        {
+            EqualAreaQuadrant(v, m, radius, ch, sh);
+        }
         return v;
+    }
+
+    // Reshapes the circumscribed polygon so that a quarter sector (the two tips on the circle at axis directions, the
+    // polygon's vertices between them) has exactly the area of a quarter disc, instead of the circumscribed polygon's
+    // excess. The first and last vertex of a quadrant slide along the tangent lines through the tips (so walls that run
+    // along the axes continue straight, and those vertices stay collinear and are dropped); the vertices between are
+    // scaled towards the centre by the same factor lambda. The area is quadratic in lambda; it is found by a fixed 60
+    // bisection steps on [0, 1] (the circumscribed polygon is larger than the disc at 1, the bare triangle smaller at 0),
+    // so the result is the same everywhere. The other three quadrants are 90-degree rotations of the first.
+    private static void EqualAreaQuadrant(double[] v, int m, double r, double ch, double sh)
+    {
+        int q = m / 4;
+        double t = r * sh / ch; // tangent offset of the circumscribed polygon's end vertices
+        double lo = 0.0, hi = 1.0;
+        for (int it = 0; it < 60; it++)
+        {
+            double mid = (lo + hi) * 0.5;
+            if (QuadrantTwiceArea(v, q, r, t, mid) < Math.PI * r * r * 0.5)
+            {
+                lo = mid;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+        double lambda = hi;
+        for (int k = 0; k < q; k++)
+        {
+            double x, y;
+            if (k == 0)
+            {
+                x = r;
+                y = lambda * t;
+            }
+            else if (k == q - 1)
+            {
+                x = lambda * t;
+                y = r;
+            }
+            else
+            {
+                x = lambda * v[2 * k];
+                y = lambda * v[(2 * k) + 1];
+            }
+            v[2 * k] = x;
+            v[(2 * k) + 1] = y;
+        }
+        for (int k = q; k < m; k++)
+        {
+            int src = k - q; // rotate the vertex q places earlier by a quarter turn
+            v[2 * k] = -v[(2 * src) + 1];
+            v[(2 * k) + 1] = v[2 * src];
+        }
+    }
+
+    // Twice the area of the polygon centre, (r, 0), the quadrant's vertices (reshaped by lambda), (0, r).
+    private static double QuadrantTwiceArea(double[] ring, int q, double r, double t, double lambda)
+    {
+        double px = r, py = 0, twice = 0;
+        for (int k = 0; k <= q; k++)
+        {
+            double x, y;
+            if (k == q)
+            {
+                x = 0;
+                y = r;
+            }
+            else if (k == 0)
+            {
+                x = r;
+                y = lambda * t;
+            }
+            else if (k == q - 1)
+            {
+                x = lambda * t;
+                y = r;
+            }
+            else
+            {
+                x = lambda * ring[2 * k];
+                y = lambda * ring[(2 * k) + 1];
+            }
+            twice += (px * y) - (py * x);
+            px = x;
+            py = y;
+        }
+        return twice;
     }
 
     private List<P[]> SquarePieces(double radius)

@@ -54,7 +54,7 @@ internal static class Build3DWorldScenarios
     private static void Path(ScenarioContext ctx, TiledNavMesh m, Vector3D a, Vector3D b)
     {
         PathResult r = m.FindPath(a, b);
-        ctx.Write((int)r.Status);
+        ctx.Write((int)r.Detail);
         ctx.Write(r.Points.Count);
         foreach (StraightPathPoint p in r.Points)
         {

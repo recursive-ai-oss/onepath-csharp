@@ -21,7 +21,7 @@ internal static class WorldSmoke
         NavWorld world = NavWorld.Build(v, ix, a, a with { AgentRadius = 0.3f });
         bool ok = world.ClassCount == 2 && world.ClassFor(0.4) == 0;
         PathResult r = world[0].FindPath(new Vector3D(2, 0, 5), new Vector3D(28, 0, 5));
-        ok &= r.Status == PathStatus.Success;
+        ok &= r.Status == PathStatus.Found;
         WorldCrowd crowd = world.CreateCrowd();
         Agent agent = crowd.Add(new Vector3D(2, 0, 5), Agent.Humanoid);
         agent.SetDestination(new Vector3D(28, 0, 5));
@@ -35,7 +35,7 @@ internal static class WorldSmoke
         TileStreamer st = world[0].CreateStreamer();
         string before = Hash(world[0].Tiles);
         List<byte[]> held = st.StreamOut(1, 0);
-        ok &= held.Count == 1 && world[0].FindPath(new Vector3D(2, 0, 5), new Vector3D(28, 0, 5)).Status != PathStatus.Success;
+        ok &= held.Count == 1 && world[0].FindPath(new Vector3D(2, 0, 5), new Vector3D(28, 0, 5)).Status != PathStatus.Found;
         st.QueueAdd(held[0]);
         ok &= st.Update(4) == 1 && Hash(world[0].Tiles) == before;
 

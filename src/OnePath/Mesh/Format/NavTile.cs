@@ -208,6 +208,11 @@ public sealed class NavTile
     // Built on first use for box queries. Two threads racing build identical trees, so either may win.
     internal Queries.TileBvh GetBvh() => _bvh ??= Queries.TileBvh.Build(this);
 
+    private Queries.DetailHeightGrid? _heightGrid;
+
+    // Built on first height lookup on a polygon with many detail triangles; same racing rule as the BVH.
+    internal Queries.DetailHeightGrid GetHeightGrid() => _heightGrid ??= Queries.DetailHeightGrid.Build(this);
+
     internal int PortalCount(int side) => _portalPoly[side].Length;
 
     internal int PortalPoly(int side, int i) => _portalPoly[side][i];

@@ -27,11 +27,17 @@ query/terraces-solo/dotrecast	query	dotrecast	path_per_sec	higher	1.15	query --o
 query/overlapping-solo/recast	query	recast	path_per_sec	higher	1.15	query --obj {geom}/overlapping.obj --points {geom}/overlapping.points --reps 10
 query/overlapping-solo/dotrecast	query	dotrecast	path_per_sec	higher	1.15	query --obj {geom}/overlapping.obj --points {geom}/overlapping.points --reps 10
 build/tilemap-tiled/recast	build	recast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --mode tiled --tile-size 128 --cell 0.25 --agent-radius 0.5 --reps 5
+build/tilemap-tiled/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --mode tiled --tile-size 128 --cell 0.25 --agent-radius 0.5 --reps 5
 build/tilemap-solo/recast	build	recast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --cell 0.25 --agent-radius 0.5 --reps 5
+build/tilemap-solo/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --cell 0.25 --agent-radius 0.5 --reps 5
 build/tilemap-tiled-r0.75/recast	build	recast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --mode tiled --tile-size 128 --cell 0.25 --agent-radius 0.75 --reps 5
+build/tilemap-tiled-r0.75/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --mode tiled --tile-size 128 --cell 0.25 --agent-radius 0.75 --reps 5
 build/tilemap-solo-r0.75/recast	build	recast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --cell 0.25 --agent-radius 0.75 --reps 5
+build/tilemap-solo-r0.75/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --cell 0.25 --agent-radius 0.75 --reps 5
 build/tilemap-tiled-r1.0/recast	build	recast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --mode tiled --tile-size 128 --cell 0.25 --agent-radius 1.0 --reps 5
+build/tilemap-tiled-r1.0/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --mode tiled --tile-size 128 --cell 0.25 --agent-radius 1.0 --reps 5
 build/tilemap-solo-r1.0/recast	build	recast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --cell 0.25 --agent-radius 1.0 --reps 5
+build/tilemap-solo-r1.0/dotrecast	build	dotrecast	time_best	lower	1.15	build --obj {geom}/tilemap.obj --cell 0.25 --agent-radius 1.0 --reps 5
 query/tilemap-tiled/recast	query	recast	path_per_sec	higher	1.15	query --obj {geom}/tilemap.obj --points {geom}/tilemap-core.points --mode tiled --tile-size 128 --cell 0.25 --agent-radius 0.5 --reps 10
 crowd/city-100/recast	crowd	recast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 100 --steps 200 --warmup 50
 crowd/city-100/dotrecast	crowd	dotrecast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 100 --steps 200 --warmup 50
@@ -44,11 +50,11 @@ crowd/city-2000/dotrecast	crowd	dotrecast	agents_per_ms	higher	1.15	crowd --obj 
 crowd/city-5000/recast	crowd	recast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 5000 --steps 200 --warmup 50
 crowd/city-5000/dotrecast	crowd	dotrecast	agents_per_ms	higher	1.15	crowd --obj {geom}/city.obj --points {geom}/city.points --agents 5000 --steps 200 --warmup 50
 crowd/circle-250-1thread/rvo2	crowd	rvo2	agents_per_ms	higher	1.15	circle --agents 250 --steps 200 env:OMP_NUM_THREADS=1
-crowd/circle-250/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 250 --steps 200
+crowd/circle-250/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 250 --steps 200 --threads auto
 crowd/circle-1000-1thread/rvo2	crowd	rvo2	agents_per_ms	higher	1.15	circle --agents 1000 --steps 200 env:OMP_NUM_THREADS=1
-crowd/circle-1000/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 1000 --steps 200
+crowd/circle-1000/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 1000 --steps 200 --threads auto
 crowd/circle-5000-1thread/rvo2	crowd	rvo2	agents_per_ms	higher	1.15	circle --agents 5000 --steps 200 env:OMP_NUM_THREADS=1
-crowd/circle-5000/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 5000 --steps 200
+crowd/circle-5000/rvo2cs	crowd	rvo2cs	agents_per_ms	higher	1.15	circle --agents 5000 --steps 200 --threads auto
 grid/dao-brc000d/astar	grid	warthog	search_time	lower	1.0	--alg astar --scen {maps}/dao/brc000d.map.scen --checkopt
 grid/dao-brc000d/jps	grid	jps	search_time	lower	1.0	--alg jps --scen {maps}/dao/brc000d.map.scen --checkopt
 grid/dao-brc000d/jpsP	grid	jps	search_time	lower	1.0	--alg jpsP --scen {maps}/dao/brc000d.map.scen --checkopt
@@ -94,3 +100,7 @@ grid/wc3maps512-battleground/jps	grid	jps	search_time	lower	1.0	--alg jps --scen
 grid/wc3maps512-battleground/jpsP	grid	jps	search_time	lower	1.0	--alg jpsP --scen {maps}/wc3maps512/battleground.map.scen --checkopt
 grid/wc3maps512-battleground/jps+	grid	jps	search_time	lower	1.0	--alg jps+ --scen {maps}/wc3maps512/battleground.map.scen --checkopt
 grid/wc3maps512-battleground/jpsP+	grid	jps	search_time	lower	1.0	--alg jpsP+ --scen {maps}/wc3maps512/battleground.map.scen --checkopt
+tilecache/city-tiled/recast	tilecache	recast	time_best	lower	1.15	tilecache --obj {geom}/city.obj --points {geom}/city.points --mode tiled --tile-size 64 --obstacles 16 --reps 5
+tilecache/city-tiled/dotrecast	tilecache	dotrecast	time_best	lower	1.15	tilecache --obj {geom}/city.obj --points {geom}/city.points --mode tiled --tile-size 64 --obstacles 16 --reps 5
+tilecache/terraces-tiled/recast	tilecache	recast	time_best	lower	1.15	tilecache --obj {geom}/terraces.obj --points {geom}/terraces.points --mode tiled --tile-size 64 --obstacles 16 --reps 5
+tilecache/terraces-tiled/dotrecast	tilecache	dotrecast	time_best	lower	1.15	tilecache --obj {geom}/terraces.obj --points {geom}/terraces.points --mode tiled --tile-size 64 --obstacles 16 --reps 5

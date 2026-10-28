@@ -54,8 +54,25 @@ internal static class Geo
     }
 
     /// <summary>+1 when d is inside the circle through counter-clockwise a, b, c.</summary>
-    public static int InCircle(P a, P b, P c, P d) =>
-        ExactPredicates.InCircle(a.X, a.Y, b.X, b.Y, c.X, c.Y, d.X, d.Y);
+    public static int InCircle(P a, P b, P c, P d)
+    {
+        // With every coordinate below 2^29 the translated terms fit a long (lifts below 2^61, cross terms below 2^61) and
+        // the determinant fits 128 bits, so the sign is computed exactly in integers. Cocircular grid points, common in
+        // tile maps, are decided here instead of falling through to the expansion arithmetic.
+        const long Bound = 1L << 29;
+        if ((ulong)(a.X + Bound) < (2UL * Bound) && (ulong)(a.Y + Bound) < (2UL * Bound)
+            && (ulong)(b.X + Bound) < (2UL * Bound) && (ulong)(b.Y + Bound) < (2UL * Bound)
+            && (ulong)(c.X + Bound) < (2UL * Bound) && (ulong)(c.Y + Bound) < (2UL * Bound)
+            && (ulong)(d.X + Bound) < (2UL * Bound) && (ulong)(d.Y + Bound) < (2UL * Bound))
+        {
+            long adx = a.X - d.X, ady = a.Y - d.Y, bdx = b.X - d.X, bdy = b.Y - d.Y, cdx = c.X - d.X, cdy = c.Y - d.Y;
+            long alift = (adx * adx) + (ady * ady), blift = (bdx * bdx) + (bdy * bdy), clift = (cdx * cdx) + (cdy * cdy);
+            long bc = (bdx * cdy) - (cdx * bdy), ca = (cdx * ady) - (adx * cdy), ab = (adx * bdy) - (bdx * ady);
+            Int128 det = ((Int128)alift * bc) + ((Int128)blift * ca) + ((Int128)clift * ab);
+            return det > 0 ? 1 : det < 0 ? -1 : 0;
+        }
+        return ExactPredicates.InCircle(a.X, a.Y, b.X, b.Y, c.X, c.Y, d.X, d.Y);
+    }
 
     public static Int128 Cross(P o, P a, P b) =>
         ((Int128)(a.X - o.X) * (b.Y - o.Y)) - ((Int128)(a.Y - o.Y) * (b.X - o.X));
@@ -96,11 +113,33 @@ internal static class Geo
             tn = -tn;
         }
         // x = p1.x + d1x * tn / den, rounded to nearest: floor((2 * num + den) / (2 * den)).
-        Int128 nx = ((Int128)p1.X * den) + (d1x * tn);
-        Int128 ny = ((Int128)p1.Y * den) + (d1y * tn);
-        long rx = (long)FloorDiv((2 * nx) + den, 2 * den);
-        long ry = (long)FloorDiv((2 * ny) + den, 2 * den);
-        return new P(rx, ry);
+        return new P(p1.X + RoundedQuotient(d1x, tn, den), p1.Y + RoundedQuotient(d1y, tn, den));
+    }
+
+    // floor((2 * d * tn + den) / (2 * den)) for den > 0: d * tn / den rounded to nearest, ties up. A double estimate
+    // is corrected with exact 128-bit arithmetic, so the result is the exact integer whatever the estimate was; this
+    // avoids 128-bit division, the slow part of the crossing computation.
+    private static long RoundedQuotient(long d, Int128 tn, Int128 den)
+    {
+        if (den < (1L << 62) && tn < (Int128)(1L << 62) && tn > -(Int128)(1L << 62) && Math.Abs(d) < (1L << 31))
+        {
+            double est = Math.Floor((((2.0 * d) * (double)tn) + (double)den) / (2.0 * (double)den));
+            long k = (long)est;
+            Int128 twoDen = 2 * den;
+            Int128 rem = (2 * d * tn) + den - (k * twoDen);
+            while (rem < 0)
+            {
+                k--;
+                rem += twoDen;
+            }
+            while (rem >= twoDen)
+            {
+                k++;
+                rem -= twoDen;
+            }
+            return k;
+        }
+        return (long)FloorDiv((2 * d * tn) + den, 2 * den);
     }
 
     /// <summary>

@@ -4,8 +4,11 @@ using RecursiveAI.OneMath;
 
 namespace RecursiveAI.OnePath.Mesh.Queries;
 
-/// <summary>Outcome of a path search.</summary>
-public enum PathStatus
+/// <summary>
+/// Detailed outcome of a polygon-level query (tier 2): which reference was bad, whether a sliced search is still running.
+/// One-call results and crowd agents report the shorter <see cref="PathStatus"/>; <see cref="QueryStatusExtensions.ToPathStatus"/> is the mapping.
+/// </summary>
+public enum QueryStatus
 {
     /// <summary>The end polygon was reached; the corridor is the cheapest under the cost model.</summary>
     Success = 0,
@@ -30,6 +33,26 @@ public enum PathStatus
 
     /// <summary>The corridor passed to a straight-path call is empty, holds invalid references or has polygons that do not touch.</summary>
     InvalidCorridor = 7,
+}
+
+/// <summary>Maps the query-level status onto the shared path vocabulary.</summary>
+public static class QueryStatusExtensions
+{
+    /// <summary>
+    /// Success is Found; Partial stays Partial; InProgress stays InProgress; a bad or missing start polygon is StartInvalid and a
+    /// bad or missing end polygon is GoalInvalid; an unusable corridor is NoPath.
+    /// </summary>
+    /// <param name="status">The query-level status.</param>
+    /// <returns>The shared status.</returns>
+    public static PathStatus ToPathStatus(this QueryStatus status) => status switch
+    {
+        QueryStatus.Success => PathStatus.Found,
+        QueryStatus.Partial => PathStatus.Partial,
+        QueryStatus.InProgress => PathStatus.InProgress,
+        QueryStatus.InvalidStartPoly or QueryStatus.NoStartNearby => PathStatus.StartInvalid,
+        QueryStatus.InvalidEndPoly or QueryStatus.NoEndNearby => PathStatus.GoalInvalid,
+        _ => PathStatus.NoPath,
+    };
 }
 
 /// <summary>Result of a nearest-polygon query.</summary>
@@ -176,20 +199,29 @@ public sealed class PathOptions
 /// <summary>Result of the one-call path query.</summary>
 public sealed class PathResult
 {
-    internal PathResult(PathStatus status, StraightPathPoint[] points, PolyRef[] corridor, double cost, bool truncated)
+    internal PathResult(QueryStatus detail, StraightPathPoint[] points, PolyRef[] corridor, double cost, bool truncated)
     {
-        Status = status;
+        Detail = detail;
         Points = points;
         Corridor = corridor;
         Cost = cost;
         Truncated = truncated;
     }
 
-    /// <summary>Success, Partial (ends at the closest reachable point), or a failure reason.</summary>
-    public PathStatus Status { get; }
+    /// <summary>Found, Partial (ends at the closest reachable point), or the reason the query failed.</summary>
+    public PathStatus Status => Detail.ToPathStatus();
 
-    /// <summary>True for Success and Partial.</summary>
-    public bool HasPath => Status is PathStatus.Success or PathStatus.Partial;
+    /// <summary>The detailed query-level status behind <see cref="Status"/> (which reference was bad, and so on).</summary>
+    public QueryStatus Detail { get; }
+
+    /// <summary>True for Found and Partial: <see cref="Points"/> holds a path.</summary>
+    public bool HasPath => Detail is QueryStatus.Success or QueryStatus.Partial;
+
+    /// <summary>True when the path was found to the goal.</summary>
+    public bool Found => Detail == QueryStatus.Success;
+
+    /// <summary>True when the goal is unreachable and the path ends at the closest reachable point.</summary>
+    public bool IsPartial => Detail == QueryStatus.Partial;
 
     /// <summary>The straight path, start to end (empty on failure).</summary>
     public IReadOnlyList<StraightPathPoint> Points { get; }
@@ -203,7 +235,7 @@ public sealed class PathResult
     /// <summary>True if the corridor or the point list was cut to fit its limit.</summary>
     public bool Truncated { get; }
 
-    /// <summary>Total length of the straight path.</summary>
+    /// <summary>Total length of the straight path in world units (0 when there is no path).</summary>
     public double Length
     {
         get
@@ -216,4 +248,14 @@ public sealed class PathResult
             return l;
         }
     }
+}
+
+/// <summary>What one node of the polygon path search stands for.</summary>
+public enum PathNodeModel
+{
+    /// <summary>One node per crossing (leaving a polygon through one edge or link). Exact for the midpoint-crossing cost model; about three times the nodes of <see cref="Polygon"/>, so slower.</summary>
+    Crossing = 0,
+
+    /// <summary>One node per polygon, placed at the edge midpoint where the cheapest route found so far enters it. The default: fewer nodes, so faster; the corridor may differ slightly from the crossing model's.</summary>
+    Polygon = 1,
 }

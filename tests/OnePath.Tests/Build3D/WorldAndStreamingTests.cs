@@ -41,8 +41,8 @@ public class WorldAndStreamingTests
         Soup s = DoorLevel();
         NavWorld w = NavWorld.Build(s.V.ToArray(), s.I.ToArray(), NavSettings.Humanoid, NavSettings.Small);
         Assert.Equal(PathStatus.Partial, w[0].FindPath(Left, Right).Status);
-        Assert.Equal(PathStatus.Success, w[1].FindPath(Left, Right).Status);
-        Assert.Equal(PathStatus.Success, w.FindPath(Left, Right, 0.3).Status);
+        Assert.Equal(PathStatus.Found, w[1].FindPath(Left, Right).Status);
+        Assert.Equal(PathStatus.Found, w.FindPath(Left, Right, 0.3).Status);
         Assert.Equal(PathStatus.Partial, w.FindPath(Left, Right, 0.6).Status);
     }
 
@@ -98,7 +98,7 @@ public class WorldAndStreamingTests
         NavMesh m = Field();
         string before = AuthoredLinkTests.TileHashes(m.Tiles);
         PathResult p0 = m.FindPath(new Vector3D(2, 0, 8), new Vector3D(46, 0, 8));
-        Assert.Equal(PathStatus.Success, p0.Status);
+        Assert.Equal(PathStatus.Found, p0.Status);
         PolyRef oldRef = m.Tiles.GetPolyRef(m.Tiles.GetTileRef(1, 0, 0), 0);
 
         TileStreamer st = m.CreateStreamer();
@@ -243,7 +243,7 @@ public class WorldAndStreamingTests
         // The tile comes back; the agent's route to the lost destination is gone, so the host sends it again.
         st.QueueAdd(held);
         Assert.Equal(1, st.UpdateAll(TestContext.Current.CancellationToken));
-        Assert.NotEqual(PathStatus.NoEndNearby, a.SetDestination(new Vector3D(46, 0, 8)));
+        Assert.NotEqual(PathStatus.GoalInvalid, a.SetDestination(new Vector3D(46, 0, 8)));
         for (int i = 0; i < 4000 && !a.ReachedTarget; i++)
         {
             crowd.Step(1.0 / 30);

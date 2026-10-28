@@ -6,7 +6,7 @@ namespace RecursiveAI.OnePath.Grids;
 /// <summary>
 /// JPS+ tables for a <see cref="Grid"/>: for every cell and each of the eight directions (numbered as in <see cref="JumpRules"/>)
 /// the distance to the next jump point (positive) or to the last walkable cell before a wall (zero or negative: minus
-/// that distance). Rabin's JPS+ (Game AI Pro 2) stores the same quantity. Layout: <c>Tables[(direction * CellCount) + cell]</c>,
+/// that distance). Rabin's JPS+ (Game AI Pro 2) stores the same quantity. Stored cell by cell (the eight directions of a cell side by side),
 /// 16-bit signed. A wall cell has all zeros.
 /// <para>
 /// The index subscribes to the grid's cell edits and, before the next query (<see cref="Refresh"/>), repairs only the
@@ -57,8 +57,25 @@ public sealed class JpsPlusIndex : IGridBatchListener, IDisposable
     /// <summary>The grid this index describes.</summary>
     public Grid Grid => _grid;
 
-    /// <summary>All tables, see the type remarks for the layout. Call <see cref="Refresh"/> first after edits.</summary>
-    public ReadOnlySpan<short> Tables => _t;
+    /// <summary>
+    /// All tables in the order <c>Tables[(direction * CellCount) + cell]</c>, as a new copy each time (the searches read the
+    /// cell-major store, which keeps the eight entries of a cell on one cache line). Call <see cref="Refresh"/> first after edits.
+    /// </summary>
+    public ReadOnlySpan<short> Tables
+    {
+        get
+        {
+            var copy = new short[_t.Length];
+            for (int cell = 0; cell < _n; cell++)
+            {
+                for (int d = 0; d < 8; d++)
+                {
+                    copy[(d * _n) + cell] = _t[(cell << 3) + d];
+                }
+            }
+            return copy;
+        }
+    }
 
     internal short[] Table => _t;
 
@@ -75,7 +92,7 @@ public sealed class JpsPlusIndex : IGridBatchListener, IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(x), $"Cell ({x}, {y}) is outside the {_w}x{_h} grid.");
         }
-        return _t[(direction * _n) + (y * _w) + x];
+        return _t[(((y * _w) + x) << 3) + direction];
     }
 
     /// <inheritdoc/>
@@ -190,12 +207,12 @@ public sealed class JpsPlusIndex : IGridBatchListener, IDisposable
                 return 0;
             }
             // The cell is a diagonal jump point if a straight scan from the next cell finds a jump point.
-            if (_t[(JumpRules.Direction(dx, 0) * _n) + q] > 0 || _t[(JumpRules.Direction(0, dy) * _n) + q] > 0)
+            if (_t[(q << 3) + JumpRules.Direction(dx, 0)] > 0 || _t[(q << 3) + JumpRules.Direction(0, dy)] > 0)
             {
                 return 1;
             }
         }
-        int ahead = _t[(dir * _n) + q];
+        int ahead = _t[(q << 3) + dir];
         return (short)(ahead > 0 ? ahead + 1 : ahead - 1);
     }
 
@@ -212,7 +229,7 @@ public sealed class JpsPlusIndex : IGridBatchListener, IDisposable
                 for (int i = 0; i < _w; i++)
                 {
                     int x = dx > 0 ? _w - 1 - i : i;
-                    _t[(dir * _n) + (y * _w) + x] = Compute(x, y, dir);
+                    _t[(((y * _w) + x) << 3) + dir] = Compute(x, y, dir);
                 }
             }
         }
@@ -289,7 +306,7 @@ public sealed class JpsPlusIndex : IGridBatchListener, IDisposable
             int y = cell / _w;
             int x = cell - (y * _w);
             short v = Compute(x, y, d);
-            int slot = (d * _n) + cell;
+            int slot = (cell << 3) + d;
             if (_t[slot] != v)
             {
                 _t[slot] = v;
@@ -316,7 +333,7 @@ public sealed class JpsPlusIndex : IGridBatchListener, IDisposable
             int p = step < 0 ? len - 1 - i : i;
             int x = isRow ? p : line;
             int y = isRow ? line : p;
-            int slot = (dir * _n) + (y * _w) + x;
+            int slot = (((y * _w) + x) << 3) + dir;
             short v = Compute(x, y, dir);
             short old = _t[slot];
             if (v != old)

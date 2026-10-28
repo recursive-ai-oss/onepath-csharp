@@ -169,15 +169,15 @@ public sealed class PathFollower
     /// <see cref="FollowerOptions.ReplanBudget"/> iterations (a route not found within it is finished by the following steps).
     /// During an off-mesh crossing the target is only recorded and the route is found after the crossing.
     /// </summary>
-    /// <returns><see cref="PathStatus.Success"/> (full route), <see cref="PathStatus.Partial"/> (target unreachable: the agent will walk to the closest point), <see cref="PathStatus.InProgress"/> (route being extended), or the reason the agent cannot go (<see cref="PathStatus.InvalidStartPoly"/> when not placed, <see cref="PathStatus.NoEndNearby"/>); then the state is <see cref="FollowerState.NoPath"/>.</returns>
+    /// <returns><see cref="QueryStatus.Success"/> (full route), <see cref="QueryStatus.Partial"/> (target unreachable: the agent will walk to the closest point), <see cref="QueryStatus.InProgress"/> (route being extended), or the reason the agent cannot go (<see cref="QueryStatus.InvalidStartPoly"/> when not placed, <see cref="QueryStatus.NoEndNearby"/>); then the state is <see cref="FollowerState.NoPath"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The target is not finite or is beyond ±2^21.</exception>
-    public PathStatus SetDestination(NavMeshQuery query, Vector3D target, QueryFilter? filter = null)
+    public QueryStatus SetDestination(NavMeshQuery query, Vector3D target, QueryFilter? filter = null)
     {
         ArgumentNullException.ThrowIfNull(query);
         NavMeshQuery.CheckPos(target, nameof(target));
         if (_corr.Count == 0)
         {
-            return PathStatus.InvalidStartPoly;
+            return QueryStatus.InvalidStartPoly;
         }
         _destination = target;
         _corr.SetTarget(target);
@@ -187,11 +187,11 @@ public sealed class PathFollower
         ResetProgress();
         if (_state == FollowerState.OffMeshLink)
         {
-            return PathStatus.InProgress;
+            return QueryStatus.InProgress;
         }
         _state = FollowerState.Moving;
-        PathStatus s = ReplanRound(query, filter);
-        if (s is PathStatus.InvalidStartPoly or PathStatus.NoEndNearby)
+        QueryStatus s = ReplanRound(query, filter);
+        if (s is QueryStatus.InvalidStartPoly or QueryStatus.NoEndNearby)
         {
             _state = FollowerState.NoPath;
             _velocity = default;
@@ -265,19 +265,19 @@ public sealed class PathFollower
         bool deferred = deferExtension && !_corr.ReplanFromStart && _rounds == 0 && _corr.Capacity >= 16 && _corr.Count * 4 > _corr.Capacity * 3;
         if (_corr.NeedsReplan && !deferred)
         {
-            PathStatus s = ReplanRound(query, filter);
+            QueryStatus s = ReplanRound(query, filter);
             if (_state != FollowerState.Moving)
             {
                 _velocity = default;
                 return false;
             }
-            if (s == PathStatus.NoEndNearby)
+            if (s == QueryStatus.NoEndNearby)
             {
                 _state = FollowerState.NoPath;
                 _velocity = default;
                 return false;
             }
-            if (s == PathStatus.InvalidStartPoly)
+            if (s == QueryStatus.InvalidStartPoly)
             {
                 // The corridor's polygons were unusable: put the agent back on the mesh and plan again next step.
                 Recover(query, filter);
@@ -659,22 +659,22 @@ public sealed class PathFollower
         return false;
     }
 
-    private PathStatus ReplanRound(NavMeshQuery query, QueryFilter? filter)
+    private QueryStatus ReplanRound(NavMeshQuery query, QueryFilter? filter)
     {
         // The budget doubles with every unfinished round, so a search that restarts from the closest polygon cannot stay trapped
         // in a pocket nearer the goal than its exits: some round is large enough to leave it. The round counter is state.
         long budget = (long)_opt.ReplanBudget << Math.Min(_rounds, 20);
-        PathStatus s = _corr.Replan(query, filter, (int)Math.Min(budget, int.MaxValue), _opt.SearchExtents);
+        QueryStatus s = _corr.Replan(query, filter, (int)Math.Min(budget, int.MaxValue), _opt.SearchExtents);
         switch (s)
         {
-            case PathStatus.InProgress:
+            case QueryStatus.InProgress:
                 if (++_rounds >= _opt.MaxReplanRounds)
                 {
                     _state = FollowerState.NoPath;
                     _velocity = default;
                 }
                 break;
-            case PathStatus.InvalidStartPoly:
+            case QueryStatus.InvalidStartPoly:
                 if (++_rounds >= _opt.MaxReplanRounds)
                 {
                     _state = FollowerState.NoPath;
@@ -692,12 +692,12 @@ public sealed class PathFollower
     // relocated, and the step ends without moving.
     private bool FindCorners(NavMeshQuery query, QueryFilter? filter)
     {
-        if (_corr.FindCorners(query, _corners, out _cornerCount) == PathStatus.Success)
+        if (_corr.FindCorners(query, _corners, out _cornerCount) == QueryStatus.Success)
         {
             return true;
         }
         _cornerCount = 0;
-        if (_corr.Validate(query, filter, int.MaxValue) == CorridorStatus.Invalid || _corr.FindCorners(query, _corners, out _cornerCount) != PathStatus.Success)
+        if (_corr.Validate(query, filter, int.MaxValue) == CorridorStatus.Invalid || _corr.FindCorners(query, _corners, out _cornerCount) != QueryStatus.Success)
         {
             _cornerCount = 0;
             if (_state == FollowerState.Moving && !_corr.Relocate(query, filter, _opt.SearchExtents))

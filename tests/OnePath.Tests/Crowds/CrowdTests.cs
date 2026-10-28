@@ -27,7 +27,7 @@ public class CrowdTests
     // stands on the mesh. Overlap = how far inside each other two agents are (sum of radii minus the distance), worst over the run.
     private static RunStats Run(CrowdSim sim, int budget, bool checkPairs = true, Action<int>? onStep = null, bool removeOnArrival = false)
     {
-        var q = new NavMeshQuery(sim.Mesh);
+        var q = new NavMeshQuery(sim.Mesh, 65536, PathNodeModel.Crossing);
         double worst = 0;
         int offMesh = 0, crossings = 0, steps = 0;
         var crossed = new HashSet<long>();
@@ -143,7 +143,7 @@ public class CrowdTests
         for (ulong seed = 1; seed <= Runs; seed++)
         {
             CrowdSim sim = CrowdWorlds.RandomField(8, 6, seed, 1);
-            var fresh = new NavMeshQuery(sim.Mesh);
+            var fresh = new NavMeshQuery(sim.Mesh, 65536, PathNodeModel.Crossing);
             double longest = 0;
             foreach (Agent a in sim.Agents)
             {
@@ -350,7 +350,7 @@ public class CrowdTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new Crowd(mesh, new CrowdOptions { MaxThreads = 0 }));
         Agent a = crowd.Add(new Vector3D(5, 0, 5));
         Assert.Throws<ArgumentOutOfRangeException>(() => a.Priority = 0);
-        Assert.Equal(PathStatus.NoEndNearby, a.SetDestination(new Vector3D(900, 0, 900)));
+        Assert.Equal(PathStatus.GoalInvalid, a.SetDestination(new Vector3D(900, 0, 900)));
         var small = new Crowd(mesh, new CrowdOptions { MaxAgents = 1 });
         small.Add(new Vector3D(5, 0, 5));
         Assert.Throws<InvalidOperationException>(() => small.Add(new Vector3D(6, 0, 6)));
@@ -364,7 +364,7 @@ public class CrowdTests
             TiledNavMesh mesh = CrowdWorlds.Field2(7, seed);
             var crowd = new Crowd(mesh, new CrowdOptions { Filter = new QueryFilter { IncludeFlags = 1 } });
             var rng = new NavMeshWorlds.Rng(seed + 100);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var agents = new List<Agent>();
             for (int i = 0; i < 8; i++)
             {
@@ -424,7 +424,7 @@ public class CrowdTests
         for (ulong seed = 1; seed <= 20; seed++)
         {
             TiledNavMesh mesh = CorridorWorlds.Field(12, seed, out bool[] cells);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var rng = new NavMeshWorlds.Rng(seed);
             for (int k = 0; k < 10; k++)
             {
@@ -487,7 +487,7 @@ public class CrowdTests
     public void FindWalls_truncates_to_the_nearest()
     {
         TiledNavMesh mesh = CorridorWorlds.Field(12, 5, out _);
-        var q = new NavMeshQuery(mesh);
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         NearestPoly np = q.FindNearestPoly(new Vector3D(6.3, 0, 6.3), CorridorWorlds.Extents);
         var all = new WallSegment[512];
         q.FindWalls(np.Poly, np.Point, 6, (QueryFilter?)null, all, out int n, out _);
@@ -509,7 +509,7 @@ public class CrowdTests
         for (ulong seed = 1; seed <= 30; seed++)
         {
             TiledNavMesh mesh = CorridorWorlds.Field(16, seed);
-            var q = new NavMeshQuery(mesh);
+            var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
             var rng = new NavMeshWorlds.Rng(seed);
             for (int k = 0; k < 10; k++)
             {
@@ -520,7 +520,7 @@ public class CrowdTests
                     continue;
                 }
                 var path = new PolyRef[256];
-                if (q.FindPath(na.Poly, nb.Poly, na.Point, nb.Point, new CorridorWorlds.AllPass(), path, out int pc) != PathStatus.Success)
+                if (q.FindPath(na.Poly, nb.Poly, na.Point, nb.Point, new CorridorWorlds.AllPass(), path, out int pc) != QueryStatus.Success)
                 {
                     continue;
                 }
@@ -529,7 +529,7 @@ public class CrowdTests
                 for (int limit = 1; limit <= fullCount + 1; limit++)
                 {
                     var part = new StraightPathPoint[128];
-                    Assert.Equal(PathStatus.Success, q.FindStraightPath(na.Point, nb.Point, path.AsSpan(0, pc), part, limit, out int c, out bool trunc));
+                    Assert.Equal(QueryStatus.Success, q.FindStraightPath(na.Point, nb.Point, path.AsSpan(0, pc), part, limit, out int c, out bool trunc));
                     Assert.Equal(Math.Min(limit, fullCount), c);
                     for (int i = 0; i < c; i++)
                     {

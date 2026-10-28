@@ -233,7 +233,7 @@ public sealed partial class Crowd
 
     internal void SetPriorityAt(int slot, double value) => _priority[slot] = value;
 
-    internal PathStatus SetDestinationAt(int slot, Vector3D destination) => _follow[slot]!.SetDestination(GetWorker(0).Query, destination, _opt.Filter);
+    internal QueryStatus SetDestinationAt(int slot, Vector3D destination) => _follow[slot]!.SetDestination(GetWorker(0).Query, destination, _opt.Filter);
 
     internal bool TeleportAt(int slot, Vector3D position)
     {
@@ -265,7 +265,7 @@ public sealed partial class Crowd
 
     // ---- storage ----
 
-    private Worker GetWorker(int w) => _workers[w] ??= new Worker(new NavMeshQuery(_mesh, _opt.QueryNodes), _opt.MaxWallsAvoided);
+    private Worker GetWorker(int w) => _workers[w] ??= new Worker(new NavMeshQuery(_mesh, _opt.QueryNodes, _opt.QueryNodeModel), _opt.MaxWallsAvoided);
 
     private void EnsureSlots(int needed)
     {

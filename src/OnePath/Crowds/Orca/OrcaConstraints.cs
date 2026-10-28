@@ -36,8 +36,12 @@ public static class OrcaConstraints
         double responsibility = 0.5)
     {
         Validate(combinedRadius, timeHorizon, timeStep);
-        return Build(relativePosition, relativePosition, combinedRadius, timeHorizon, timeStep, ownVelocity - otherVelocity, responsibility, ownVelocity);
+        return BuildPoint(relativePosition, combinedRadius, timeHorizon, timeStep, ownVelocity - otherVelocity, responsibility, ownVelocity);
     }
+
+    /// <summary><see cref="ForAgent"/> without the argument checks, for callers that validated the radius, horizon and step already.</summary>
+    internal static HalfPlane ForAgentUnchecked(Vector2D relativePosition, Vector2D ownVelocity, Vector2D otherVelocity, double combinedRadius, double timeHorizon, double timeStep, double responsibility) =>
+        BuildPoint(relativePosition, combinedRadius, timeHorizon, timeStep, ownVelocity - otherVelocity, responsibility, ownVelocity);
 
     /// <summary>
     /// The half-plane of velocities permitted to an agent with respect to a static line-segment obstacle (section 5.4 of the
@@ -176,6 +180,120 @@ public static class OrcaConstraints
         // The closest boundary point is x - d*n, so u = -d*n.
         Vector2D u = new(-d * n.X, -d * n.Y);
         return new HalfPlane(origin + u * share, n);
+    }
+
+    // Build for a point obstacle (a == b), which is what another agent is. It performs exactly the operations Build and Boundary perform
+    // when both ends are equal (so the result is bit for bit the same) and skips the ones that repeat a value: the second end's
+    // offset, tolerance and domain test equal the first's, and the minimum of two equal dot products is that product.
+    private static HalfPlane BuildPoint(Vector2D a, double r, double tau, double dt, Vector2D x, double share, Vector2D origin)
+    {
+        double aa = Vector2D.Dot(a, a);
+        bool overlapping = aa <= r * r;
+        if (!overlapping)
+        {
+            return Truncated(a, aa, r, tau, x, share, origin);
+        }
+        bool domain = !overlapping;
+        double t = overlapping ? dt : tau;
+        Vector2D wa = x - a / t;
+        double tol = 0;
+        if (domain)
+        {
+            tol = ArcTolerance * (a.Length() + r);
+        }
+        double best = double.NegativeInfinity;
+        Vector2D bestN = default;
+        double lenA = wa.Length();
+        if (lenA > 0)
+        {
+            ConsiderPoint(wa / lenA, wa, domain, a, r, tol, ref best, ref bestN);
+        }
+        if (domain)
+        {
+            double l2 = aa - r * r;
+            if (l2 > 0)
+            {
+                double l = Math.Sqrt(l2);
+                double cx = -r * a.X;
+                double cy = -r * a.Y;
+                double px = -a.Y * l;
+                double py = a.X * l;
+                ConsiderPoint(new Vector2D((cx + px) / aa, (cy + py) / aa), wa, true, a, r, tol, ref best, ref bestN);
+                ConsiderPoint(new Vector2D((cx - px) / aa, (cy - py) / aa), wa, true, a, r, tol, ref best, ref bestN);
+            }
+        }
+        if (double.IsNegativeInfinity(best))
+        {
+            Vector2D c = a + a;
+            double lc = c.Length();
+            bestN = lc > 0 ? new Vector2D(-c.X / lc, -c.Y / lc) : new Vector2D(1, 0);
+            best = Vector2D.Dot(bestN, wa);
+        }
+        double d = best - r / t;
+        Vector2D u = new(-d * bestN.X, -d * bestN.Y);
+        return new HalfPlane(origin + u * share, bestN);
+    }
+
+    // The truncated velocity obstacle of another agent, case by case (van den Berg et al. 2011, section 4, figure 2): the cone from the
+    // origin around the direction of the agent a, cut off at time tau by the disc of radius r/tau around a/tau. The point of its boundary
+    // closest to the relative velocity x is on the disc's arc (the cutoff case) or on one of the two legs (tangents from the origin).
+    // Requires |a| > r. The unit normal is the obstacle's outward normal there, the vector u runs from x to that point.
+    private static HalfPlane Truncated(Vector2D a, double aa, double r, double tau, Vector2D x, double share, Vector2D origin)
+    {
+        double wx = x.X - (a.X / tau);
+        double wy = x.Y - (a.Y / tau);
+        double wLenSq = (wx * wx) + (wy * wy);
+        double dot1 = (wx * a.X) + (wy * a.Y);
+        double nx, ny, ux, uy;
+        if (dot1 < 0 && dot1 * dot1 > r * r * wLenSq)
+        {
+            // Cutoff case: x projects onto the arc. The outward normal is the direction from the disc's centre to x.
+            double wLen = Math.Sqrt(wLenSq);
+            nx = wx / wLen;
+            ny = wy / wLen;
+            double move = (r / tau) - wLen;
+            ux = nx * move;
+            uy = ny * move;
+        }
+        else
+        {
+            // Leg case: the left leg when x is counter-clockwise of the cone's axis (cross(a, w) > 0), else the right leg.
+            // The leg is the ray from the origin along dir, the tangent direction of length 1 (cos = leg / |a|, sin = r / |a|).
+            double leg = Math.Sqrt(aa - (r * r));
+            double dx, dy;
+            if ((a.X * wy) - (a.Y * wx) > 0)
+            {
+                dx = ((a.X * leg) - (a.Y * r)) / aa;
+                dy = ((a.X * r) + (a.Y * leg)) / aa;
+                nx = -dy;
+                ny = dx;
+            }
+            else
+            {
+                dx = ((a.X * leg) + (a.Y * r)) / aa;
+                dy = ((a.Y * leg) - (a.X * r)) / aa;
+                nx = dy;
+                ny = -dx;
+            }
+            double along = (x.X * dx) + (x.Y * dy);
+            ux = (along * dx) - x.X;
+            uy = (along * dy) - x.Y;
+        }
+        return new HalfPlane(new Vector2D(origin.X + (ux * share), origin.Y + (uy * share)), new Vector2D(nx, ny));
+    }
+
+    private static void ConsiderPoint(Vector2D n, Vector2D wa, bool domain, Vector2D a, double r, double tol, ref double best, ref Vector2D bestN)
+    {
+        if (domain && Vector2D.Dot(n, a) + r > tol)
+        {
+            return;
+        }
+        double g = Vector2D.Dot(n, wa);
+        if (g > best)
+        {
+            best = g;
+            bestN = n;
+        }
     }
 
     // The signed distance from x to the boundary of S, positive outside, and the outward normal n at the closest boundary point.

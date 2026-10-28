@@ -86,7 +86,10 @@ internal static class OursQueries
             meshSource = "format test generator (8x8 tiles); points scaled onto it";
         }
 
-        var q = new NavMeshQuery(mesh);
+        // Search node model: --node-model in the row, else the ONEPATH_NODE_MODEL environment variable (polygon or crossing), else the query default.
+        string? model = OursBuild.Arg(t, "--node-model") ?? Environment.GetEnvironmentVariable("ONEPATH_NODE_MODEL");
+        NavMeshQuery q = string.Equals(model, "polygon", StringComparison.OrdinalIgnoreCase) ? new NavMeshQuery(mesh, 65536, PathNodeModel.Polygon)
+            : string.Equals(model, "crossing", StringComparison.OrdinalIgnoreCase) ? new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing) : new NavMeshQuery(mesh);
         var filter = new PlainFilterStruct();
         var ext = new Vector3D(2, 4, 2);
         var snapped = new NearestPoly[pts.Count];
@@ -110,7 +113,7 @@ internal static class OursQueries
         var tPath = new List<double>();
         var tRay = new List<double>();
         var tNear = new List<double>();
-        for (int rep = 0; rep < reps; rep++)
+        double PathPass()
         {
             lenSum = 0;
             ok = 0;
@@ -119,13 +122,13 @@ internal static class OursQueries
             foreach (var (a, b) in pairs)
             {
                 NearestPoly A = snapped[a], B = snapped[b];
-                PathStatus s = q.FindPath(A.Poly, B.Poly, A.Point, B.Point, in filter, corridor, out int n);
+                QueryStatus s = q.FindPath(A.Poly, B.Poly, A.Point, B.Point, in filter, corridor, out int n);
                 if (n <= 0)
                 {
                     continue;
                 }
                 Vector3D end = B.Point;
-                if (s == PathStatus.Partial)
+                if (s == QueryStatus.Partial)
                 {
                     partial++;
                     q.ClosestPointOnPoly(corridor[n - 1], B.Point, out end, out _);
@@ -137,9 +140,10 @@ internal static class OursQueries
                 }
                 ok++;
             }
-            tPath.Add(Ms(start));
+            return Ms(start);
         }
-        for (int rep = 0; rep < reps; rep++)
+
+        double RayPass()
         {
             hits = 0;
             long start = Stopwatch.GetTimestamp();
@@ -151,16 +155,45 @@ internal static class OursQueries
                     hits++;
                 }
             }
-            tRay.Add(Ms(start));
+            return Ms(start);
         }
-        for (int rep = 0; rep < reps; rep++)
+
+        double NearPass()
         {
             long start = Stopwatch.GetTimestamp();
             foreach (Vector3D p in pts)
             {
                 _ = q.FindNearestPoly(p, ext, in filter);
             }
-            tNear.Add(Ms(start));
+            return Ms(start);
+        }
+
+        // Untimed warm-up, as the method note says: a short row would otherwise run mostly in the runtime's first-tier code,
+        // which the native reference has no counterpart of. Each pass repeats until about half a second has gone by, which
+        // is past the runtime's tier-up delay. The wall clock only decides how long to warm up, never a result.
+        for (long warmEnd = Stopwatch.GetTimestamp() + (Stopwatch.Frequency / 2); Stopwatch.GetTimestamp() < warmEnd;)
+        {
+            PathPass();
+        }
+        for (long warmEnd = Stopwatch.GetTimestamp() + (Stopwatch.Frequency / 4); Stopwatch.GetTimestamp() < warmEnd;)
+        {
+            RayPass();
+        }
+        for (long warmEnd = Stopwatch.GetTimestamp() + (Stopwatch.Frequency / 4); Stopwatch.GetTimestamp() < warmEnd;)
+        {
+            NearPass();
+        }
+        for (int rep = 0; rep < reps; rep++)
+        {
+            tPath.Add(PathPass());
+        }
+        for (int rep = 0; rep < reps; rep++)
+        {
+            tRay.Add(RayPass());
+        }
+        for (int rep = 0; rep < reps; rep++)
+        {
+            tNear.Add(NearPass());
         }
         string id = row.Id;
         string side = OurScenarios.Side;
@@ -182,6 +215,7 @@ internal static class OursQueries
             R("nearest_per_sec", pts.Count / (tNear.Min() / 1000.0), "1/s"),
             R("peak_rss", Process.GetCurrentProcess().PeakWorkingSet64 / (1024.0 * 1024.0), "MB"),
             new Row(row.Part, id, side, "mesh_source", meshSource, "text"),
+            new Row(row.Part, id, side, "path_node_model", q.NodeModel.ToString(), "text"),
         };
     }
 

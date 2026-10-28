@@ -12,38 +12,52 @@ Each tile is built on a grid of its cells plus a border of `Border` cells (agent
 
 1. rasterize the triangles (or voxels) into a solid heightfield;
 2. filters (low-hanging obstacles, ledges, low clearance) and compaction into the open-span heightfield (`build3d-spans.md`);
-3. **obstacles**: spans marked non-walkable;
-4. erosion by the agent radius; the pipeline's build-time area volumes; **run-time area volumes**;
+3. erosion by the agent radius and the pipeline's build-time area volumes;
+4. **obstacles** (marked grown by the agent radius) and **run-time area volumes**;
 5. regions, contours, polygons, detail, tile data (`build3d-regions.md`, `build3d-polys.md`).
 
-The cache keeps the result of step 2 for every tile that was built (a tile with no triangle that could be walkable is never built and
+The cache keeps the result of step 3 for every tile that was built (a tile with no triangle that could be walkable is never built and
 has nothing to cache; nothing can make it walkable later, since obstacles and volumes only remove walkability or change an area id).
-A rebuild copies that heightfield and runs steps 3 to 5.
+A rebuild copies that heightfield and runs steps 4 and 5; it never erodes again. It also keeps the area ids of the span array as last
+built and as first built, and the tile data of the first build:
+
+- a rebuild whose areas equal the last build's changes nothing (queueing is generous, so most rebuilds of a tile next to an obstacle find this);
+- a rebuild whose areas equal the first build's reuses the first build's tile data (taking the last obstacle off a tile costs no partition).
+
+Neither shortcut changes a result: a tile is a function of its areas. After a restore the last-built areas are forgotten (the mesh may hold
+anything), so the next rebuild of each queued tile runs in full.
 
 Building with a cache (`Mesh3DPipeline.BuildSoupCached`, `BuildChunkCached`, `BuildHeightfieldCached`) produces exactly the mesh the
 plain build produces; the pipeline runs the same code on a copy.
 
-## Obstacles (step 3)
+The rebuild's cost is the partition and contour stages of `NavSettings.Partition`. `PartitionType.Layers` (monotone regions on height layers)
+with `DetailSampleDistance = 0` is the cheapest setting, and is what a host that adds and removes obstacles often should choose; watershed
+with detail sampling gives smoother regions at about twice the rebuild cost.
 
-An obstacle is a shape with a height range. For every column of the tile's grid (border included) whose **cell centre**
-(`origin + (index + 0.5) * cellSize`, in double) lies inside the shape's footprint (boundary included), every span with a non-zero area
+## Obstacles (step 4)
+
+An obstacle is a shape with a height range. Erosion has already run, so the shape is **grown by the agent radius** (`WalkableRadius` cells
+times the cell size) instead: a cylinder's radius grows by it, a box's sides and an oriented box's half sizes move out by it. For every
+column of the tile's grid (border included) whose **cell centre**
+(`origin + (index + 0.5) * cellSize`, in double) lies inside the grown footprint (boundary included), every span with a non-zero area
 whose **floor height** (`originY + row * cellHeight`, double) lies in `[MinY, MaxY]` (both included) gets area 0. Order does not matter
-(the operation is idempotent per span). Erosion then keeps the agent radius clear of the marked spans like any other wall.
+(the operation is idempotent per span). The grown footprint is a square-cornered or round offset, not the chamfer distance erosion uses,
+so a wall made by an obstacle sits within about a cell of where erosion would put it.
 
 | Shape | Parameters | Footprint test (x, z world; all double) | Height range |
 |---|---|---|---|
-| Cylinder | base centre (x, y, z), radius r > 0, height h ≥ 0 | (x−cx)² + (z−cz)² ≤ r·r | [y, y+h] |
-| Box | min and max corners | min ≤ point ≤ max on x and z | [min y, max y] |
-| Oriented box | centre, half sizes (hx > 0, hy ≥ 0, hz > 0), yaw | with (s, c) = SinCos(yaw) from the deterministic math library: u = dx·c + dz·s, v = dz·c − dx·s; \|u\| ≤ hx and \|v\| ≤ hz | [y−hy, y+hy] |
+| Cylinder | base centre (x, y, z), radius r > 0, height h ≥ 0 | (x−cx)² + (z−cz)² ≤ (r+g)² | [y, y+h] |
+| Box | min and max corners | min − g ≤ point ≤ max + g on x and z | [min y, max y] |
+| Oriented box | centre, half sizes (hx > 0, hy ≥ 0, hz > 0), yaw | with (s, c) = SinCos(yaw) from the deterministic math library: u = dx·c + dz·s, v = dz·c − dx·s; \|u\| ≤ hx+g and \|v\| ≤ hz+g | [y−hy, y+hy] |
 
-The yaw turns from the +x axis towards the +z axis. Every number is finite and within ±2^21, as is every extent (centre ± radius, centre ± the
+g is the growth above. The yaw turns from the +x axis towards the +z axis. Every number is finite and within ±2^21, as is every extent (centre ± radius, centre ± the
 rotated half size); anything else is rejected with `ArgumentException` or `ArgumentOutOfRangeException` naming the value.
 
-**Baking.** `Mesh3DPipeline.Obstacles` holds obstacles applied to every tile of a build, in list order, before the cache's own. A mesh
+**Baking.** `Mesh3DPipeline.Obstacles` holds obstacles applied to every tile of a build, in list order, before the cache's own and after erosion. A mesh
 rebuilt from a cache after obstacles A, B, C were added equals, tile for tile and byte for byte, a fresh build of the same geometry with
 A, B, C in `Obstacles` (the tests check this), and removing every obstacle gives back the original tiles.
 
-## Area volumes (step 4)
+## Area volumes (step 3 and 4)
 
 `ConvexVolume` (`build3d-spans.md`) assigns an area id to eroded, walkable spans. In a rebuild, the pipeline's own volumes
 (`Regions.Spans.Volumes`) apply first, then the cache's run-time volumes in the order they were added; the later volume wins where they overlap.
@@ -52,7 +66,7 @@ non-walkable without growing by the radius.
 
 ## Which tiles rebuild
 
-An operation (add or remove an obstacle or volume) queues every cached tile whose build grid, widened by one cell, overlaps the shape's
+An operation (add or remove an obstacle or volume) queues every cached tile whose build grid, widened by the agent radius and one cell, overlaps the shape's
 bounding box in x and z (height is ignored). Queueing is by tile row, then tile column. A tile already queued keeps its place. Queueing a
 tile that turns out unchanged is harmless: it is rebuilt to the same bytes.
 

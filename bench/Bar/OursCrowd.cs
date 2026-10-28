@@ -18,10 +18,10 @@ namespace RecursiveAI.OnePath.Bar;
 /// <list type="bullet">
 /// <item><c>circle</c> (against RVO2 and RVO2-CS): N agents spread on a circle walk to the antipodal point with no obstacles, the reference's
 /// documented default agent settings (neighbour distance 15, 10 neighbours, horizons 10 and 5, radius 2, speed 2), dt 0.25; our side is the
-/// ORCA solver itself (<see cref="OrcaSimulator"/>), one thread unless <c>--threads</c> says otherwise.</item>
+/// ORCA solver itself (<see cref="OrcaSimulator"/>), one thread unless <c>--threads</c> says otherwise (<c>--threads auto</c> = every core).</item>
 /// <item><c>crowd</c> (against DetourCrowd and DotRecast): N agents with the harness's start/goal rule on the point set, speed 3.5, acceleration 8,
-/// dt 0.05; our side is <see cref="Crowd"/>, one thread. Until a builder can build the suite's OBJ levels the mesh is the format test generator's
-/// and the points are scaled onto it, as for the query rows, so the rows are comparable in method, not yet in geometry (<c>mesh_source</c> says so).</item>
+/// dt 0.05; our side is <see cref="Crowd"/>, one thread. With an <c>--obj</c> level the mesh is our 3D builder's on the reference settings and the points are
+/// used as they are, like the query rows; without one it is the format test generator's with the points scaled onto it (<c>mesh_source</c> says which).</item>
 /// </list>
 /// Quality rows ours prints in addition: <c>arrived</c>, <c>moving_at_end</c>, <c>worst_overlap</c> (deepest agent-agent penetration at the end, units),
 /// <c>mean_overlap</c> over agent pairs closer than the sum of their radii.
@@ -31,7 +31,51 @@ internal static class OursCrowd
     public static List<Row> Run(SuiteRow row, Paths paths)
     {
         string[] t = paths.Expand(row.Args).Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return t.Length > 0 && t[0] == "circle" ? Circle(row, t) : City(row, t);
+        bool circle = t.Length > 0 && t[0] == "circle";
+        // A native reference is fully optimized from its first instruction; our code starts in the JIT's unoptimized tier and is
+        // promoted after a number of calls and a 100 ms quiet period, which a few dozen steps of a small crowd never reach. The
+        // method is "warm, in-process": run the whole row once untimed, let the promotions finish, then run it for the numbers.
+        if (Arg(t, "prewarm", "1") != "0")
+        {
+            // Repeat untimed runs (a pause after each so promotions finish), at least five, until two in a row agree within 3%: the JIT has settled.
+            double previous = 0;
+            for (int run = 0; run < 10; run++)
+            {
+                List<Row> rows = circle ? Circle(row, t) : City(row, t);
+                System.Threading.Thread.Sleep(500);
+                double rate = 0;
+                foreach (Row r in rows)
+                {
+                    if (r.Metric == "agents_per_ms")
+                    {
+                        rate = double.Parse(r.Value, CultureInfo.InvariantCulture);
+                    }
+                }
+                if (run >= 4 && previous > 0 && Math.Abs(rate - previous) <= 0.03 * previous)
+                {
+                    break;
+                }
+                previous = rate;
+            }
+        }
+        if (!circle)
+        {
+            return City(row, t);
+        }
+        // Best of N, as the method says: a single 30-100 ms run shows the machine's scheduling (core migration, clock changes) as much as the code.
+        List<Row>? best = null;
+        double bestRate = -1;
+        for (int run = 0; run < Int(t, "best-of", 7); run++)
+        {
+            List<Row> rows = Circle(row, t);
+            double rate = double.Parse(rows.First(r => r.Metric == "agents_per_ms").Value, CultureInfo.InvariantCulture);
+            if (rate > bestRate)
+            {
+                bestRate = rate;
+                best = rows;
+            }
+        }
+        return best!;
     }
 
     private static string Arg(string[] t, string name, string fallback)
@@ -48,6 +92,10 @@ internal static class OursCrowd
 
     private static int Int(string[] t, string name, int fallback) => int.Parse(Arg(t, name, fallback.ToString(CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture);
 
+    // "--threads auto" runs on every core, the footing of a reference that parallelises over all of them by default (RVO2-CS).
+    private static int Threads(string[] t) =>
+        Arg(t, "threads", "1") == "auto" ? Environment.ProcessorCount : Int(t, "threads", 1);
+
     private static double Num(string[] t, string name, double fallback) => double.Parse(Arg(t, name, fallback.ToString("R", CultureInfo.InvariantCulture)), CultureInfo.InvariantCulture);
 
     private static Row R(SuiteRow row, string metric, double v, string unit) =>
@@ -57,7 +105,7 @@ internal static class OursCrowd
 
     private static List<Row> Circle(SuiteRow row, string[] t)
     {
-        int n = Int(t, "agents", 250), steps = Int(t, "steps", 200), warm = Int(t, "warmup", 20), threads = Int(t, "threads", 1);
+        int n = Int(t, "agents", 250), steps = Int(t, "steps", 200), warm = Int(t, "warmup", 20), threads = Threads(t);
         double dt = Num(t, "dt", 0.25);
         double radiusOfCircle = 200.0 * Math.Sqrt(n / 250.0);
         var sim = new OrcaSimulator { MaxThreads = threads };
@@ -126,15 +174,33 @@ internal static class OursCrowd
         foreach (string line in File.ReadLines(pointsFile))
         {
             string[] f = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (f.Length >= 3)
+            if (f.Length >= 3 && f[0][0] != '#')
             {
                 raw.Add(new Vector3D(double.Parse(f[0], CultureInfo.InvariantCulture), double.Parse(f[1], CultureInfo.InvariantCulture), double.Parse(f[2], CultureInfo.InvariantCulture)));
             }
         }
         double x0 = raw.Min(p => p.X), x1 = raw.Max(p => p.X), z0 = raw.Min(p => p.Z), z1 = raw.Max(p => p.Z);
-        TiledNavMesh mesh = NavMeshWorlds.RandomMesh(7, -4, -4, 8, 8, 1, detail: false, offMesh: 0);
-        var pts = raw.Select(p => new Vector3D(-47 + ((p.X - x0) / Math.Max(1e-9, x1 - x0) * 62), 0.2, -47 + ((p.Z - z0) / Math.Max(1e-9, z1 - z0) * 62))).ToList();
-        var q = new NavMeshQuery(mesh);
+        TiledNavMesh mesh;
+        List<Vector3D> pts;
+        string meshSource;
+        string? objFile = Arg(t, "obj", "");
+        if (File.Exists(objFile))
+        {
+            // The level's own mesh, built with the reference settings (solo unless the row says tiled), and the points as they are.
+            bool tiled = Arg(t, "mode", "solo") == "tiled";
+            int tileCells = Int(t, "tile-size", 64);
+            (double[] ov, int[] oi) = OursBuild.LoadObj(objFile);
+            mesh = OursBuild.Build(ov, oi, tiled, tileCells).Tiles;
+            pts = raw;
+            meshSource = "3D builder, " + OursBuild.Describe(tiled, tileCells);
+        }
+        else
+        {
+            mesh = NavMeshWorlds.RandomMesh(7, -4, -4, 8, 8, 1, detail: false, offMesh: 0);
+            pts = raw.Select(p => new Vector3D(-47 + ((p.X - x0) / Math.Max(1e-9, x1 - x0) * 62), 0.2, -47 + ((p.Z - z0) / Math.Max(1e-9, z1 - z0) * 62))).ToList();
+            meshSource = "format test generator (8x8 tiles); points scaled onto it";
+        }
+        var q = new NavMeshQuery(mesh, 65536, PathNodeModel.Crossing);
         var usable = new List<NearestPoly>();
         foreach (Vector3D p in pts)
         {
@@ -218,7 +284,7 @@ internal static class OursCrowd
             R(row, "arrived", arrived, "count"),
             R(row, "threads", threads, "count"),
             R(row, "peak_rss", Process.GetCurrentProcess().PeakWorkingSet64 / (1024.0 * 1024.0), "MB"),
-            new Row(row.Part, row.Id, OurScenarios.Side, "mesh_source", "format test generator (8x8 tiles); points scaled onto it", "text"),
+            new Row(row.Part, row.Id, OurScenarios.Side, "mesh_source", meshSource, "text"),
         };
         if (agents.Count <= 2000)
         {

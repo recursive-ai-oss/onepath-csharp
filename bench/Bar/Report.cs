@@ -64,6 +64,42 @@ internal static class Report
             }
         }
 
+        WriteGate2D(sb, results);
         File.WriteAllText(path, sb.ToString());
     }
+
+    /// <summary>
+    /// The 2D builder gate: our walkable coverage against the exact eroded area of the same tile map (must be within 1%), then the
+    /// reference's coverage and our delta against it as information. Recast keeps a ledge-and-region margin of one cell on top of
+    /// the agent radius, so its coverage equals the exact area at radius + one cell and sits below the exact area by construction.
+    /// </summary>
+    private static void WriteGate2D(StringBuilder sb, IEnumerable<(SuiteRow Row, List<Row> Ours, List<Row> Ref)> results)
+    {
+        var rows = results.Where(r => Get(r.Ours, "exact_area") is not null).ToList();
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        sb.Append("\n## 2D gate: coverage against the exact eroded area\n\n");
+        sb.Append("The gate is ours within 1% of the exact area (computed without any builder). The reference columns are information only: ")
+          .Append("Recast's coverage equals the exact area at radius + one cell, so it falls below the exact area by construction.\n\n");
+        sb.Append("| row | exact area | ours | ours vs exact | gate (1%) | reference | reference coverage | reference vs exact | ours vs reference |\n");
+        sb.Append("|---|---:|---:|---:|---|---|---:|---:|---:|\n");
+        foreach (var (row, ours, refs) in rows)
+        {
+            double exact = Get(ours, "exact_area")!.Value;
+            double? o = Get(ours, "coverage_area");
+            double? r = Get(refs, "coverage_area");
+            double? dOurs = o is null ? null : exact > 0 ? (o - exact) * 100 / exact : (o == 0 ? 0 : double.PositiveInfinity);
+            double? dRef = r is null ? null : exact > 0 ? (r - exact) * 100 / exact : (r == 0 ? 0 : double.PositiveInfinity);
+            double? dOursRef = o is null || r is null || r == 0 ? null : (o - r) * 100 / r;
+            string gate = dOurs is null ? "no ours" : Math.Abs(dOurs.Value) <= 1.0 ? "pass" : "FAIL";
+            string refName = refs.FirstOrDefault()?.Side ?? "-";
+            sb.Append("| ").Append(row.Id).Append(" | ").Append(Fmt(exact)).Append(" | ").Append(Fmt(o)).Append(" | ").Append(Pct(dOurs)).Append(" | ").Append(gate)
+              .Append(" | ").Append(refName).Append(" | ").Append(Fmt(r)).Append(" | ").Append(Pct(dRef)).Append(" | ").Append(Pct(dOursRef)).Append(" |\n");
+        }
+    }
+
+    private static string Pct(double? d) => d is null ? "n/a" : d.Value.ToString("+0.00;-0.00;0.00", CultureInfo.InvariantCulture) + "%";
 }

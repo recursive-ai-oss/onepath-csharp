@@ -6,6 +6,7 @@ namespace RecursiveAI.OnePath.Mesh.Queries;
 public sealed partial class NavMeshQuery
 {
     private double[] _portals = new double[6 * 64];
+    private Connection[] _kinds = new Connection[64];
 
     // How consecutive corridor polygons connect.
     private enum Connection { None, Edge, OffMesh }
@@ -22,9 +23,9 @@ public sealed partial class NavMeshQuery
     /// <param name="result">Receives the points.</param>
     /// <param name="count">Number of points written.</param>
     /// <param name="truncated">True if <paramref name="result"/> was too small; the points written are a prefix.</param>
-    /// <returns>Success, or <see cref="PathStatus.InvalidCorridor"/> (nothing written).</returns>
+    /// <returns>Success, or <see cref="QueryStatus.InvalidCorridor"/> (nothing written).</returns>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21.</exception>
-    public PathStatus FindStraightPath(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, out int count, out bool truncated) =>
+    public QueryStatus FindStraightPath(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, out int count, out bool truncated) =>
         StraightCore(start, end, corridor, result, int.MaxValue, out count, out truncated);
 
     /// <summary>
@@ -39,16 +40,16 @@ public sealed partial class NavMeshQuery
     /// <param name="result">Receives the points.</param>
     /// <param name="count">Number of points written.</param>
     /// <param name="truncated">True when the limit or the size of <paramref name="result"/> was reached.</param>
-    /// <returns>Success, or <see cref="PathStatus.InvalidCorridor"/> (nothing written).</returns>
+    /// <returns>Success, or <see cref="QueryStatus.InvalidCorridor"/> (nothing written).</returns>
     /// <param name="maxCorners">Most points to find, at least 1; also limited by the length of <paramref name="result"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">A position is non-finite or beyond ±2^21, or <paramref name="maxCorners"/> is below 1.</exception>
-    public PathStatus FindStraightPath(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, int maxCorners, out int count, out bool truncated)
+    public QueryStatus FindStraightPath(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, int maxCorners, out int count, out bool truncated)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxCorners, 1);
         return StraightCore(start, end, corridor, result, maxCorners, out count, out truncated);
     }
 
-    private PathStatus StraightCore(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, int limit, out int count, out bool truncated)
+    private QueryStatus StraightCore(Vector3D start, Vector3D end, ReadOnlySpan<PolyRef> corridor, Span<StraightPathPoint> result, int limit, out int count, out bool truncated)
     {
         CheckPos(start, nameof(start));
         CheckPos(end, nameof(end));
@@ -56,53 +57,63 @@ public sealed partial class NavMeshQuery
         truncated = false;
         if (corridor.Length == 0 || !ClosestPointOnPoly(corridor[0], start, out Vector3D s, out _) || !ClosestPointOnPoly(corridor[^1], end, out Vector3D e, out _))
         {
-            return PathStatus.InvalidCorridor;
+            return QueryStatus.InvalidCorridor;
         }
-        // First pass: validate the whole corridor so nothing is half-written.
-        for (int i = 0; i + 1 < corridor.Length; i++)
+        // First pass: find how every consecutive pair connects (this also validates the whole corridor, so nothing is
+        // half-written). Connection i is stored at _portals[6i..6i+6): left and right for an edge, entry and exit for an off-mesh link.
+        int links = corridor.Length - 1;
+        if ((6 * links) > _portals.Length)
         {
-            if (!_mesh.IsValid(corridor[i + 1]) || Connect(corridor[i], corridor[i + 1], out _, out _, out _, out _) == Connection.None)
+            Array.Resize(ref _portals, Math.Max(_portals.Length * 2, 6 * links));
+        }
+        if (links > _kinds.Length)
+        {
+            Array.Resize(ref _kinds, Math.Max(_kinds.Length * 2, links));
+        }
+        for (int i = 0; i < links; i++)
+        {
+            Connection c;
+            if (!_mesh.IsValid(corridor[i + 1]) || (c = Connect(corridor[i], corridor[i + 1], out Vector3D first, out Vector3D second, out Vector3D offStart, out Vector3D offEnd)) == Connection.None)
             {
-                return PathStatus.InvalidCorridor;
+                return QueryStatus.InvalidCorridor;
             }
+            if (c == Connection.OffMesh)
+            {
+                first = offStart;
+                second = offEnd;
+            }
+            _kinds[i] = c;
+            int o = 6 * i;
+            _portals[o] = first.X;
+            _portals[o + 1] = first.Y;
+            _portals[o + 2] = first.Z;
+            _portals[o + 3] = second.X;
+            _portals[o + 4] = second.Y;
+            _portals[o + 5] = second.Z;
         }
         var w = new Writer(result, limit);
         w.Add(new StraightPathPoint(s, StraightPathMarks.Start, corridor[0]));
         Vector3D segStart = s;
         int segBegin = 0;
-        int portalCount = 0;
-        for (int i = 0; i + 1 < corridor.Length; i++)
+        for (int i = 0; i < links; i++)
         {
-            Connection c = Connect(corridor[i], corridor[i + 1], out Vector3D left, out Vector3D right, out Vector3D offStart, out Vector3D offEnd);
-            if (c == Connection.Edge)
+            if (_kinds[i] == Connection.OffMesh)
             {
-                if ((6 * (portalCount + 1)) > _portals.Length)
-                {
-                    Array.Resize(ref _portals, _portals.Length * 2);
-                }
-                int o = 6 * portalCount++;
-                _portals[o] = left.X;
-                _portals[o + 1] = left.Y;
-                _portals[o + 2] = left.Z;
-                _portals[o + 3] = right.X;
-                _portals[o + 4] = right.Y;
-                _portals[o + 5] = right.Z;
-            }
-            else
-            {
-                Funnel(segStart, offStart, portalCount, corridor, segBegin, ref w);
+                int o = 6 * i;
+                var offStart = new Vector3D(_portals[o], _portals[o + 1], _portals[o + 2]);
+                var offEnd = new Vector3D(_portals[o + 3], _portals[o + 4], _portals[o + 5]);
+                Funnel(segStart, offStart, segBegin, i - segBegin, corridor, ref w);
                 w.AddDistinct(new StraightPathPoint(offStart, StraightPathMarks.OffMeshConnection, corridor[i]));
                 w.AddDistinct(new StraightPathPoint(offEnd, StraightPathMarks.None, corridor[i + 1]));
                 segStart = offEnd;
                 segBegin = i + 1;
-                portalCount = 0;
             }
         }
-        Funnel(segStart, e, portalCount, corridor, segBegin, ref w);
+        Funnel(segStart, e, segBegin, links - segBegin, corridor, ref w);
         w.AddDistinct(new StraightPathPoint(e, StraightPathMarks.End, corridor[^1]));
         count = w.Count;
         truncated = w.Truncated;
-        return PathStatus.Success;
+        return QueryStatus.Success;
     }
 
     private ref struct Writer
@@ -155,9 +166,9 @@ public sealed partial class NavMeshQuery
     private static double Cross(double ax, double az, double bx, double bz, double cx, double cz) =>
         ((bx - ax) * (cz - az)) - ((bz - az) * (cx - ax));
 
-    // Simple stupid funnel over the portals in _portals[0..pc): appends the corners between `from` and `to`.
+    // Simple stupid funnel over the pc portals stored from connection polyBase on: appends the corners between `from` and `to`.
     // A corner on portal k is entered when the path passes from corridor[polyBase + k] to corridor[polyBase + k + 1].
-    private void Funnel(Vector3D from, Vector3D to, int pc, ReadOnlySpan<PolyRef> corridor, int polyBase, ref Writer w)
+    private void Funnel(Vector3D from, Vector3D to, int polyBase, int pc, ReadOnlySpan<PolyRef> corridor, ref Writer w)
     {
         double ax = from.X, ay = from.Y, az = from.Z; // apex
         double lx = ax, ly = ay, lz = az;
@@ -172,7 +183,7 @@ public sealed partial class NavMeshQuery
             double nlx, nly, nlz, nrx, nry, nrz;
             if (i < pc)
             {
-                int o = 6 * i;
+                int o = 6 * (polyBase + i);
                 nlx = _portals[o];
                 nly = _portals[o + 1];
                 nlz = _portals[o + 2];

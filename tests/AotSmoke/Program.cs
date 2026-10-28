@@ -85,7 +85,7 @@ var levelTris = new List<Triangle3D>
 NavMesh level = NavMesh.Build(levelTris, NavSettings.Humanoid with { TileSize = 16 });
 PathResult levelPath = level.FindPath(new Vector3D(3, 0, 3), new Vector3D(37, 0, 37));
 Console.WriteLine($"NavMesh.Build (3D): {level.Tiles.TileCount} tiles, path {levelPath.Status}");
-ok = ok && level.Tiles.TileCount == 9 && levelPath.Status == PathStatus.Success && RecursiveAI.OnePath.Mesh.NavMeshValidator.Validate(level.Tiles).Count == 0;
+ok = ok && level.Tiles.TileCount == 9 && levelPath.Status == PathStatus.Found && RecursiveAI.OnePath.Mesh.NavMeshValidator.Validate(level.Tiles).Count == 0;
 bool tileCache = TileCacheSmoke.Run();
 Console.WriteLine($"Tile cache (obstacles, volumes, state): {(tileCache ? "ok" : "FAILED")}");
 bool world = WorldSmoke.Run();

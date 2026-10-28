@@ -403,7 +403,7 @@ public sealed class Mesh3DPipeline
 
     // ---------------------------------------------------------------- one tile
 
-    /// <summary>Temporary obstacles baked into every tile this pipeline builds (see <see cref="TileObstacle"/>); applied before erosion, in list order.</summary>
+    /// <summary>Temporary obstacles baked into every tile this pipeline builds (see <see cref="TileObstacle"/>); applied after erosion with their footprint grown by the agent radius, in list order.</summary>
     public IList<TileObstacle> Obstacles { get; } = new List<TileObstacle>();
 
     /// <summary>
@@ -412,41 +412,44 @@ public sealed class Mesh3DPipeline
     /// </summary>
     private void BuildTile(SolidHeightfield solid, int tx, int tz, List<NavTileData> output, TileCache? cache)
     {
-        CompactHeightfield chf = Regions.Spans.Prepare(solid);
+        // Erosion and the pipeline's own volumes come first and only depend on the geometry, so the cache keeps the result; obstacles are
+        // marked on a copy afterwards, with their footprint grown by the agent radius (see TileObstacle).
+        CompactHeightfield chf = Regions.Spans.Finish(Regions.Spans.Prepare(solid));
         if (cache is not null)
         {
             cache.Store(tx, tz, chf);
             chf = chf.Clone();
         }
+        int from = output.Count;
         FinishTile(chf, tx, tz, null, null, output);
+        cache?.StoreBase(tx, tz, output, from);
     }
 
     /// <summary>
-    /// The obstacle-dependent half of a tile build, from the cached compact heightfield (which it modifies, so pass a clone): obstacles (the pipeline's,
-    /// then <paramref name="extraObstacles"/>) → erosion and the pipeline's volumes → <paramref name="extraVolumes"/> → regions → contours → polygons → detail → tile data.
+    /// The obstacle-dependent half of a tile build, from the cached eroded compact heightfield (which it modifies, so pass a clone): obstacles (the
+    /// pipeline's, then <paramref name="extraObstacles"/>) → <paramref name="extraVolumes"/> → regions → contours → polygons → detail → tile data.
     /// </summary>
     internal void FinishTile(CompactHeightfield chf, int tx, int tz, IReadOnlyList<TileObstacle>? extraObstacles, IReadOnlyList<ConvexVolume>? extraVolumes, List<NavTileData> output)
     {
-        int first = output.Count;
-        FinishTileCore(chf, tx, tz, extraObstacles, extraVolumes, output);
-        // Authored off-mesh links belong to the tile that holds their start, so every build and every rebuild of that tile bakes them in.
-        OffMeshLinkBaker.Attach(Params, Settings.OffMeshLinks, output, first);
+        MarkObstacles(chf, extraObstacles, extraVolumes);
+        FinishMarked(chf, tx, tz, output);
     }
 
-    private void FinishTileCore(CompactHeightfield chf, int tx, int tz, IReadOnlyList<TileObstacle>? extraObstacles, IReadOnlyList<ConvexVolume>? extraVolumes, List<NavTileData> output)
+    /// <summary>Marks the pipeline's obstacles, then the extra ones, then applies the extra volumes, on an eroded compact heightfield.</summary>
+    internal void MarkObstacles(CompactHeightfield chf, IReadOnlyList<TileObstacle>? extraObstacles, IReadOnlyList<ConvexVolume>? extraVolumes)
     {
+        double grow = SpanOptions.WalkableRadius * chf.Frame.CellSize;
         foreach (TileObstacle o in Obstacles)
         {
-            o.Mark(chf);
+            o.Mark(chf, grow);
         }
         if (extraObstacles is not null)
         {
             foreach (TileObstacle o in extraObstacles)
             {
-                o.Mark(chf);
+                o.Mark(chf, grow);
             }
         }
-        Regions.Spans.Finish(chf);
         if (extraVolumes is not null)
         {
             foreach (ConvexVolume v in extraVolumes)
@@ -454,6 +457,19 @@ public sealed class Mesh3DPipeline
                 v.Apply(chf);
             }
         }
+    }
+
+    /// <summary>Regions to tile data of a compact heightfield whose areas are final.</summary>
+    internal void FinishMarked(CompactHeightfield chf, int tx, int tz, List<NavTileData> output)
+    {
+        int first = output.Count;
+        FinishMarkedCore(chf, tx, tz, output);
+        // Authored off-mesh links belong to the tile that holds their start, so every build and every rebuild of that tile bakes them in.
+        OffMeshLinkBaker.Attach(Params, Settings.OffMeshLinks, output, first);
+    }
+
+    private void FinishMarkedCore(CompactHeightfield chf, int tx, int tz, List<NavTileData> output)
+    {
         Regions.Partition(chf, Regions.RegionOptions);
         // Cut the border away: its spans become one extra region whose contours are ignored. The edges between it and the tile's
         // regions are then region-to-region edges, which contour simplification keeps straight between their end vertices, so they
@@ -628,37 +644,64 @@ public sealed class Mesh3DPipeline
     {
         HeightfieldFrame f = chf.Frame;
         Span<CompactSpan> spans = chf.Spans;
+        ReadOnlySpan<int> cellFirst = chf.CellFirst, cellCount = chf.CellCount;
         var layer = new int[borderId + 1];
         Array.Fill(layer, -1);
-        var colRegions = new List<int>[f.ColumnCount];
-        var regionCols = new List<int>[borderId + 1];
+        // Spans grouped by region (counting sort, so each group is in span order), and each span's column.
+        var start = new int[borderId + 2];
+        var spanColumn = new int[spans.Length];
         for (int c = 0; c < f.ColumnCount; c++)
         {
-            for (int s = chf.CellFirst[c]; s < chf.CellFirst[c] + chf.CellCount[c]; s++)
+            for (int s = cellFirst[c]; s < cellFirst[c] + cellCount[c]; s++)
             {
+                spanColumn[s] = c;
                 int r = spans[s].Region;
-                if (r <= 0 || r == borderId)
+                if (r > 0 && r != borderId)
                 {
-                    continue;
-                }
-                (colRegions[c] ??= new List<int>()).Add(r);
-                regionCols[r] ??= new List<int>();
-                if (regionCols[r].Count == 0 || regionCols[r][^1] != c)
-                {
-                    regionCols[r].Add(c);
+                    start[r + 1]++;
                 }
             }
         }
-        var touching = new SortedSet<int>[borderId + 1];
-        for (int c = 0; c < f.ColumnCount; c++)
+        for (int r = 0; r <= borderId; r++)
         {
-            for (int s = chf.CellFirst[c]; s < chf.CellFirst[c] + chf.CellCount[c]; s++)
+            start[r + 1] += start[r];
+        }
+        var fill = new int[borderId + 1];
+        var bySpan = new int[start[borderId + 1]];
+        for (int s = 0; s < spans.Length; s++)
+        {
+            int r = spans[s].Region;
+            if (r > 0 && r != borderId)
             {
-                int r = spans[s].Region;
-                if (r <= 0 || r == borderId)
+                bySpan[start[r] + fill[r]++] = s;
+            }
+        }
+        // used[l] == r: layer l holds a region sharing a column with region r.
+        var used = new int[borderId + 2];
+        for (int r = 1; r < borderId; r++)
+        {
+            int lo = start[r], hi = start[r + 1];
+            if (lo == hi)
+            {
+                continue;
+            }
+            for (int k = lo; k < hi; k++)
+            {
+                int c = spanColumn[bySpan[k]];
+                for (int s = cellFirst[c]; s < cellFirst[c] + cellCount[c]; s++)
                 {
-                    continue;
+                    int o = spans[s].Region;
+                    if (o > 0 && o != borderId && o != r && layer[o] >= 0)
+                    {
+                        used[layer[o]] = r;
+                    }
                 }
+            }
+            int pick = -1;
+            for (int k = lo; k < hi; k++)
+            {
+                int s = bySpan[k];
+                int c = spanColumn[s];
                 for (int d = 0; d < 4; d++)
                 {
                     int link = CompactHeightfield.GetConnection(spans[s], d);
@@ -667,46 +710,17 @@ public sealed class Mesh3DPipeline
                         continue;
                     }
                     int nc = c + CompactHeightfield.DirX[d] + (CompactHeightfield.DirZ[d] * f.Width);
-                    int nr = spans[chf.CellFirst[nc] + link].Region;
-                    if (nr > 0 && nr != borderId && nr != r)
+                    int nr = spans[cellFirst[nc] + link].Region;
+                    if (nr > 0 && nr != borderId && nr != r && layer[nr] >= 0 && used[layer[nr]] != r && (pick < 0 || layer[nr] < pick))
                     {
-                        (touching[r] ??= new SortedSet<int>()).Add(nr);
-                    }
-                }
-            }
-        }
-        for (int r = 1; r < borderId; r++)
-        {
-            if (regionCols[r] is null)
-            {
-                continue;
-            }
-            var used = new HashSet<int>();
-            foreach (int c in regionCols[r]!)
-            {
-                foreach (int o in colRegions[c]!)
-                {
-                    if (o != r && layer[o] >= 0)
-                    {
-                        used.Add(layer[o]);
-                    }
-                }
-            }
-            int pick = -1;
-            if (touching[r] is not null)
-            {
-                foreach (int o in touching[r]!)
-                {
-                    if (layer[o] >= 0 && !used.Contains(layer[o]) && (pick < 0 || layer[o] < pick))
-                    {
-                        pick = layer[o];
+                        pick = layer[nr];
                     }
                 }
             }
             if (pick < 0)
             {
                 pick = 0;
-                while (used.Contains(pick))
+                while (used[pick] == r)
                 {
                     pick++;
                 }

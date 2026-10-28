@@ -32,7 +32,7 @@ public class CorridorBenchmarks
     public void Setup()
     {
         _mesh = CorridorWorlds.Field(Size, 5);
-        _query = new NavMeshQuery(_mesh);
+        _query = new NavMeshQuery(_mesh, 65536, PathNodeModel.Crossing);
         _rng = new NavMeshWorlds.Rng(1);
         _agents.Clear();
         while (_agents.Count < Agents)
@@ -78,7 +78,7 @@ public class CorridorBenchmarks
     {
         foreach (PathCorridor c in _corridors)
         {
-            if (c.FindCorners(_query, _corners, out int n) != PathStatus.Success || n < 2)
+            if (c.FindCorners(_query, _corners, out int n) != QueryStatus.Success || n < 2)
             {
                 c.SetTarget(CorridorWorlds.RandomFieldPoint(Size, _rng));
                 c.Replan(_query);

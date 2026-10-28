@@ -142,7 +142,7 @@ public class ClearanceAndAreaTests
             g.SetWalkable(3, y, y == 2);
         }
         Assert.True(g.FindPath(new Cell(0, 2), new Cell(6, 2)).Found);
-        Assert.Equal(PathOutcome.NoPath, g.FindPath(new Cell(0, 1), new Cell(5, 1), GridOptions.ForAgentSize(2)).Status);
+        Assert.Equal(PathStatus.NoPath, g.FindPath(new Cell(0, 1), new Cell(5, 1), GridOptions.ForAgentSize(2)).Status);
     }
 
     [Fact]
@@ -181,9 +181,9 @@ public class ClearanceAndAreaTests
         GridPath doubled = g.FindPath(new Cell(0, 0), new Cell(4, 0), new GridOptions { StepCost = (_, _, c) => c * 2 });
         Assert.Equal(8.0, doubled.Cost);
         GridPath blocked = g.FindPath(new Cell(0, 0), new Cell(4, 0), new GridOptions { Blocked = c => c.X == 2 });
-        Assert.Equal(PathOutcome.NoPath, blocked.Status);
+        Assert.Equal(PathStatus.NoPath, blocked.Status);
         GridPath badGoal = g.FindPath(new Cell(0, 0), new Cell(4, 0), new GridOptions { Blocked = c => c.X == 4 });
-        Assert.Equal(PathOutcome.GoalInvalid, badGoal.Status);
+        Assert.Equal(PathStatus.GoalInvalid, badGoal.Status);
     }
 
     [Fact]
@@ -235,8 +235,8 @@ public class CoordinateAndApiTests
         var g = new Grid(4, 4) { Space = new GridSpace(-2097152.0, 2097148.0, 1.0) };
         GridPath p = g.FindPath(new WorldPoint(-2097152.0 + 0.5, 2097148.0 + 0.5), new WorldPoint(-2097152.0 + 3.5, 2097148.0 + 3.5));
         Assert.True(p.Found);
-        Assert.Equal(4, p.WorldPoints.Length);
-        Assert.Equal(new WorldPoint(-2097152.0 + 0.5, 2097148.0 + 0.5), p.WorldPoints[0]);
+        Assert.Equal(4, p.Points.Length);
+        Assert.Equal(new WorldPoint(-2097152.0 + 0.5, 2097148.0 + 0.5), p.Points[0]);
     }
 
     [Fact]
@@ -258,9 +258,9 @@ public class CoordinateAndApiTests
     public void InvalidCellsAreReportedNotThrown()
     {
         var g = Grid.From(new bool[,] { { true, false }, { true, true } });
-        Assert.Equal(PathOutcome.StartInvalid, g.FindPath(new Cell(-1, 0), new Cell(0, 0)).Status);
-        Assert.Equal(PathOutcome.GoalInvalid, g.FindPath(new Cell(0, 0), new Cell(1, 0)).Status);
-        Assert.Equal(PathOutcome.GoalInvalid, g.FindPath(new Cell(0, 0), new Cell(5, 5)).Status);
+        Assert.Equal(PathStatus.StartInvalid, g.FindPath(new Cell(-1, 0), new Cell(0, 0)).Status);
+        Assert.Equal(PathStatus.GoalInvalid, g.FindPath(new Cell(0, 0), new Cell(1, 0)).Status);
+        Assert.Equal(PathStatus.GoalInvalid, g.FindPath(new Cell(0, 0), new Cell(5, 5)).Status);
         Assert.Throws<ArgumentOutOfRangeException>(() => g.GetArea(2, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => new Grid(0, 3));
         Assert.Throws<ArgumentOutOfRangeException>(() => new Grid(1 << 20, 1 << 20));
@@ -294,8 +294,8 @@ public class CoordinateAndApiTests
     {
         // Two diagonal walls: only a squeeze or a cut could connect the corners.
         var g = Grid.From(new bool[,] { { true, false }, { false, true } });
-        Assert.Equal(PathOutcome.NoPath, g.FindPath(new Cell(0, 0), new Cell(1, 1)).Status);
-        Assert.Equal(PathOutcome.NoPath, g.FindPath(new Cell(0, 0), new Cell(1, 1), GridOptions.NoSqueezing).Status);
+        Assert.Equal(PathStatus.NoPath, g.FindPath(new Cell(0, 0), new Cell(1, 1)).Status);
+        Assert.Equal(PathStatus.NoPath, g.FindPath(new Cell(0, 0), new Cell(1, 1), GridOptions.NoSqueezing).Status);
         GridPath all = g.FindPath(new Cell(0, 0), new Cell(1, 1), new GridOptions { Diagonals = DiagonalRule.AllowAll });
         Assert.True(all.Found);
         Assert.Equal(GridMath.Sqrt2, all.Cost);

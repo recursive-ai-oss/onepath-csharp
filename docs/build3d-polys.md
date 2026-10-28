@@ -40,6 +40,10 @@ Tiles are built one after the other in row-major order (tile row, then column), 
 
 Per contour, in contour order; all tests use `long` cross products on cell coordinates (exact below 2^20 cells) or the exact orientation of the stored float32 positions.
 
+**Straight wall vertices.** Before anything else, a contour vertex is removed when both its edges are wall edges (neighbour 0), it is exactly collinear with the previous and next kept vertices (cross 0, same direction),
+and its floor row is within one row of the straight line between those neighbours (`|(yᵥ−yₚ)·D − (yₙ−yₚ)·T| ≤ D`, with `D = |n−p|²`, `T = (n−p)·(v−p)`, all in `long`). Removal repeats until none is left,
+unless the loop would drop below three vertices (then it is kept as it was). These vertices come from the edge-length split of simplification; each costs a polygon one of its vertex slots and removing it leaves the wall on the same line.
+
 **Ear clipping** (O'Rourke, *Computational Geometry in C*, ch. 1). The loop is a doubly linked ring. A vertex `i` with neighbours `p`, `q` is a *valid ear* when `cross(p, i, q) > 0` and `(p, q)` is a diagonal:
 it lies in the cone at `p` and at `q` (ring neighbours decide the cone, so hole bridges, which visit a vertex twice, are handled), and no ring edge that has no endpoint at the position of `p` or `q` touches it
 (proper crossing, or an endpoint of either segment on the other). Among all valid ears the one with the shortest squared diagonal is clipped, ties to the lowest vertex index; the triangle `(p, i, q)` is emitted

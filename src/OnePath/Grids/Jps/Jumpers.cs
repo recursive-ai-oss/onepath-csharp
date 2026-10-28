@@ -101,7 +101,6 @@ public readonly struct TableJumper : IJumper
 {
     private readonly JpsPlusIndex _index;
     private readonly short[] _table;
-    private readonly int _cellCount;
     private readonly int _width;
     private readonly int _height;
     private readonly byte[] _cells;
@@ -115,7 +114,6 @@ public readonly struct TableJumper : IJumper
         index.Refresh();
         _index = index;
         _table = index.Table;
-        _cellCount = index.Grid.CellCount;
         _width = index.Grid.Width;
         _height = index.Grid.Height;
         _cells = index.Grid.CellArray;
@@ -139,7 +137,7 @@ public readonly struct TableJumper : IJumper
     /// <inheritdoc/>
     public int Jump(int node, int direction, int goal, out int steps)
     {
-        int jd = _table[(direction * _cellCount) + node];
+        int jd = _table[(node << 3) + direction];
         int len = jd > 0 ? jd : -jd;
         int y = node / _width;
         int x = node - (y * _width);

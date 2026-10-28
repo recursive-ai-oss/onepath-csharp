@@ -17,9 +17,9 @@ public enum ObstacleShape : byte
 }
 
 /// <summary>
-/// A temporary obstacle: a solid that blocks walking while it exists (a barricade, a parked vehicle, a fallen tree). Before erosion, every
-/// walkable span whose cell centre lies inside the shape and whose floor lies in the shape's height range [<see cref="MinY"/>, <see cref="MaxY"/>] is made
-/// non-walkable; erosion then keeps the agent radius clear of it like any other wall. Obstacles are immutable; add them to a <see cref="TileCache"/>
+/// A temporary obstacle: a solid that blocks walking while it exists (a barricade, a parked vehicle, a fallen tree). After erosion, every
+/// walkable span whose cell centre lies inside the shape grown by the agent radius and whose floor lies in the shape's height range
+/// [<see cref="MinY"/>, <see cref="MaxY"/>] is made non-walkable, so the agent radius stays clear of it like any other wall without eroding the tile again. Obstacles are immutable; add them to a <see cref="TileCache"/>
 /// (or list them on <see cref="Mesh3DPipeline.Obstacles"/> to bake them into a build).
 /// </summary>
 public sealed class TileObstacle
@@ -208,27 +208,52 @@ public sealed class TileObstacle
         }
     }
 
+    // The footprint test with the shape grown by `grow` on every side (a round shape grows round, a box square).
+    private bool ContainsGrown(double x, double z, double grow)
+    {
+        switch (Shape)
+        {
+            case ObstacleShape.Cylinder:
+            {
+                double dx = x - _p[0], dz = z - _p[2], r = _p[3] + grow;
+                return (dx * dx) + (dz * dz) <= r * r;
+            }
+            case ObstacleShape.Box:
+                return x >= MinX - grow && x <= MaxX + grow && z >= MinZ - grow && z <= MaxZ + grow;
+            default:
+            {
+                double dx = x - _p[0], dz = z - _p[2];
+                double u = (dx * _cos) + (dz * _sin);
+                double v = (dz * _cos) - (dx * _sin);
+                return Math.Abs(u) <= _p[3] + grow && Math.Abs(v) <= _p[5] + grow;
+            }
+        }
+    }
+
     /// <summary>
-    /// Makes the spans of <paramref name="chf"/> that this obstacle covers non-walkable (area 0).
+    /// Makes the spans of <paramref name="chf"/> (already eroded) that this obstacle covers non-walkable (area 0). The footprint is grown by
+    /// <paramref name="grow"/>, the agent radius, because erosion already ran: it stands in for the erosion the obstacle would have caused.
     /// </summary>
     /// <returns>The number of spans changed.</returns>
-    internal int Mark(CompactHeightfield chf)
+    internal int Mark(CompactHeightfield chf, double grow)
     {
         HeightfieldFrame f = chf.Frame;
         Span<CompactSpan> spans = chf.Spans;
         ReadOnlySpan<int> first = chf.CellFirst;
         ReadOnlySpan<int> count = chf.CellCount;
         int marked = 0;
+        double reach = grow + f.CellSize;
         for (int z = 0; z < f.Depth; z++)
         {
             double cz = f.CenterZ(z);
-            if (cz < MinZ - f.CellSize || cz > MaxZ + f.CellSize)
+            if (cz < MinZ - reach || cz > MaxZ + reach)
             {
                 continue;
             }
             for (int x = 0; x < f.Width; x++)
             {
-                if (!ContainsXZ(f.CenterX(x), cz))
+                double cx = f.CenterX(x);
+                if (cx < MinX - reach || cx > MaxX + reach || !ContainsGrown(cx, cz, grow))
                 {
                     continue;
                 }

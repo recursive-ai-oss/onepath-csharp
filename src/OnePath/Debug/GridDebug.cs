@@ -19,7 +19,7 @@ public sealed class GridPathDebug
         Status = path.Status;
         Cost = path.Cost;
         Cells = path.Cells.ToArray();
-        WorldPoints = path.WorldPoints.ToArray();
+        Points = path.Points.ToArray();
         ExpandedCells = path.ExpandedCells.ToArray();
         ExpandedCount = path.ExpandedCount;
     }
@@ -28,7 +28,7 @@ public sealed class GridPathDebug
     public GridAlgorithm Algorithm { get; }
 
     /// <summary>The outcome of the query.</summary>
-    public PathOutcome Status { get; }
+    public PathStatus Status { get; }
 
     /// <summary>Path cost; +∞ unless found.</summary>
     public double Cost { get; }
@@ -37,7 +37,7 @@ public sealed class GridPathDebug
     public IReadOnlyList<Cell> Cells { get; }
 
     /// <summary>The path's cell centres in world units; empty unless the query took world points.</summary>
-    public IReadOnlyList<WorldPoint> WorldPoints { get; }
+    public IReadOnlyList<WorldPoint> Points { get; }
 
     /// <summary>The cells expanded, in order (jump points for JPS, abstract-graph nodes' cells for HPA*); empty unless recorded. Its length equals <see cref="ExpandedCount"/> when recorded.</summary>
     public IReadOnlyList<Cell> ExpandedCells { get; }
@@ -54,13 +54,13 @@ public sealed class VoxelPathDebug
         Status = path.Status;
         Cost = path.Cost;
         Cells = path.Cells.ToArray();
-        WorldPoints = path.WorldPoints.ToArray();
+        Points = path.Points.ToArray();
         ExpandedCells = path.ExpandedCells.ToArray();
         ExpandedCount = path.ExpandedCount;
     }
 
     /// <summary>The outcome of the query.</summary>
-    public PathOutcome Status { get; }
+    public PathStatus Status { get; }
 
     /// <summary>Path cost; +∞ unless found.</summary>
     public double Cost { get; }
@@ -69,7 +69,7 @@ public sealed class VoxelPathDebug
     public IReadOnlyList<VoxelCell> Cells { get; }
 
     /// <summary>The path's voxel centres in world units; empty unless the query took world points.</summary>
-    public IReadOnlyList<VoxelPoint> WorldPoints { get; }
+    public IReadOnlyList<VoxelPoint> Points { get; }
 
     /// <summary>The voxels expanded, in order; empty unless recorded.</summary>
     public IReadOnlyList<VoxelCell> ExpandedCells { get; }
@@ -87,7 +87,7 @@ public sealed class GraphPathDebug
         Status = path.Status;
         Cost = path.Cost;
         Nodes = path.Nodes.ToArray();
-        Positions = path.Positions.ToArray();
+        Points = path.Points.ToArray();
         ExpandedNodes = path.ExpandedNodes.ToArray();
         ExpandedCount = path.ExpandedCount;
     }
@@ -96,7 +96,7 @@ public sealed class GraphPathDebug
     public GraphAlgorithm Algorithm { get; }
 
     /// <summary>The outcome of the query.</summary>
-    public PathOutcome Status { get; }
+    public PathStatus Status { get; }
 
     /// <summary>Path cost; +∞ unless found.</summary>
     public double Cost { get; }
@@ -105,7 +105,7 @@ public sealed class GraphPathDebug
     public IReadOnlyList<int> Nodes { get; }
 
     /// <summary>The nodes' positions for point graphs; empty otherwise.</summary>
-    public IReadOnlyList<Point3> Positions { get; }
+    public IReadOnlyList<Point3> Points { get; }
 
     /// <summary>The nodes expanded, in order; empty unless <c>GraphOptions.RecordExpansions</c> was set. A bidirectional search lists both directions in the order they ran.</summary>
     public IReadOnlyList<int> ExpandedNodes { get; }

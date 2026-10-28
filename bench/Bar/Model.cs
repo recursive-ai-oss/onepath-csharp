@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace RecursiveAI.OnePath.Bar;
 
@@ -54,15 +55,32 @@ internal sealed class Paths
 
     public string Maps => Path.Combine(Home, "maps");
 
-    public string Geom => Path.Combine(Home, "geom", "256");
+    /// <summary>Light-check mode: small levels, one repetition and short crowd runs. Proves a row runs; its numbers are not publishable.</summary>
+    public bool Light { get; }
+
+    public string Geom => Path.Combine(Home, "geom", Light ? "96" : "256");
 
     public string GeomSmall => Path.Combine(Home, "geom", "96");
 
-    public Paths(string? home) =>
+    public Paths(string? home, bool light = false)
+    {
         Home = home ?? Environment.GetEnvironmentVariable("ONEPATH_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "onepath");
+        Light = light;
+    }
 
-    public string Expand(string s) =>
-        s.Replace("{home}", Home, StringComparison.Ordinal).Replace("{maps}", Maps, StringComparison.Ordinal).Replace("{geomsmall}", GeomSmall, StringComparison.Ordinal).Replace("{geom}", Geom, StringComparison.Ordinal);
+    public string Expand(string s)
+    {
+        s = s.Replace("{home}", Home, StringComparison.Ordinal).Replace("{maps}", Maps, StringComparison.Ordinal).Replace("{geomsmall}", GeomSmall, StringComparison.Ordinal).Replace("{geom}", Geom, StringComparison.Ordinal);
+        if (Light)
+        {
+            s = Regex.Replace(s, @"--reps \d+", "--reps 1");
+            s = Regex.Replace(s, @"--steps \d+", "--steps 20");
+            s = Regex.Replace(s, @"--warmup \d+", "--warmup 5");
+            s = Regex.Replace(s, @"--agents (\d+)", m => "--agents " + Math.Min(int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture), 200).ToString(CultureInfo.InvariantCulture));
+        }
+
+        return s;
+    }
 
     public string Refs => Path.Combine(Home, "refs");
 }

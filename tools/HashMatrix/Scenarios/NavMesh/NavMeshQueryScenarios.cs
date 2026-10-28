@@ -12,7 +12,9 @@ internal static class NavMeshQueryScenarios
     internal static void Init()
     {
         Scenarios.Register("navmesh/query-nearest", Nearest);
-        Scenarios.Register("navmesh/query-path", Paths);
+        Scenarios.Register("navmesh/query-path", ctx => Paths(ctx, PathNodeModel.Crossing));
+        Scenarios.Register("navmesh/query-path-polygon", ctx => Paths(ctx, PathNodeModel.Polygon));
+        Scenarios.Register("navmesh/query-detail-height", DetailHeights);
         Scenarios.Register("navmesh/query-raycast", Rays);
         Scenarios.Register("navmesh/query-random", RandomPoints);
         Scenarios.Register("navmesh/query-areas", Areas);
@@ -44,10 +46,10 @@ internal static class NavMeshQueryScenarios
         }
     }
 
-    private static void Paths(ScenarioContext ctx)
+    private static void Paths(ScenarioContext ctx, PathNodeModel model)
     {
         TiledNavMesh m = NavMeshWorlds.RandomMesh(12, -1, -1, 3, 3, 2, detail: true, offMesh: 2);
-        var q = new NavMeshQuery(m);
+        var q = new NavMeshQuery(m, 65536, model);
         var r = new NavMeshWorlds.Rng(2);
         for (int i = 0; i < 120; i++)
         {
@@ -57,7 +59,7 @@ internal static class NavMeshQueryScenarios
                 o.Filter = new QueryFilter { ExcludeFlags = 2 }.SetAreaCost(1, 3).SetAreaCost(9, 2);
             }
             PathResult p = q.FindPath(Spot(r), Spot(r), o);
-            ctx.Write((int)p.Status);
+            ctx.Write((int)p.Detail);
             ctx.Write(p.Cost);
             ctx.Write(p.Corridor.Count);
             foreach (PolyRef c in p.Corridor)
@@ -69,6 +71,25 @@ internal static class NavMeshQueryScenarios
                 Write(ctx, pt.Position);
                 ctx.Write((int)pt.Flags);
                 ctx.Write((long)pt.Poly.Value);
+            }
+        }
+    }
+
+    // Closest points on one polygon with a finely triangulated detail surface (the height lookup grid).
+    private static void DetailHeights(ScenarioContext ctx)
+    {
+        foreach (bool shuffle in new[] { false, true })
+        {
+            TiledNavMesh m = NavMeshWorlds.BumpyMesh(shuffle, out _);
+            var q = new NavMeshQuery(m);
+            m.TryGetPoly(m.GetSlotRef(0).Poly(0), out NavTile t, out _);
+            var r = new NavMeshWorlds.Rng(41);
+            for (int i = 0; i < 400; i++)
+            {
+                var p = new Vector3D(t.OriginX - 0.5 + (r.Int(9 << 10) / 1024.0), 0.5, t.OriginZ - 0.5 + (r.Int(9 << 10) / 1024.0));
+                q.ClosestPointOnPoly(m.GetSlotRef(0).Poly(0), p, out Vector3D c, out bool over);
+                Write(ctx, c);
+                ctx.Write(over ? 1 : 0);
             }
         }
     }
