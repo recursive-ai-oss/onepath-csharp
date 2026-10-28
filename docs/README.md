@@ -1,0 +1,87 @@
+# onepath documentation
+
+The documents here are normative: where a paper leaves a choice open (tie-breaks, open-list order, rounding, byte layouts,
+budget units, preset values) the choice is written down so that a port to another language can reproduce the same bits from
+the text alone. API reference is in the XML documentation that ships with the package; the [README](../README.md) has the
+quickstart and the speed table.
+
+The library has three tiers, each built on the one below:
+
+1. **Happy path.** `Grid.FromText(...)` or `Grid.From(...)` then `.FindPath(a, b)`, `HexGrid`, `VoxelGrid`, `Graph`, `PointGraph`, `NavMesh.Build(...)`,
+   `NavMesh.Build2D(...)`, `NavMesh.BuildGltf(...)`, `mesh.FindPath(a, b)`, `mesh.CreateCrowd()`, `crowd.Add(...)`,
+   `agent.SetDestination(...)`, `crowd.Step(dt)`. Everything is an options object with presets (`GridOptions`, `NavSettings.Humanoid`,
+   `Agent.Humanoid`) or a plain delegate. Namespace `RecursiveAI.OnePath`. You never write a struct.
+2. **Middle.** Each build stage as a visible, replaceable static method; one `NavMeshQuery` with filters, area costs and
+   sync, span and sliced forms; grid and graph searches with struct-generic cost and heuristic hooks; corridors and path
+   followers; tile cache; tile streaming. Namespaces `.Grids`, `.Graphs`, `.Mesh.*`, `.Crowds.Corridors`.
+3. **Raw.** Voxel spans, regions, contours, polygons, tile data, the open and closed sets, the search loop, the ORCA solver
+   (`.Mesh.Build3D`, `.Mesh.Build2D`, `.Mesh.Format`, `.Grids` engines, `.Crowds.Orca`).
+
+## Where to start
+
+| You want to | Read |
+|---|---|
+| Know what a path result contains and how statuses map across grids, graphs and meshes | [path-results.md](path-results.md) |
+| Search a tile map, hex map or voxel world | [grids.md](grids.md) |
+| Route over a weighted or point graph, with landmarks | [graphs.md](graphs.md) |
+| Build a navmesh from a tile map or outlines | [build2d-tiles.md](build2d-tiles.md) |
+| Build a navmesh from level geometry | [build3d-polys.md](build3d-polys.md) |
+| Query a mesh (path, raycast, nearest, random point) | [navmesh-queries.md](navmesh-queries.md) |
+| Run a crowd | [crowds.md](crowds.md), then [orca.md](orca.md) for the solver |
+| Run inside a lockstep or rollback host | [Host hooks](#host-hooks-for-deterministic-hosts) below |
+
+## By area
+
+### Grids and graphs (tier 1 and 2)
+
+| Document | Covers |
+|---|---|
+| [grids.md](grids.md) | Square (4- and 8-connected), hex and 3D voxel grids; A\*, JPS, JPS+, Theta\*, Lazy Theta\*, HPA\*; LPA\* and D\* Lite replanners; flow fields; area costs; agent clearance; tie-breaking and open-list order; incremental tile updates; cost and heuristic hooks |
+| [graphs.md](graphs.md) | Weighted and point graphs, A\*, bidirectional search, ALT landmarks and their serialization |
+| [grids-state.md](grids-state.md) | Byte-exact save and restore of grid, graph, replanner, flow-field and sliced-search state |
+
+### Navigation mesh: format and queries (tiers 2 and 3)
+
+| Document | Covers |
+|---|---|
+| [navmesh-format.md](navmesh-format.md) | The tiled mesh (format version 2, frozen): tile layout, polygons, detail heights, areas and flags, off-mesh links, several agent sizes, streaming, serialization, build fingerprint |
+| [navmesh-queries.md](navmesh-queries.md) | `NavMeshQuery`: path (polygon and crossing node models), string pulling, raycast, nearest polygon and point, random point, distance to wall, shape queries, sliced queries |
+| [navmesh-snapshot.md](navmesh-snapshot.md) | Byte-exact snapshot and restore of a dynamic mesh (rebuilt tiles, obstacles) |
+
+### Navigation mesh: builders
+
+| Document | Covers |
+|---|---|
+| [build2d-geometry.md](build2d-geometry.md) | The exact 2D builder's geometry: snap grid, regions, boolean operations, offsets and shrink, constrained Delaunay, convex merge, exact predicates |
+| [build2d-tiles.md](build2d-tiles.md) | Tile slicing, plane-to-mesh mapping and rounding, `NavMesh.Build2D` |
+| [build3d-spans.md](build3d-spans.md) | 3D builder, front half: voxelization of triangle soup and voxel chunks, span filters, compaction, erosion |
+| [build3d-regions.md](build3d-regions.md) | Regions (watershed, monotone, layers) and contours |
+| [build3d-polys.md](build3d-polys.md) | Polygons, per-polygon height detail, tiles, `NavMesh.Build` |
+| [build3d-gltf.md](build3d-gltf.md) | The glTF 2.0 reader and `NavMesh.BuildGltf` |
+| [build3d-runtime.md](build3d-runtime.md) | Run-time tile cache: tile rebuild, temporary obstacles, area volumes |
+
+### Crowds
+
+| Document | Covers |
+|---|---|
+| [crowds.md](crowds.md) | Path corridors, path following, off-mesh links, `Crowd` and `Agent`, separation, priorities, avoidance quality, crowd snapshot bytes |
+| [orca.md](orca.md) | The ORCA solver: constraints, linear program, neighbour order, where the paper is silent |
+
+## Host hooks for deterministic hosts
+
+A lockstep or rollback host needs five things; each has its own tests and is documented where it lives.
+
+| Hook | What | Document |
+|---|---|---|
+| Coordinate rule | World positions are `double`, exact within ±2^21 (a Q31.32 fixed-point value converts exactly); beyond that `ArgumentOutOfRangeException`. Meshes store tile-local `float32` relative to a double tile origin | [navmesh-format.md](navmesh-format.md), [grids.md](grids.md) |
+| Snapshot and restore | Same state, same bytes, on every platform: grids, searches, replanners and flow fields; dynamic meshes; crowds | [grids-state.md](grids-state.md), [navmesh-snapshot.md](navmesh-snapshot.md), [crowds.md](crowds.md) |
+| Fixed-dt stepping | `Crowd.Step(dt)` with a caller-supplied step; no internal clock | [crowds.md](crowds.md) |
+| Iteration budgets | Sliced grid, graph, mesh and tile-cache work counts iterations, never time; the unit of one iteration per family is stated in each document | [grids.md](grids.md), [grids-state.md](grids-state.md), [navmesh-queries.md](navmesh-queries.md), [build3d-runtime.md](build3d-runtime.md) |
+| Debug geometry | Polygons, links, paths, corridors, agent velocities and grid state as plain data (namespace `RecursiveAI.OnePath.Debug`) | [navmesh-format.md](navmesh-format.md), [crowds.md](crowds.md), [grids-state.md](grids-state.md) |
+
+## Determinism and measurement
+
+| Document | Covers |
+|---|---|
+| [hash-matrix.md](hash-matrix.md) | The manifest format and the columns (JIT, scalar, threads, NativeAOT, WASM, ...) that must produce equal hashes |
+| [benchmarking.md](benchmarking.md) | How the speed rows are measured: warm-up, best of N, references and their versions, quality metrics, memory |

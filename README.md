@@ -1,30 +1,33 @@
 # onepath
 
-Pathfinding and navigation for .NET, written from first principles: grids, graphs, navmeshes and
-crowds in one package, `RecursiveAI.OnePath`. Results are bit-identical on every platform.
+**Pathfinding and navigation for .NET, written from first principles: grids, graphs, navigation meshes and crowds in one package, with results that are bit-identical on every platform.** Square, hex and 3D voxel grids with A\*, JPS, JPS+, Theta\*, HPA\* and incremental replanning; weighted and point graphs; an exact 2D navmesh builder and a Recast-class 3D builder into one tiled format; path, raycast and nearest-point queries; crowds with navmesh-aware ORCA. Pure C# with one runtime dependency, our own deterministic math library.
 
-**Status:** preview (`0.4.0-preview.2`). The API can still change between previews. See [CHANGELOG.md](CHANGELOG.md).
+[![CI](https://github.com/recursive-ai-oss/onepath-csharp/actions/workflows/ci.yml/badge.svg)](https://github.com/recursive-ai-oss/onepath-csharp/actions/workflows/ci.yml)
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4)](#install)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#licence)
 
-- **Grids and graphs:** square, hex and 3D voxel grids; A\*, JPS, JPS+, Theta\*, Lazy Theta\*, HPA\*, LPA\*/D\* Lite replanning, flow fields, area costs, agent sizes; weighted and point graphs with bidirectional search and ALT landmarks.
-- **Navigation meshes:** an exact 2D builder (outlines, tile maps) and a 3D builder (triangle soup, glTF, voxel chunks), with path, string-pulling, raycast, nearest-point and random-point queries, run-time tile rebuild and obstacles, off-mesh links.
-- **Crowds:** path corridors and navmesh-aware ORCA avoidance, with byte-exact snapshot and restore.
-- **Speed:** measured against the native references in [the table below](#speed-against-the-references); every row is listed there, including the ones we miss.
+**Status: preview** (`0.4.0-preview.3`). Every part meets its speed target on x64 and arm64 (see [the table](#speed-against-the-references), which lists the rows we miss too), but the API can still change between previews. See [CHANGELOG.md](CHANGELOG.md).
 
-**Determinism.** Results depend only on the inputs and options, never on the operating system, CPU, SIMD width,
-runtime version, JIT tier, WASM versus native, or thread count. The library uses only IEEE-exact `+ - * /` and `sqrt`,
-its own transcendental functions (from `RecursiveAI.OneMath`), fixed reduction orders and index-ordered parallel work, and
-the same inputs give the same bits on x64, arm64 and WASM (see `docs/hash-matrix.md`). Time slicing counts iterations, never
-clock time, so a deterministic game host can run it in lockstep or rollback. **Coordinate rule:** world positions cross
-the API as `double` and are exact within ±2^21 (a Q31.32 fixed-point value converts exactly); a coordinate beyond that
-throws `ArgumentOutOfRangeException`. Inside, meshes store float32 coordinates relative to a double tile origin.
+## Packages
 
-**Platforms.** `net10.0` on Windows, Linux and macOS (x64 and arm64), NativeAOT and trimming (an app that only uses grids
-trims the navmesh builders away), and browser WASM. The only runtime dependency is `RecursiveAI.OneMath`.
+| Package | What it is |
+|---|---|
+| `RecursiveAI.OnePath` | Grids (square, hex, voxel), graphs, the navmesh builders, the query layer, the run-time tile cache and crowds. Trimming drops the parts an app does not use: an app that only uses grids trims the navmesh builders away. |
+| [`RecursiveAI.OneMath`](https://www.nuget.org/packages/RecursiveAI.OneMath) | The only dependency: vectors, our own transcendental functions, exact geometric predicates and the fixed-point bridge. Installed automatically. |
 
-Licensed under either of MIT ([LICENSE-MIT](LICENSE-MIT)) or Apache-2.0
-([LICENSE-APACHE](LICENSE-APACHE)) at your option. © Recursive AI, LLC.
+## Install
 
-## Quickstart
+```
+dotnet add package RecursiveAI.OnePath --prerelease
+```
+
+The library targets `net10.0` on Windows, Linux and macOS (x64 and arm64), is NativeAOT- and trim-compatible, runs in browser WASM, and uses only the .NET base class library and `RecursiveAI.OneMath` at runtime. It never reads files or the network: glTF files, saved meshes and snapshots come in as bytes you supply.
+
+## The three tiers
+
+Each tier is built on the one below. **The happy path** (this page's snippets) is options objects with presets (`GridOptions`, `NavSettings.Humanoid`, `Agent.Humanoid`) and plain delegates; you never write a struct. **The middle tier** exposes every build stage as a replaceable static method, one `NavMeshQuery` with filters, area costs and sync, sliced and span forms, and struct-generic cost and heuristic hooks for the grid and graph searches. **The raw tier** is voxel spans, regions, contours, polygons, tile data, the open and closed sets and the ORCA solver. The [documentation index](docs/README.md) is organised the same way.
+
+## Quick start
 
 One `using RecursiveAI.OnePath;` reaches every grid and graph type below (the navmesh examples also use OneMath's
 vectors and the query result types). Options are plain objects with named presets and optional
@@ -178,6 +181,30 @@ for (int i = 0; i < 20; i++)
 
 The snippets above are compiled and run by `tests/OnePath.Tests/ReadmeQuickstartTests.cs`.
 
+## Determinism
+
+Results depend only on the inputs and options, never on the operating system, CPU, SIMD width, runtime version, JIT tier, WASM versus native, or thread count. The library uses only IEEE-exact `+ - * /` and `sqrt`, its own transcendental functions (from `RecursiveAI.OneMath`), fixed reduction orders and index-ordered parallel work; ties break on node or polygon index, never on hash order. The same inputs give the same bits on x64, arm64 and WASM, checked by a hash matrix of fixed scenarios across JIT, scalar, NativeAOT, thread-count and WASM runs ([docs/hash-matrix.md](docs/hash-matrix.md)).
+
+For a deterministic game host (lockstep, rollback) that means:
+
+- **Coordinate rule.** World positions cross the API as `double` and are exact within ±2^21 (a Q31.32 fixed-point value converts exactly); a coordinate beyond that throws `ArgumentOutOfRangeException` naming the value and the bound. Inside, meshes store float32 coordinates relative to a double tile origin.
+- **No clock.** `Crowd.Step(dt)` takes the step from you; sliced searches, rebuilds and replans count iterations, never time.
+- **Snapshot and restore.** Grid searches, replanners, flow fields, dynamic meshes (rebuilt tiles, obstacles) and crowds save to bytes and restore to the same state; the same state writes the same bytes on every platform.
+- **Debug geometry** (polygons, links, paths, corridors, agent velocities) comes out as plain data.
+
+The formats, tie-breaks and budget units are written down in [docs/](docs/README.md) so a port can reproduce the same bits from the text.
+
+## What it does not do
+
+- **No rendering or engine glue.** Debug geometry is data; drawing it and moving your game objects is yours.
+- **No steering beyond ORCA avoidance.** Formations and general steering behaviours are not included.
+- **No volume pathfinding for flying agents** beyond the voxel grid search.
+- **Memory is higher than the native references'** (see the speed section): the library trades memory for speed and safety.
+
+## Documentation
+
+The normative documents in [docs/](docs/README.md) hold every choice the papers leave open. API reference is the XML documentation shipped with the package.
+
 ## Speed against the references
 
 Every row is **our time divided by the reference's** (below 1.00 is faster than the reference), warm, in-process, best of
@@ -269,3 +296,7 @@ builds everything, including the WASM smoke app, which needs the `wasm-tools` wo
   into `~/onepath/feed`. (For a remote job runner that only syncs the git tree, ship the package with the
   runner's per-file include option and run that script on the remote machine.)
 - `ONEPATH_DOTNET_ROOT`: scripts put this user-local SDK folder first on `PATH`.
+
+## Licence
+
+Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE) at your option. Copyright Recursive AI, LLC. Third-party material (benchmark maps and the reference implementations used as black-box comparisons) is listed with its terms in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

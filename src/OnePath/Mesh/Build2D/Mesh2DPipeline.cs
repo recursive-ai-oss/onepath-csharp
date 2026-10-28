@@ -28,9 +28,13 @@ public static class Mesh2DPipeline
         Math.Max(settings.CellSize / 4, Math.Min(0.0825 * settings.AgentRadius, settings.CellSize / 2));
 
     /// <summary>
-    /// Shrinks the walkable area by the agent radius (round joins); a radius of zero returns the region. The polygonal
-    /// arcs stay within <paramref name="arcTolerance"/> of the true circle (default: a sixteenth of the agent radius,
-    /// far below a navigation cell); only the pieces that can change the result are built.
+    /// Shrinks the walkable area by the agent radius, rounding every reflex corner with an arc polygon of equal area to
+    /// the circular sector (so total walkable coverage is unbiased); a radius of zero returns the region unchanged.
+    /// <paramref name="arcTolerance"/> (world units, 0 or less selects a sixteenth of the radius) only sets how many
+    /// vertices an arc gets; at a round corner the cleared distance can be a few percent of the radius short at chord
+    /// midpoints (up to 4.9% for an 8-gon, 1.2% for a 16-gon), never at the arc's end points, so straight walls stay
+    /// straight. The tile build passes a quarter cell (more for large radii). Only the pieces that can change the
+    /// result are built; the output depends only on the inputs. Throws <see cref="ArgumentNullException"/> for a null region.
     /// </summary>
     public static Region Shrink(Region walkable, double agentRadius, double arcTolerance = 0)
     {
