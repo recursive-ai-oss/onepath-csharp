@@ -400,9 +400,26 @@ public static class Polygonizer
     private static long Cross(List<int> verts, int a, int b, int c) =>
         ((long)(verts[(3 * b)] - verts[3 * a]) * (verts[(3 * c) + 2] - verts[(3 * a) + 2])) - ((long)(verts[(3 * b) + 2] - verts[(3 * a) + 2]) * (verts[3 * c] - verts[3 * a]));
 
-    private static int FloatOrient(List<int> verts, TileCoordinates map, int a, int b, int c) =>
-        OneMath.Predicates.ExactPredicates.Orient2D(
+    // The sign of the orientation of three vertices at their stored float32 positions. Rounding a coordinate to float32 moves it by at most 2^-24 of the grid's
+    // extent W, so the determinant moves by less than about 2^-21 W^2 (TileCoordinates.SafeCross is that bound in cells, with a margin of four): a turn that is
+    // at least that many cells^2 either way keeps its sign, and only the close calls need the exact predicate.
+    private static int FloatOrient(List<int> verts, TileCoordinates map, int a, int b, int c)
+    {
+        long cross = Cross(verts, a, b, c);
+        long safe = map.SafeCross;
+        if (cross >= safe)
+        {
+            return 1;
+        }
+
+        if (cross <= -safe)
+        {
+            return -1;
+        }
+
+        return OneMath.Predicates.ExactPredicates.Orient2D(
             map.Local(verts[3 * a]), map.Local(verts[(3 * a) + 2]), map.Local(verts[3 * b]), map.Local(verts[(3 * b) + 2]), map.Local(verts[3 * c]), map.Local(verts[(3 * c) + 2]));
+    }
 
     private static void MergeConvex(List<int[]> polys, List<int> verts, int maxVerts, TileCoordinates map, HashSet<(int, int)> walls)
     {

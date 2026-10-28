@@ -78,6 +78,35 @@ public sealed class ContourSet
     public int RawFallbacks { get; }
 }
 
+/// <summary>One traced boundary loop of a region: the raw vertices, twice the signed area, and what a layer rebuild keeps with it.</summary>
+internal sealed class TracedLoop
+{
+    public TracedLoop(ContourVertex[] raw, long area2)
+    {
+        Raw = raw;
+        Area2 = area2;
+    }
+
+    public ContourVertex[] Raw { get; }
+
+    /// <summary>Twice the signed area: positive for an outline, not positive for a hole.</summary>
+    public long Area2 { get; }
+
+    /// <summary>The region the loop bounds.</summary>
+    public int Region { get; set; }
+
+    /// <summary>The smallest edge key (span index times four plus direction) of the loop's edges: the order loops are found in.</summary>
+    public int MinKey { get; set; }
+
+    /// <summary>The edge key of every raw vertex (the edge it starts), when tracing recorded them.</summary>
+    public int[]? Keys { get; set; }
+
+    /// <summary>True when <see cref="Simplified"/> holds the result of simplification (which is null when the loop degenerates).</summary>
+    public bool IsSimplified { get; set; }
+
+    public ContourVertex[]? Simplified { get; set; }
+}
+
 /// <summary>
 /// Traces region outlines on the span grid and simplifies them. Definitions (loop orientation, vertex heights, the simplification rules and their
 /// tie-breaks, hole bridging) are in docs/build3d-regions.md.
@@ -136,8 +165,8 @@ public static class Contours
 
         byte[] visited = Scratch.RentZeroed<byte>(n);
         var traceBuffer = new List<ContourVertex>(256);
-        var outers = new List<(ContourVertex[] Raw, long Area)>?[maxRegion + 1];
-        var holes = new List<ContourVertex[]>?[maxRegion + 1];
+        var outers = new List<TracedLoop>?[maxRegion + 1];
+        var holes = new List<TracedLoop>?[maxRegion + 1];
         int guard = (4 * n) + 8;
         int[] nbrs = g.Nbr;
         for (int i = 0; i < n; i++)
@@ -164,11 +193,11 @@ public static class Contours
                 long area = SignedArea2(loop);
                 if (area > 0)
                 {
-                    (outers[r] ??= new List<(ContourVertex[], long)>()).Add((loop, area));
+                    (outers[r] ??= new List<TracedLoop>()).Add(new TracedLoop(loop, area));
                 }
                 else
                 {
-                    (holes[r] ??= new List<ContourVertex[]>()).Add(loop);
+                    (holes[r] ??= new List<TracedLoop>()).Add(new TracedLoop(loop, area));
                 }
             }
         }
@@ -181,7 +210,7 @@ public static class Contours
     /// Simplifies the traced loops of every region and joins holes to their outlines: the second half of <see cref="Build"/>, shared with the layer-first tile builder,
     /// which traces its loops itself.
     /// </summary>
-    internal static ContourSet Assemble(HeightfieldFrame frame, int maxRegion, byte[] regionArea, List<(ContourVertex[] Raw, long Area)>?[] outers, List<ContourVertex[]>?[] holes, ContourSettings settings)
+    internal static ContourSet Assemble(HeightfieldFrame frame, int maxRegion, byte[] regionArea, List<TracedLoop>?[] outers, List<TracedLoop>?[] holes, ContourSettings settings, bool keepSimplified = false)
     {
         var result = new List<Contour>();
         int dropped = 0;
@@ -189,77 +218,103 @@ public static class Contours
         int fallbacks = 0;
         for (int r = 1; r <= maxRegion; r++)
         {
-            if (outers[r] == null)
-            {
-                droppedHoles += holes[r]?.Count ?? 0;
-                continue;
-            }
-            var polys = new List<List<ContourVertex>?>();
-            var rawOf = new List<ContourVertex[]>();
-            foreach (var (raw, area) in outers[r]!)
-            {
-                List<ContourVertex>? p = Simplify(raw, settings, ref fallbacks, regionArea, r);
-                if (p == null)
-                {
-                    dropped++;
-                }
-                polys.Add(p);
-                rawOf.Add(raw);
-            }
-            var holesOf = new List<ContourVertex[]>[polys.Count];
-            var rawHolesOf = new List<ContourVertex[]>[polys.Count];
-            if (holes[r] != null)
-            {
-                foreach (ContourVertex[] rawHole in holes[r]!)
-                {
-                    List<ContourVertex>? h = Simplify(rawHole, settings, ref fallbacks, regionArea, r);
-                    if (h == null)
-                    {
-                        // A hole too small to survive simplification: the outline stays solid there.
-                        droppedHoles++;
-                        continue;
-                    }
-                    int owner = Owner(polys, h);
-                    if (owner < 0)
-                    {
-                        droppedHoles++;
-                        continue;
-                    }
-                    (holesOf[owner] ??= new List<ContourVertex[]>()).Add(h.ToArray());
-                    (rawHolesOf[owner] ??= new List<ContourVertex[]>()).Add(rawHole);
-                }
-            }
-            for (int k = 0; k < polys.Count; k++)
-            {
-                if (polys[k] == null)
-                {
-                    droppedHoles += holesOf[k]?.Count ?? 0;
-                    continue;
-                }
-                List<ContourVertex> poly = polys[k]!;
-                if (holesOf[k] != null)
-                {
-                    var outlineOnly = new List<ContourVertex>(poly);
-                    int failed = MergeHoles(poly, holesOf[k], r);
-                    // Each loop is simplified on its own, so a simplified hole can cross the simplified outline. Then join the raw loops instead.
-                    if (HasProperCrossing(poly))
-                    {
-                        fallbacks++;
-                        poly = new List<ContourVertex>(rawOf[k]);
-                        failed = MergeHoles(poly, new List<ContourVertex[]>(rawHolesOf[k]!), r);
-                    }
-                    droppedHoles += failed;
-                    // A region that overlaps itself seen from above (a spiral ramp) can have holes that cover the outline; keep the outline then.
-                    if (SignedArea2(poly) <= 0)
-                    {
-                        droppedHoles += holesOf[k].Count - failed;
-                        poly = outlineOnly;
-                    }
-                }
-                result.Add(new Contour(r, regionArea[r], poly.ToArray(), settings.KeepRawVertices ? rawOf[k] : null, settings.KeepRawVertices ? rawHolesOf[k]?.ToArray() ?? Array.Empty<ContourVertex[]>() : null));
-            }
+            AssembleRegion(r, outers[r], holes[r], regionArea, settings, keepSimplified, result, ref dropped, ref droppedHoles, ref fallbacks);
         }
         return new ContourSet(frame, result, maxRegion, dropped, droppedHoles, fallbacks);
+    }
+
+    /// <summary>
+    /// Simplifies the loops of one region and joins its holes to its outlines. A loop that carries its simplified form (<see cref="TracedLoop.IsSimplified"/>) is
+    /// not simplified again: simplification depends on the loop and on the areas of the regions it borders, nothing else. With <paramref name="keepSimplified"/> the forms made here are kept on the loops.
+    /// </summary>
+    internal static void AssembleRegion(int r, List<TracedLoop>? outerLoops, List<TracedLoop>? holeLoops, byte[] regionArea, ContourSettings settings, bool keepSimplified, List<Contour> result, ref int dropped, ref int droppedHoles, ref int fallbacks)
+    {
+        if (outerLoops == null)
+        {
+            droppedHoles += holeLoops?.Count ?? 0;
+            return;
+        }
+        var polys = new List<List<ContourVertex>?>();
+        var rawOf = new List<ContourVertex[]>();
+        foreach (TracedLoop loop in outerLoops)
+        {
+            List<ContourVertex>? p = SimplifiedOf(loop, settings, keepSimplified, ref fallbacks, regionArea, r);
+            if (p == null)
+            {
+                dropped++;
+            }
+            polys.Add(p);
+            rawOf.Add(loop.Raw);
+        }
+        var holesOf = new List<ContourVertex[]>[polys.Count];
+        var rawHolesOf = new List<ContourVertex[]>[polys.Count];
+        if (holeLoops != null)
+        {
+            foreach (TracedLoop holeLoop in holeLoops)
+            {
+                ContourVertex[] rawHole = holeLoop.Raw;
+                List<ContourVertex>? h = SimplifiedOf(holeLoop, settings, keepSimplified, ref fallbacks, regionArea, r);
+                if (h == null)
+                {
+                    // A hole too small to survive simplification: the outline stays solid there.
+                    droppedHoles++;
+                    continue;
+                }
+                int owner = Owner(polys, h);
+                if (owner < 0)
+                {
+                    droppedHoles++;
+                    continue;
+                }
+                (holesOf[owner] ??= new List<ContourVertex[]>()).Add(h.ToArray());
+                (rawHolesOf[owner] ??= new List<ContourVertex[]>()).Add(rawHole);
+            }
+        }
+        for (int k = 0; k < polys.Count; k++)
+        {
+            if (polys[k] == null)
+            {
+                droppedHoles += holesOf[k]?.Count ?? 0;
+                continue;
+            }
+            List<ContourVertex> poly = polys[k]!;
+            if (holesOf[k] != null)
+            {
+                var outlineOnly = new List<ContourVertex>(poly);
+                int failed = MergeHoles(poly, holesOf[k], r);
+                // Each loop is simplified on its own, so a simplified hole can cross the simplified outline. Then join the raw loops instead.
+                if (HasProperCrossing(poly))
+                {
+                    fallbacks++;
+                    poly = new List<ContourVertex>(rawOf[k]);
+                    failed = MergeHoles(poly, new List<ContourVertex[]>(rawHolesOf[k]!), r);
+                }
+                droppedHoles += failed;
+                // A region that overlaps itself seen from above (a spiral ramp) can have holes that cover the outline; keep the outline then.
+                if (SignedArea2(poly) <= 0)
+                {
+                    droppedHoles += holesOf[k].Count - failed;
+                    poly = outlineOnly;
+                }
+            }
+            result.Add(new Contour(r, regionArea[r], poly.ToArray(), settings.KeepRawVertices ? rawOf[k] : null, settings.KeepRawVertices ? rawHolesOf[k]?.ToArray() ?? Array.Empty<ContourVertex[]>() : null));
+        }
+    }
+
+    // The loop's simplified form: the kept one when it has one, else made now (and kept when asked). A copy, since joining holes edits the list.
+    private static List<ContourVertex>? SimplifiedOf(TracedLoop loop, ContourSettings settings, bool keep, ref int fallbacks, byte[] regionArea, int r)
+    {
+        if (loop.IsSimplified)
+        {
+            return loop.Simplified == null ? null : new List<ContourVertex>(loop.Simplified);
+        }
+        List<ContourVertex>? p = Simplify(loop.Raw, settings, ref fallbacks, regionArea, r);
+        if (keep)
+        {
+            loop.Simplified = p?.ToArray();
+            loop.IsSimplified = true;
+        }
+        return p;
     }
 
     // Joins the holes to the outline in order of their leftmost vertex; returns how many could not be joined.

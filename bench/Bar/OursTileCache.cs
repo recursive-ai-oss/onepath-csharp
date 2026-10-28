@@ -150,7 +150,10 @@ internal static class OursTileCache
         return rows;
     }
 
-    /// <summary>Untimed add-and-remove cycles until the runtime has optimized the rebuild path (three in a row within 5%, at most 40 or 30 s).</summary>
+    /// <summary>
+    /// Untimed add-and-remove cycles until the runtime has optimized the rebuild path: three in a row within 5%, and not before two seconds have passed (a cycle takes
+    /// a millisecond or two, so three similar unoptimized cycles say nothing about the optimized code).
+    /// </summary>
     private static void WarmUpCycle(TileCache cache, List<TileObstacle> obstacles) => OursBuild.WarmUp(() =>
     {
         var ids = new int[obstacles.Count];
@@ -165,7 +168,7 @@ internal static class OursTileCache
             cache.RemoveObstacle(ids[k]);
             cache.UpdateAll();
         }
-    });
+    }, minSeconds: 2, maxRuns: 100_000);
 
     private static double Ms(long start) => (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
 }

@@ -130,6 +130,126 @@ public class LayerTileTests
         }
     }
 
+    // Repairing the first build's contours where an obstacle took spans away must give exactly the tiles a from-scratch build of the same areas gives,
+    // whatever the obstacles' shapes, places and history: random cylinders, boxes and oriented boxes, from specks to blocks, over walls, ledges and tile borders.
+    [Fact]
+    public void ContourRepairEqualsBuildingFromScratch()
+    {
+        Soup s = Level();
+        int repairedLayers = 0, scratchLayers = 0;
+        for (int seed = 1; seed <= 12; seed++)
+        {
+            var rng = new Random(seed * 7919);
+            TileCache repaired = Cache(s);
+            TileCache scratch = Cache(s);
+            scratch.RepairContours = false;
+            var live = new List<(int A, int B)>();
+            for (int step = 0; step < 40; step++)
+            {
+                if (live.Count > 0 && rng.Next(3) == 0)
+                {
+                    int k = rng.Next(live.Count);
+                    Assert.True(repaired.RemoveObstacle(live[k].A));
+                    Assert.True(scratch.RemoveObstacle(live[k].B));
+                    live.RemoveAt(k);
+                }
+                else
+                {
+                    double x = rng.NextDouble() * 42 - 1, z = rng.NextDouble() * 32 - 1, y = rng.Next(3) == 0 ? 4 : 0;
+                    double size = rng.Next(4) == 0 ? 0.05 + (rng.NextDouble() * 0.3) : 0.3 + (rng.NextDouble() * 4);
+                    TileObstacle o = rng.Next(3) switch
+                    {
+                        0 => TileObstacle.Cylinder(x, y, z, size, 2),
+                        1 => TileObstacle.Box(x, y, z, x + size + (rng.NextDouble() * 5), y + 2, z + size),
+                        _ => TileObstacle.OrientedBox(x, y + 1, z, size + 0.3, 1, (size * 0.5) + 0.2, rng.NextDouble() * 6),
+                    };
+                    live.Add((repaired.AddObstacle(o), scratch.AddObstacle(o)));
+                }
+
+                All(repaired);
+                All(scratch);
+                AssertSame(scratch.Mesh, repaired.Mesh);
+            }
+
+            Assert.Empty(NavMeshValidator.Validate(repaired.Mesh));
+            repairedLayers += repaired.RepairCounts.Repaired;
+            scratchLayers += repaired.RepairCounts.Scratch;
+        }
+
+        // The repair is what ran, not a fallback, in most builds.
+        Assert.True(repairedLayers > 0 && repairedLayers + scratchLayers > 0, $"repaired {repairedLayers}, from scratch {scratchLayers}");
+    }
+
+    // A cache is a function of the obstacles in force: whatever it went through (adds, removes, slicing, snapshots and restores), once its queue is empty it holds
+    // exactly the tiles a fresh cache holds after the surviving obstacles were added in any order.
+    [Fact]
+    public void AnyHistoryEqualsAFreshCacheWithTheSurvivors()
+    {
+        Soup s = Level();
+        for (int seed = 1; seed <= 10; seed++)
+        {
+            var rng = new Random(seed * 104729);
+            TileCache c = Cache(s);
+            var live = new List<(int Id, TileObstacle O)>();
+            var saved = new List<(byte[] Bytes, List<(int Id, TileObstacle O)> Live)>();
+            for (int step = 0; step < 36; step++)
+            {
+                int op = rng.Next(10);
+                if (op < 4 || live.Count == 0 && op < 8)
+                {
+                    double x = rng.NextDouble() * 42 - 1, z = rng.NextDouble() * 32 - 1;
+                    TileObstacle o = rng.Next(3) switch
+                    {
+                        0 => TileObstacle.Cylinder(x, rng.Next(2) * 4, z, 0.2 + (rng.NextDouble() * 3.5), 2),
+                        1 => TileObstacle.Box(x, 0, z, x + 0.3 + (rng.NextDouble() * 6), 2, z + 0.3 + (rng.NextDouble() * 3)),
+                        _ => TileObstacle.OrientedBox(x, 1, z, 0.4 + (rng.NextDouble() * 2.5), 1, 0.3 + (rng.NextDouble() * 1.5), rng.NextDouble() * 6),
+                    };
+                    live.Add((c.AddObstacle(o), o));
+                }
+                else if (op < 7 && live.Count > 0)
+                {
+                    int k = rng.Next(live.Count);
+                    Assert.True(c.RemoveObstacle(live[k].Id));
+                    live.RemoveAt(k);
+                }
+                else if (op == 7)
+                {
+                    c.Update(rng.Next(1, 5), TestContext.Current.CancellationToken);
+                }
+                else if (op == 8)
+                {
+                    saved.Add((c.Snapshot(), new List<(int, TileObstacle)>(live)));
+                }
+                else if (saved.Count > 0)
+                {
+                    var pick = saved[rng.Next(saved.Count)];
+                    c.Restore(pick.Bytes);
+                    live = new List<(int, TileObstacle)>(pick.Live);
+                }
+
+                if (step % 6 == 5)
+                {
+                    All(c);
+                    TileCache fresh = Cache(s);
+                    var order = new List<(int Id, TileObstacle O)>(live);
+                    for (int i = order.Count - 1; i > 0; i--)
+                    {
+                        int j = rng.Next(i + 1);
+                        (order[i], order[j]) = (order[j], order[i]);
+                    }
+
+                    foreach ((int _, TileObstacle o) in order)
+                    {
+                        fresh.AddObstacle(o);
+                    }
+
+                    All(fresh);
+                    AssertSame(fresh.Mesh, c.Mesh);
+                }
+            }
+        }
+    }
+
     [Fact]
     public void RemovingEveryObstacleGivesTheFirstBuildBack()
     {

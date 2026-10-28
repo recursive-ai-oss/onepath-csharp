@@ -78,17 +78,20 @@ internal static class OursBuild
     /// Untimed runs until the runtime has finished optimizing the builder: the first runs execute unoptimized code (tiered compilation promotes methods
     /// in the background after they have been called many times), which the native reference never pays and the "warm" method excludes. Stops when three
     /// runs in a row are within 5% of each other, after at most 40 runs or 30 seconds (the wall clock bounds only the warm-up, never a result).
+    /// A row whose run takes a few milliseconds passes that test long before the runtime has optimized anything (tiering waits for a quiet 100 ms and then for
+    /// call counts, twice with profile-guided optimization): such a row passes <paramref name="minSeconds"/>, and then runs until it has been stable for that long, with up to <paramref name="maxRuns"/> runs.
     /// </summary>
-    internal static void WarmUp(Action run)
+    internal static void WarmUp(Action run, double minSeconds = 0, int maxRuns = 40)
     {
         var last = new double[3];
         long begin = Stopwatch.GetTimestamp();
-        for (int i = 0; i < 40; i++)
+        for (int i = 0; i < maxRuns; i++)
         {
             long start = Stopwatch.GetTimestamp();
             run();
             last[i % 3] = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
-            if ((i >= 4 && last.Max() <= last.Min() * 1.05) || (Stopwatch.GetTimestamp() - begin) / (double)Stopwatch.Frequency > 30)
+            double elapsed = (Stopwatch.GetTimestamp() - begin) / (double)Stopwatch.Frequency;
+            if ((i >= 4 && elapsed >= minSeconds && last.Max() <= last.Min() * 1.05) || elapsed > 30)
             {
                 return;
             }

@@ -66,6 +66,35 @@ origin of each layer's tile; the walkable area is the same within 1 % (tested).
 the first build's takes the first build's tile data without building. A rebuilt layer whose tile data equals what the mesh holds keeps its tile. With authored off-mesh links, links go to the layer that fits them best,
 so a tile in which any layer changed is rebuilt in full, all layers. Pipeline `Obstacles` added or removed after the first build are not seen by rebuilds of a cache (its first-build areas are fixed).
 
+### Repairing a layer
+
+An obstacle only takes walkability away, so the layer a rebuild starts from is the first build's with some spans removed. For such a rebuild the cache does not label, trace and simplify the
+whole layer again: it **repairs** what the first build left, and the result is exactly what the from-scratch stages give for the same areas (tested byte for byte against a cache with the repair
+turned off, on random obstacles and histories). The first build keeps per layer: the region of every span, each region's size and first span, every traced loop (raw vertices, the edge each
+vertex starts, its simplified form), which loop owns which edge, and every region's contours.
+
+Given the list of spans the obstacles set to area 0 (the *removed* spans):
+
+1. *Preconditions.* Otherwise the layer is built from scratch. (a) The change is only removed spans, no area volume. (b) No region shrinks below `MinRegionArea` or vanishes, and no region
+   smaller than `MinRegionArea` (which is kept only while a walkable span of another area touches it) has a removed span next to it. (c) Every region that lost spans is still one piece: the
+   walkable spans of the region next to a removed span (the *ring*) all reach each other inside the region. Every other span of the region reaches one of them, since a path from it to a removed
+   span passes a ring span first, so this proves the region whole. The search first runs through the spans next to the ring, then through the whole region with a budget of a quarter of the
+   layer (at least 256 spans). (d) The regions are still numbered in the same order: a region's number is the rank of its first span, and a removed first span moves it later.
+2. *New loops.* Every edge of a still-walkable span of a traced region that looks at a removed span starts the trace of a loop (same walk and rule as the full trace). Each loop is rotated to start
+   at its smallest edge key (span index × 4 + direction), where a scan of the whole layer would have started it. An old loop with an edge in a new loop is gone; an old loop that loses an edge of
+   a removed span is found the same way, because its walk reaches the removed span through an edge that now looks at it.
+3. *Regions.* A region with no new and no gone loop keeps the contours of the first build (shared, never changed). Any other region takes its surviving old loops, with the simplified forms the
+   first build kept (simplification depends on the loop and on the areas of the regions it borders, which did not change), and the new loops, simplifies the new ones, joins holes to
+   outlines and orders loops by their smallest edge key, as the full build does.
+4. *Then* polygons, detail and the tile as always.
+
+A repaired rebuild is a function of the first build and of the removed spans, so the result does not depend on the history of edits.
+
+**Orientation tests in the polygon stage.** Polygons are kept convex in the stored float32 positions as well as in cells, which used to cost an exact predicate call per test (about 850 per
+rebuilt layer). Rounding a coordinate to float32 moves it by at most 2^-24 of the grid's extent W, so a determinant moves by less than 2^-21·W², and a turn of at least
+`((cells across the grid)² >> 19) + 1` cell areas keeps its sign: only turns closer than that call the exact predicate. The tile coordinate map exposes the bound; a test checks it against the
+exact predicate on random and nearly collinear triples. Outputs are unchanged.
+
 **Cost.** See "Cost of a rebuild" at the end.
 
 ## Obstacles (step 4)
@@ -133,10 +162,11 @@ links, several agent sizes per world and streaming are separate parts.
 
 ## Cost of a rebuild
 
-Measured on the generated `city` level (tile 64 cells, layers, no detail sampling, 16 cylinder obstacles added and removed one at a time, each followed by `UpdateAll`; about 26 layer builds per cycle, 5400 spans each).
-One cycle takes 1.8 ms on a loaded x64 desktop and 2.95 ms on an Apple M2 (the native tile cache it is compared with takes 1.29 ms there; before the layer-by-layer build the figures were 3.85 and 7.7 ms).
-Per layer build, in µs on the desktop: labelling regions 10, numbering them and cutting the border 7, tracing 13, simplifying 7, polygonizing 15, making the tile 5, creating and stitching it 7, marking and comparing areas of queued layers
-that turn out unchanged 5. Every stage is a pass over the layer or over its contour; what is left to remove is the whole-layer work (labelling, tracing) for an obstacle that touches a small part of a large region.
+Measured on the generated `city` level (tile 64 cells, layers, no detail sampling, 16 cylinder obstacles added and removed one at a time, each followed by `UpdateAll`; about 19 layer builds per
+cycle, 5000 spans each, 150 removed spans per obstacle and layer). With a warmed-up runtime one cycle takes 1.2 ms on an Apple M2 (the native tile cache it is compared with takes 1.29 ms there;
+the layer-by-layer build without repair took 1.95 ms, and 3.85 / 7.7 ms before that). Of about 80 µs per layer build on a loaded x64 desktop, the repair is about 25 µs (the pass over the removed spans'
+neighbours, the search for connectivity, joining the new hole), the polygon stage 15, making the tile 6–10, creating and stitching it 10, and comparing the areas of queued layers that turn out unchanged about 10.
+A layer is built from scratch when a precondition above fails (about one in twelve on `city`, mostly obstacles that cut a street in two).
 
 ## Hash-matrix scenario
 

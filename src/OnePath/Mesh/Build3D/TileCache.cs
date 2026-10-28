@@ -103,6 +103,12 @@ public sealed class TileCache
     /// <summary>Tile positions with cached data (tiles that were built, whether or not they hold polygons now).</summary>
     public int CachedTileCount => _entries.Count;
 
+    /// <summary>Whether a rebuilt layer repairs the first build's contours where obstacles changed it; off, every rebuilt layer is built from scratch (the results are equal; tests compare the two).</summary>
+    internal bool RepairContours { get; set; } = true;
+
+    /// <summary>Layer builds that repaired contours, and layer builds that could have but started from scratch.</summary>
+    internal (int Repaired, int Scratch) RepairCounts => (Work.Repaired, Work.Scratch);
+
     internal void SetMesh(TiledNavMesh mesh) => _mesh = mesh;
 
     /// <summary>Buffers of the layer builder, reused by every rebuild.</summary>
@@ -414,7 +420,7 @@ public sealed class TileCache
             {
                 fresh[l] = newArea[l].AsSpan().SequenceEqual(t.BaseArea[l])
                     ? t.BaseData[l]
-                    : LayerTileBuilder.Build(p, ls, work.Area, work, t.Chf, t.TileX, t.TileZ);
+                    : LayerTileBuilder.Build(p, ls, work.Area, work, t.Chf, t.TileX, t.TileZ, null, RepairContours ? t.Bases[l] : null);
             }
         }
 
@@ -437,7 +443,7 @@ public sealed class TileCache
 
                 newArea[l] = work.Area.AsSpan(0, ls.Count).ToArray();
                 changed[l] = true;
-                fresh[l] = LayerTileBuilder.Build(p, ls, work.Area, work, t.Chf, t.TileX, t.TileZ);
+                fresh[l] = LayerTileBuilder.Build(p, ls, work.Area, work, t.Chf, t.TileX, t.TileZ, null, RepairContours ? t.Bases[l] : null);
                 if (fresh[l] is not null)
                 {
                     built.Add(fresh[l]!);
