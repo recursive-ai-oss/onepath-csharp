@@ -15,7 +15,8 @@ settings. This page is normative: a later port of the bar runner must produce co
   point file; crowds and grid scenarios are the same parameters. Settings for the builders default to a humanoid:
   cell 0.3, cell height 0.2, agent height 2.0, radius 0.6, max climb 0.9, max slope 45 degrees, min region 8, merge region
   20, max edge length 12, max edge error 1.3, 6 vertices per polygon, detail sample distance 6, detail max error 1,
-  64-cell tiles for tiled builds.
+  64-cell tiles for tiled builds. The maximum edge length is a length in world units (12 units, 40 cells), not 12 cells, on every side.
+  Our solo 3D builds use one tile that covers the level's bounds plus one cell, like the references' grid over the input bounds.
 - **Memory** is the peak resident set of the whole process from `/usr/bin/time -v` (Linux) or `/usr/bin/time -l`
   (macOS), reported as `peak_rss` in MB. The managed runtime's own overhead is therefore part of a .NET row.
 - **Machines.** x64 rows run on the Linux benchmark host and arm64 rows on a Mac, one heavy job at a time, with the
@@ -172,6 +173,13 @@ points. One timed cycle adds every obstacle in turn, each followed by rebuilding
 removes them the same way; `time_best` is the best cycle of `--reps`, on one cache built before the cycles (`cache_build_time` is the best
 of `--reps` builds of the level with its cache, layers stored uncompressed). Quality rows: polygon count and walkable area before, with all
 obstacles in force and after they are removed (`polys_restored` and `coverage_area_restored` must equal the initial values).
+
+Warm-up: our 3D build and tile-cache rows run untimed builds (obstacle cycles for `tilecache`) first, until three in a row are within 5%
+(at most 40, or 30 s; the clock bounds only the warm-up). Setting `ONEPATH_PROFILE=1` adds per-stage rows to our side: `stage_*_ms` is the
+time spent in each replaceable stage of `Mesh3DPipeline` (the public hooks, wrapped with a clock; summed over tiles, best of several
+runs), `stage_other_ms` the rest (triangle binning, voxelizing, tile data, stitching) and `stage_voxelize_standalone_ms` the voxelize step
+timed alone. Setting `ONEPATH_TC_VARIANT=layers` makes the `tilecache` rows use the partition and detail work DetourTileCache does on a
+rebuild (layer partition, no detail sampling) instead of watershed with detail sampling; the settings row says which one ran.
 
 ## Running the full reference rows
 

@@ -54,8 +54,17 @@ internal static class OursTileCache
             obstacles.Add(TileObstacle.Cylinder((double)(float)p.X, (double)(float)(p.Y - 0.5f), (double)(float)p.Z, radius, height));
         }
 
-        var pipeline = new Mesh3DPipeline(OursBuild.SettingsFor(verts, true, tileCells));
+        // ONEPATH_TC_VARIANT=layers: the partition and detail work DetourTileCache does on a rebuild (monotone regions on height layers, polygon
+        // heights from the layer, no detail sampling) instead of our default watershed with detail sampling. The default rows stay the default.
+        NavSettings settings = OursBuild.SettingsFor(verts, true, tileCells);
+        bool layersVariant = Environment.GetEnvironmentVariable("ONEPATH_TC_VARIANT") == "layers";
+        if (layersVariant)
+        {
+            settings = settings with { Partition = PartitionType.Layers, DetailSampleDistance = 0 };
+        }
+        var pipeline = new Mesh3DPipeline(settings);
         var buildTimes = new List<double>();
+        OursBuild.WarmUp(() => pipeline.BuildSoupCached(verts, idx));
         var cycleTimes = new List<double>();
         TileCache? cache = null;
         for (int rep = 0; rep < reps; rep++)
@@ -77,6 +86,7 @@ internal static class OursTileCache
         }
         var initial = Measure();
         (int Polys, double Area) stacked = default, restored = default;
+        WarmUpCycle(cache!, obstacles);
         for (int rep = 0; rep < reps; rep++)
         {
             var ids = new int[count];
@@ -116,8 +126,9 @@ internal static class OursTileCache
         }
 
         Row R(string metric, double v, string unit) => new(row.Part, row.Id, side, metric, v.ToString("R", CultureInfo.InvariantCulture), unit);
-        return
-        [
+        List<Row> profile = Environment.GetEnvironmentVariable("ONEPATH_PROFILE") == "1" ? StageProfile.RunCycle(row, verts, idx, settings, obstacles) : new List<Row>();
+        var rows = new List<Row>
+        {
             R("time_best", cycleTimes[0], "ms"),
             R("time_median", cycleTimes[cycleTimes.Count / 2], "ms"),
             R("cache_build_time", buildTimes[0], "ms"),
@@ -132,8 +143,28 @@ internal static class OursTileCache
             R("layers", cache.CachedTileCount, "count"),
             R("input_tris", idx.Length / 3, "count"),
             R("peak_rss", Process.GetCurrentProcess().PeakWorkingSet64 / (1024.0 * 1024.0), "MB"),
-        ];
+            new Row(row.Part, row.Id, side, "settings", OursBuild.Describe(true, tileCells) + (layersVariant ? " partition=layers detail-sampling=off" : " partition=watershed"), "text"),
+        };
+        rows.AddRange(profile);
+        return rows;
     }
+
+    /// <summary>Untimed add-and-remove cycles until the runtime has optimized the rebuild path (three in a row within 5%, at most 40 or 30 s).</summary>
+    private static void WarmUpCycle(TileCache cache, List<TileObstacle> obstacles) => OursBuild.WarmUp(() =>
+    {
+        var ids = new int[obstacles.Count];
+        for (int k = 0; k < obstacles.Count; k++)
+        {
+            ids[k] = cache.AddObstacle(obstacles[k]);
+            cache.UpdateAll();
+        }
+
+        for (int k = 0; k < obstacles.Count; k++)
+        {
+            cache.RemoveObstacle(ids[k]);
+            cache.UpdateAll();
+        }
+    });
 
     private static double Ms(long start) => (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
 }
