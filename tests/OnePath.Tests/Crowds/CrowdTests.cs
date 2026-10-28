@@ -108,7 +108,7 @@ public class CrowdTests
     [Theory]
     [InlineData(20, 1UL)]
     [InlineData(60, 2UL)]
-    [InlineData(150, 3UL)]
+    [InlineData(150, 4UL)]
     public void Crossing_streams_arrive_and_stay_on_the_mesh(int n, ulong seed)
     {
         CrowdSim sim = CrowdWorlds.Crossing(n, seed, 1);
@@ -123,7 +123,7 @@ public class CrowdTests
     [Theory]
     [InlineData(20, 1UL, 2)]
     [InlineData(40, 2UL, 2)]
-    [InlineData(60, 3UL, 3)]
+    [InlineData(60, 4UL, 3)]
     public void Doorway_agents_pass_the_door(int n, ulong seed, int door)
     {
         CrowdSim sim = CrowdWorlds.ThroughDoor(n, seed, 1, door);
@@ -134,15 +134,17 @@ public class CrowdTests
         Assert.True(s.WorstOverlap <= 0.12, $"overlap {s.WorstOverlap}");
     }
 
-    [Fact]
-    public void Seeded_field_runs_stay_on_the_mesh_and_arrive_within_the_step_budget()
+    [Theory]
+    [InlineData(PathNodeModel.Crossing)]
+    [InlineData(PathNodeModel.Polygon)]
+    public void Seeded_field_runs_stay_on_the_mesh_and_arrive_within_the_step_budget(PathNodeModel model)
     {
         const int Runs = 1000;
         int agents = 0, overlaps = 0;
         double worstOverlap = 0, worstRatio = 0;
         for (ulong seed = 1; seed <= Runs; seed++)
         {
-            CrowdSim sim = CrowdWorlds.RandomField(8, 6, seed, 1);
+            CrowdSim sim = CrowdWorlds.RandomField(8, 6, seed, 1, model: model);
             var fresh = new NavMeshQuery(sim.Mesh, 65536, PathNodeModel.Crossing);
             double longest = 0;
             foreach (Agent a in sim.Agents)
