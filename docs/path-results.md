@@ -39,6 +39,24 @@ then `Found` or `NoPath`. The raw engines (`AStar`, `JumpSearch`, `ThetaSearch`,
 `Agent.SetDestination` returns a `PathStatus`: `Found`, `Partial`, `InProgress`, `GoalInvalid` (nothing walkable near the destination)
 or `StartInvalid` (the agent is not on the mesh).
 
+## Positions that are not on the mesh
+
+One rule across the crowd members: a position with no walkable polygon near it is an expected outcome, reported by the member's result, except
+where the member returns the new agent itself.
+
+| Member | Off the mesh |
+|---|---|
+| `NavMesh.FindPath`, `NavWorld.FindPath` | `PathStatus.StartInvalid` / `GoalInvalid` in the result |
+| `Agent.SetDestination` | `GoalInvalid` (or `StartInvalid` when the agent itself is off the mesh) |
+| `Agent.Teleport` | returns `false`, nothing changes |
+| `NavMesh.TrySamplePosition`, `Raycast` | `false` / blocked |
+| `Crowd.TryAdd` | returns `false`, `agent` is null |
+| `Crowd.Add` | throws `ArgumentException` naming `position` (its behaviour since 1.0.0) |
+
+`Crowd.Add` and `Crowd.TryAdd` also refuse when the crowd holds `CrowdOptions.MaxAgents` agents: `Add` throws `InvalidOperationException`, `TryAdd`
+returns `false` (compare `Count` with `Options.MaxAgents` to tell the two refusals apart). Coordinates that are not finite or beyond ±2^21 and
+settings out of range are mistakes in the call, not outcomes: both members throw `ArgumentOutOfRangeException`.
+
 ## Tier 2 and 3 keep their detail
 
 `QueryStatus` (namespace `RecursiveAI.OnePath.Mesh.Queries`) is the polygon-level outcome of `NavMeshQuery`'s sliced and span forms,

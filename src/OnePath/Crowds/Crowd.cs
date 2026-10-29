@@ -122,11 +122,48 @@ public sealed partial class Crowd : IEnumerable<Agent>
         {
             throw new InvalidOperationException($"The crowd already holds {_opt.MaxAgents} agents.");
         }
-        var follower = new PathFollower(options.ToFollowerOptions());
-        if (!follower.Place(GetWorker(0).Query, position, _opt.Filter))
+        PathFollower follower = PlaceFollower(position, options)
+            ?? throw new ArgumentException($"No walkable polygon near ({position.X}, {position.Y}, {position.Z}).", nameof(position));
+        return Insert(options, follower);
+    }
+
+    /// <summary>
+    /// Adds an agent like <see cref="Add"/>, but reports the two expected refusals as <c>false</c> instead of throwing: there is no walkable
+    /// polygon near the position, or the crowd already holds <see cref="CrowdOptions.MaxAgents"/> agents (tell them apart with
+    /// <see cref="Count"/> against <see cref="Options"/>). Mistakes in the call itself still throw, as they do for <see cref="Add"/>.
+    /// </summary>
+    /// <param name="position">World position.</param>
+    /// <param name="options">Agent settings; null means <see cref="Agent.Humanoid"/>.</param>
+    /// <param name="agent">The new agent, or null when false is returned.</param>
+    /// <returns>True when the agent was added.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">A coordinate is not finite or is beyond ±2^21, or a setting is out of range.</exception>
+    public bool TryAdd(Vector3D position, AgentOptions? options, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Agent? agent)
+    {
+        options ??= Agent.Humanoid;
+        options.Validate();
+        NavMeshQuery.CheckPos(position, nameof(position));
+        agent = null;
+        if (_count >= _opt.MaxAgents)
         {
-            throw new ArgumentException($"No walkable polygon near ({position.X}, {position.Y}, {position.Z}).", nameof(position));
+            return false;
         }
+        PathFollower? follower = PlaceFollower(position, options);
+        if (follower is null)
+        {
+            return false;
+        }
+        agent = Insert(options, follower);
+        return true;
+    }
+
+    private PathFollower? PlaceFollower(Vector3D position, AgentOptions options)
+    {
+        var follower = new PathFollower(options.ToFollowerOptions());
+        return follower.Place(GetWorker(0).Query, position, _opt.Filter) ? follower : null;
+    }
+
+    private Agent Insert(AgentOptions options, PathFollower follower)
+    {
         int slot = _lowestFree;
         while (slot < _slotCount && (_flags[slot] & FlagActive) != 0)
         {

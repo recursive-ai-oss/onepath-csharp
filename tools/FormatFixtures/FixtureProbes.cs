@@ -37,6 +37,12 @@ internal static class FixtureProbes
         "graph", "landmarks",
     ];
 
+    /// <summary>The fixtures added by release 1.1.0.</summary>
+    internal static readonly string[] Names11 = ["navmesh-tier1", "navworld-tier1"];
+
+    /// <summary>The names of the fixtures a release directory holds.</summary>
+    internal static string[] NamesOf(string release) => release == "1.1.0" ? Names11 : Names;
+
     // ------------------------------------------------------------------ shared pieces
 
     /// <summary>Little-endian transcript builder.</summary>
@@ -191,12 +197,76 @@ internal static class FixtureProbes
             case "flow-hex-partial": FlowProbe(bytes, true, false, tx); break;
             case "graph": GraphProbe(Graph.FromState(bytes), null, tx); break;
             case "landmarks": LandmarksProbe(bytes, tx); break;
+            case "navmesh-tier1": Tier1Probe(NavMesh.Load(bytes), tx); break;
+            case "navworld-tier1": WorldProbe(NavWorld.Load(bytes), tx); break;
             default: throw new ArgumentException("No probe for fixture " + name, nameof(name));
         }
         return tx.Digest();
     }
 
     // ------------------------------------------------------------------ navmesh
+
+    private static void Tier1Probe(NavMesh nav, Tx tx)
+    {
+        NavSettings st = nav.Settings;
+        tx.D(st.AgentRadius);
+        tx.D(st.AgentHeight);
+        tx.D(st.WalkableClimb);
+        tx.D(st.CellSize);
+        tx.D(st.TileSize);
+        tx.D(st.FloorY);
+        tx.I(st.OffMeshLinks.Count);
+        tx.I((int)st.Partition);
+        MeshProbe(nav.Tiles, tx);
+        double cx = nav.Settings.OriginX;
+        for (int i = 0; i < 6; i++)
+        {
+            var a = new Vector3D(cx + 1.5 + i, 0, 1.5);
+            var b = new Vector3D(cx + 14 - i, 0, 14 - (2 * i));
+            PathResult r = nav.FindPath(a, b);
+            tx.I((int)r.Status);
+            tx.D(r.Cost);
+            tx.I(r.Points.Count);
+            for (int k = 0; k < r.Points.Count; k++)
+            {
+                tx.D(r.Points[k].Position.X);
+                tx.D(r.Points[k].Position.Y);
+                tx.D(r.Points[k].Position.Z);
+            }
+            tx.I(nav.TrySamplePosition(b, 2, out Vector3D snapped) ? 1 : 0);
+            tx.D(snapped.X);
+            tx.D(snapped.Z);
+            tx.I(nav.Raycast(a, b, out NavMeshHit hit) ? 1 : 0);
+            tx.D(hit.Position.X);
+            tx.D(hit.Position.Z);
+        }
+        var rng = new SeededRandom(7);
+        for (int i = 0; i < 4; i++)
+        {
+            tx.I(nav.TryGetRandomPoint(ref rng, out Vector3D p) ? 1 : 0);
+            tx.D(p.X);
+            tx.D(p.Z);
+        }
+        Crowd crowd = nav.CreateCrowd();
+        Agent agent = crowd.Add(new Vector3D(cx + 2, 0, 2), Agent.Humanoid);
+        tx.I((int)agent.SetDestination(new Vector3D(cx + 13, 0, 13)));
+        for (int s = 0; s < 40; s++)
+        {
+            crowd.Step(1.0 / 30.0);
+        }
+        tx.D(agent.Position.X);
+        tx.D(agent.Position.Z);
+    }
+
+    private static void WorldProbe(NavWorld world, Tx tx)
+    {
+        tx.I(world.ClassCount);
+        for (int i = 0; i < world.ClassCount; i++)
+        {
+            Tier1Probe(world[i], tx);
+        }
+        tx.I(world.ClassFor(0.4));
+    }
 
     private static void MeshProbe(TiledNavMesh m, Tx tx)
     {

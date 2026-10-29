@@ -32,8 +32,11 @@ public class FormatFixtureTests
         "graph", "landmarks",
     ];
 
+    // Added by release 1.1.0.
+    private static readonly string[] Names110 = ["navmesh-tier1", "navworld-tier1"];
+
     // Release directories that must exist. A later release appends its own entry (and its own names list when it adds formats).
-    private static readonly (string Release, string[] Names)[] Releases = [("1.0.0", Names100)];
+    private static readonly (string Release, string[] Names)[] Releases = [("1.0.0", Names100), ("1.1.0", Names110)];
 
     private static string Dir(string release) => Path.Combine(AppContext.BaseDirectory, "Fixtures", release);
 
@@ -93,7 +96,7 @@ public class FormatFixtureTests
         {
             foreach (string n in names)
             {
-                Assert.Contains(n, FixtureProbes.Names);
+                Assert.Contains(n, FixtureProbes.Names.Concat(FixtureProbes.Names11));
             }
         }
     }
@@ -153,6 +156,10 @@ public class FormatFixtureTests
         ["GridFlowField.SaveState"] = ["flow-square-partial", "flow-square-repair", "flow-hex-partial"],
         ["Graph.SaveState"] = ["graph"],
         ["Landmarks.Serialize"] = ["landmarks"],
+        ["NavMesh.Save"] = ["navmesh-tier1"],
+        ["NavMesh.TrySave"] = ["navmesh-tier1"],
+        ["NavWorld.Save"] = ["navworld-tier1"],
+        ["NavWorld.TrySave"] = ["navworld-tier1"],
     };
 
     // Public byte writers that are not saved state: identifiers copied out for a host's own keys, and a scratch classification buffer.
@@ -197,11 +204,11 @@ public class FormatFixtureTests
         {
             foreach (string f in fixtures)
             {
-                Assert.Contains(f, Names100);
+                Assert.Contains(f, Names100.Concat(Names110));
             }
         }
         // Every fixture is claimed by a writer.
-        foreach (string n in Names100)
+        foreach (string n in Names100.Concat(Names110))
         {
             Assert.Contains(Writers.Values, v => v.Contains(n));
         }

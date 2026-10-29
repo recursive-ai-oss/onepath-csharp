@@ -12,6 +12,7 @@ using RecursiveAI.OnePath.Grids;
 using RecursiveAI.OnePath.Grids.Voxel;
 using RecursiveAI.OnePath.HashMatrix;
 using RecursiveAI.OnePath.Mesh;
+using RecursiveAI.OnePath.Mesh.Build2D;
 using RecursiveAI.OnePath.Mesh.Build3D;
 using RecursiveAI.OnePath.Mesh.Queries;
 using RecursiveAI.OneMath;
@@ -32,8 +33,16 @@ internal static class Program
         string dir = args[0];
         Directory.CreateDirectory(dir);
         var files = new Dictionary<string, byte[]>();
-        Scenes.Make(files);
-        foreach (string name in FixtureProbes.Names)
+        string[] names = FixtureProbes.NamesOf(Path.GetFileName(Path.GetFullPath(dir)));
+        if (names == FixtureProbes.Names)
+        {
+            Scenes.Make(files);
+        }
+        else
+        {
+            Scenes.Make11(files);
+        }
+        foreach (string name in names)
         {
             if (!files.ContainsKey(name))
             {
@@ -41,7 +50,7 @@ internal static class Program
                 return 1;
             }
         }
-        if (files.Count != FixtureProbes.Names.Length)
+        if (files.Count != names.Length)
         {
             Console.Error.WriteLine("scenes wrote a fixture that has no probe");
             return 1;
@@ -49,7 +58,7 @@ internal static class Program
         var manifest = new StringBuilder();
         manifest.Append("# name\tbytes\tfile-sha256\tprobe-sha256\twritten-by\n");
         int total = 0;
-        foreach (string name in FixtureProbes.Names)
+        foreach (string name in names)
         {
             byte[] bytes = files[name];
             File.WriteAllBytes(Path.Combine(dir, name + ".bin"), bytes);
@@ -99,7 +108,34 @@ internal static class Scenes
         ["flow-hex-partial"] = "GridFlowField.SaveState (hex, part way)",
         ["graph"] = "Graph.SaveState",
         ["landmarks"] = "Landmarks.Serialize",
+        ["navmesh-tier1"] = "NavMesh.Save",
+        ["navworld-tier1"] = "NavWorld.Save",
     };
+
+    // Release 1.1.0: the tier-1 envelopes around a small tile-map level (two walls, an off-mesh link) built at two agent sizes.
+    internal static void Make11(Dictionary<string, byte[]> f)
+    {
+        const int W = 16, H = 16;
+        var cells = new bool[W * H];
+        for (int y = 0; y < H; y++)
+        {
+            for (int x = 0; x < W; x++)
+            {
+                cells[(y * W) + x] = !((x == 5 && y != 3 && y != 10) || (y == 8 && x > 9));
+            }
+        }
+        NavSettings humanoid = NavSettings.Humanoid with
+        {
+            CellSize = 0.5,
+            TileSize = 8,
+            OffMeshLinks = [OffMeshLinkDefinition.Create(new Vector3D(4.5, 0, 6), new Vector3D(6.5, 0, 6), 9)],
+        };
+        NavMesh nav = NavMesh.Build2D(cells, W, H, 1.0, new Vector2D(0, 0), humanoid);
+        f["navmesh-tier1"] = nav.Save();
+        var small = NavSettings.Small with { CellSize = 0.5, TileSize = 8 };
+        var rings = new Vector2D[] { new(0, 0), new(16, 0), new(16, 16), new(0, 16) };
+        f["navworld-tier1"] = NavWorld.Build2D([new Outline(rings)], humanoid with { OffMeshLinks = [] }, small).Save();
+    }
 
     private static TiledNavMesh BaseMesh() => NavMeshWorlds.RandomMesh(FixtureProbes.CrowdWorldSeed, 0, 0, 2, 1, 2, detail: false, offMesh: 2);
 
