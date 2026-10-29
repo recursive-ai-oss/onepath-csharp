@@ -103,24 +103,24 @@ public sealed record AgentOptions
     /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> naming the first field out of range.</summary>
     public void Validate()
     {
-        Check(nameof(Radius), Radius > 0 && Radius < 1000, Radius);
-        Check(nameof(MaxSpeed), MaxSpeed > 0 && double.IsFinite(MaxSpeed) && MaxSpeed < 1e6, MaxSpeed);
-        Check(nameof(MaxAcceleration), MaxAcceleration > 0 && double.IsFinite(MaxAcceleration), MaxAcceleration);
-        Check(nameof(ArrivalRadius), ArrivalRadius >= 0 && double.IsFinite(ArrivalRadius), ArrivalRadius);
-        Check(nameof(Priority), Priority > 0 && double.IsFinite(Priority), Priority);
-        Check(nameof(Quality), Quality <= AvoidanceQuality.High, Quality);
-        Check(nameof(WallClearance), WallClearance >= 0 && double.IsFinite(WallClearance), WallClearance);
-        Check(nameof(SeparationDistance), SeparationDistance >= 0 && double.IsFinite(SeparationDistance), SeparationDistance);
-        Check(nameof(SeparationWeight), SeparationWeight >= 0 && SeparationWeight <= 1, SeparationWeight);
-        Check(nameof(SidePreference), SidePreference >= 0 && SidePreference <= 0.5, SidePreference);
+        Check(nameof(Radius), Radius > 0 && Radius < 1000, Radius, "above 0 and below 1000");
+        Check(nameof(MaxSpeed), MaxSpeed > 0 && double.IsFinite(MaxSpeed) && MaxSpeed < 1e6, MaxSpeed, "above 0, finite and below 1,000,000");
+        Check(nameof(MaxAcceleration), MaxAcceleration > 0 && double.IsFinite(MaxAcceleration), MaxAcceleration, "above 0 and finite");
+        Check(nameof(ArrivalRadius), ArrivalRadius >= 0 && double.IsFinite(ArrivalRadius), ArrivalRadius, "0 or more and finite");
+        Check(nameof(Priority), Priority > 0 && double.IsFinite(Priority), Priority, "above 0 and finite");
+        Check(nameof(Quality), Quality <= AvoidanceQuality.High, Quality, "Off, Low, Medium or High");
+        Check(nameof(WallClearance), WallClearance >= 0 && double.IsFinite(WallClearance), WallClearance, "0 or more and finite");
+        Check(nameof(SeparationDistance), SeparationDistance >= 0 && double.IsFinite(SeparationDistance), SeparationDistance, "0 or more and finite");
+        Check(nameof(SeparationWeight), SeparationWeight >= 0 && SeparationWeight <= 1, SeparationWeight, "0 to 1");
+        Check(nameof(SidePreference), SidePreference >= 0 && SidePreference <= 0.5, SidePreference, "0 to 0.5");
         ToFollowerOptions().Validate();
     }
 
-    private static void Check(string name, bool ok, object value)
+    private static void Check(string name, bool ok, object value, string rule)
     {
         if (!ok)
         {
-            throw new ArgumentOutOfRangeException(name, value, $"{name} is out of range.");
+            throw new ArgumentOutOfRangeException(name, value, $"{name} must be {rule}.");
         }
     }
 }
@@ -171,20 +171,20 @@ public sealed record CrowdOptions
     /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> naming the first field out of range.</summary>
     public void Validate()
     {
-        Check(nameof(MaxAgents), MaxAgents is >= 1 and <= 4_000_000, MaxAgents);
-        Check(nameof(MaxThreads), MaxThreads >= 1, MaxThreads);
-        Check(nameof(QueryNodes), QueryNodes is >= 64 and <= 4_000_000, QueryNodes);
-        Check(nameof(QueryNodeModel), QueryNodeModel is PathNodeModel.Crossing or PathNodeModel.Polygon, QueryNodeModel);
-        Check(nameof(MaxWallsPerAgent), MaxWallsPerAgent is >= 4 and <= 1024, MaxWallsPerAgent);
-        Check(nameof(WallRefreshDistance), WallRefreshDistance > 0 && double.IsFinite(WallRefreshDistance), WallRefreshDistance);
-        Check(nameof(MaxWallsAvoided), MaxWallsAvoided is >= 1 and <= 64, MaxWallsAvoided);
+        Check(nameof(MaxAgents), MaxAgents is >= 1 and <= 4_000_000, MaxAgents, "1 to 4,000,000");
+        Check(nameof(MaxThreads), MaxThreads >= 1, MaxThreads, "at least 1");
+        Check(nameof(QueryNodes), QueryNodes is >= 64 and <= 4_000_000, QueryNodes, "64 to 4,000,000");
+        Check(nameof(QueryNodeModel), QueryNodeModel is PathNodeModel.Crossing or PathNodeModel.Polygon, QueryNodeModel, "Crossing or Polygon");
+        Check(nameof(MaxWallsPerAgent), MaxWallsPerAgent is >= 4 and <= 1024, MaxWallsPerAgent, "4 to 1024");
+        Check(nameof(WallRefreshDistance), WallRefreshDistance > 0 && double.IsFinite(WallRefreshDistance), WallRefreshDistance, "above 0 and finite");
+        Check(nameof(MaxWallsAvoided), MaxWallsAvoided is >= 1 and <= 64, MaxWallsAvoided, "1 to 64");
     }
 
-    private static void Check(string name, bool ok, object value)
+    private static void Check(string name, bool ok, object value, string rule)
     {
         if (!ok)
         {
-            throw new ArgumentOutOfRangeException(name, value, $"{name} is out of range.");
+            throw new ArgumentOutOfRangeException(name, value, $"{name} must be {rule}.");
         }
     }
 }

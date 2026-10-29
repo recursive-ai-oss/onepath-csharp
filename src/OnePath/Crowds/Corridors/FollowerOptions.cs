@@ -111,37 +111,37 @@ public sealed record FollowerOptions
     /// <exception cref="ArgumentOutOfRangeException">A value is out of range; the message names the field.</exception>
     public void Validate()
     {
-        Check(nameof(MaxSpeed), MaxSpeed > 0 && double.IsFinite(MaxSpeed), MaxSpeed);
-        Check(nameof(MaxAcceleration), MaxAcceleration > 0, MaxAcceleration);
-        Check(nameof(SlowRadius), SlowRadius >= 0 && double.IsFinite(SlowRadius), SlowRadius);
-        Check(nameof(ArrivalMinSpeed), ArrivalMinSpeed >= 0 && ArrivalMinSpeed <= MaxSpeed, ArrivalMinSpeed);
-        Check(nameof(ArrivalRadius), ArrivalRadius >= 0 && double.IsFinite(ArrivalRadius), ArrivalRadius);
-        Check(nameof(CornerClearance), CornerClearance >= 0 && double.IsFinite(CornerClearance), CornerClearance);
-        Check(nameof(MaxCorners), MaxCorners is >= 2 and <= 64, MaxCorners);
-        Check(nameof(ValidateLookAhead), ValidateLookAhead >= 1, ValidateLookAhead);
-        Check(nameof(OptimizeInterval), OptimizeInterval >= 0, OptimizeInterval);
-        Check(nameof(OptimizeRange), OptimizeRange > 0 && double.IsFinite(OptimizeRange), OptimizeRange);
-        Check(nameof(OptimizeBudget), OptimizeBudget >= 2, OptimizeBudget);
-        Check(nameof(TopologyInterval), TopologyInterval >= 0, TopologyInterval);
-        Check(nameof(TopologyBudget), TopologyBudget >= 1, TopologyBudget);
-        Check(nameof(RefineBudget), RefineBudget >= 0, RefineBudget);
-        Check(nameof(ReplanBudget), ReplanBudget >= 1, ReplanBudget);
-        Check(nameof(MaxReplanRounds), MaxReplanRounds >= 1, MaxReplanRounds);
-        Check(nameof(StuckWindow), StuckWindow >= 0 && double.IsFinite(StuckWindow), StuckWindow);
-        Check(nameof(StuckProgress), StuckProgress >= 0 && StuckProgress <= 1, StuckProgress);
-        Check(nameof(MaxStuckRecoveries), MaxStuckRecoveries >= 0, MaxStuckRecoveries);
-        Check(nameof(OffMeshSpeed), OffMeshSpeed > 0 && double.IsFinite(OffMeshSpeed), OffMeshSpeed);
-        Check(nameof(OffMeshTriggerRadius), OffMeshTriggerRadius >= 0 && double.IsFinite(OffMeshTriggerRadius), OffMeshTriggerRadius);
-        Check(nameof(SearchExtents), double.IsFinite(SearchExtents.X) && double.IsFinite(SearchExtents.Y) && double.IsFinite(SearchExtents.Z) && SearchExtents.X >= 0 && SearchExtents.Y >= 0 && SearchExtents.Z >= 0, SearchExtents);
-        Check(nameof(CorridorCapacity), CorridorCapacity is >= 2 and <= PathCorridor.MaxCapacity, CorridorCapacity);
-        Check(nameof(OffMeshMode), OffMeshMode is OffMeshMode.Automatic or OffMeshMode.Host, OffMeshMode);
+        Check(nameof(MaxSpeed), MaxSpeed > 0 && double.IsFinite(MaxSpeed), MaxSpeed, "above 0 and finite");
+        Check(nameof(MaxAcceleration), MaxAcceleration > 0, MaxAcceleration, "above 0");
+        Check(nameof(SlowRadius), SlowRadius >= 0 && double.IsFinite(SlowRadius), SlowRadius, "0 or more and finite");
+        Check(nameof(ArrivalMinSpeed), ArrivalMinSpeed >= 0 && ArrivalMinSpeed <= MaxSpeed, ArrivalMinSpeed, "0 to MaxSpeed");
+        Check(nameof(ArrivalRadius), ArrivalRadius >= 0 && double.IsFinite(ArrivalRadius), ArrivalRadius, "0 or more and finite");
+        Check(nameof(CornerClearance), CornerClearance >= 0 && double.IsFinite(CornerClearance), CornerClearance, "0 or more and finite");
+        Check(nameof(MaxCorners), MaxCorners is >= 2 and <= 64, MaxCorners, "2 to 64");
+        Check(nameof(ValidateLookAhead), ValidateLookAhead >= 1, ValidateLookAhead, "at least 1");
+        Check(nameof(OptimizeInterval), OptimizeInterval >= 0, OptimizeInterval, "0 or more");
+        Check(nameof(OptimizeRange), OptimizeRange > 0 && double.IsFinite(OptimizeRange), OptimizeRange, "above 0 and finite");
+        Check(nameof(OptimizeBudget), OptimizeBudget >= 2, OptimizeBudget, "at least 2");
+        Check(nameof(TopologyInterval), TopologyInterval >= 0, TopologyInterval, "0 or more");
+        Check(nameof(TopologyBudget), TopologyBudget >= 1, TopologyBudget, "at least 1");
+        Check(nameof(RefineBudget), RefineBudget >= 0, RefineBudget, "0 or more");
+        Check(nameof(ReplanBudget), ReplanBudget >= 1, ReplanBudget, "at least 1");
+        Check(nameof(MaxReplanRounds), MaxReplanRounds >= 1, MaxReplanRounds, "at least 1");
+        Check(nameof(StuckWindow), StuckWindow >= 0 && double.IsFinite(StuckWindow), StuckWindow, "0 or more and finite");
+        Check(nameof(StuckProgress), StuckProgress >= 0 && StuckProgress <= 1, StuckProgress, "0 to 1");
+        Check(nameof(MaxStuckRecoveries), MaxStuckRecoveries >= 0, MaxStuckRecoveries, "0 or more");
+        Check(nameof(OffMeshSpeed), OffMeshSpeed > 0 && double.IsFinite(OffMeshSpeed), OffMeshSpeed, "above 0 and finite");
+        Check(nameof(OffMeshTriggerRadius), OffMeshTriggerRadius >= 0 && double.IsFinite(OffMeshTriggerRadius), OffMeshTriggerRadius, "0 or more and finite");
+        Check(nameof(SearchExtents), double.IsFinite(SearchExtents.X) && double.IsFinite(SearchExtents.Y) && double.IsFinite(SearchExtents.Z) && SearchExtents.X >= 0 && SearchExtents.Y >= 0 && SearchExtents.Z >= 0, SearchExtents, "finite and 0 or more on every axis");
+        Check(nameof(CorridorCapacity), CorridorCapacity is >= 2 and <= PathCorridor.MaxCapacity, CorridorCapacity, "2 to 4096");
+        Check(nameof(OffMeshMode), OffMeshMode is OffMeshMode.Automatic or OffMeshMode.Host, OffMeshMode, "Automatic or Host");
     }
 
-    private static void Check(string name, bool ok, object value)
+    private static void Check(string name, bool ok, object value, string rule)
     {
         if (!ok)
         {
-            throw new ArgumentOutOfRangeException(name, value, $"{name} is out of range.");
+            throw new ArgumentOutOfRangeException(name, value, $"{name} must be {rule}.");
         }
     }
 }

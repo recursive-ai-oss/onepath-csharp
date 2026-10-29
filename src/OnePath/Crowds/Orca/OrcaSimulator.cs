@@ -51,7 +51,7 @@ public sealed class OrcaSimulator
         get => _maxThreads;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1, nameof(MaxThreads));
             _maxThreads = value;
         }
     }

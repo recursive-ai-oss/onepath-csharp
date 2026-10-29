@@ -30,7 +30,7 @@ has not begun), so `default` means "nothing happened". The success value is 1 in
 | `Cost` | search cost, +∞ without a path | same | same | corridor cost under the filter |
 | `Length` | polyline length of `Points`; 0 without a path; NaN when a path exists but the query made no points | same | same (plain graphs: NaN) | straight-path length, 0 without a path |
 | Discrete path | `Cells` | `Cells` | `Nodes` | `Corridor` (polygons) |
-| World-space path | `Points` (`WorldPoint`) | `Points` (`VoxelPoint`) | `Points` (`Point3`, point graphs) | `Points` (`StraightPathPoint`) |
+| World-space path | `Points` (`WorldPoint`; the `Cell` overload of `FindPath` leaves it empty, `Grid.FindPathWithPoints` fills it through `Grid.Space`) | `Points` (`VoxelPoint`) | `Points` (`Point3`, point graphs) | `Points` (`StraightPathPoint`) |
 
 `GridSearch.Status` and `GridSearch.Step` speak the same vocabulary: `None` before a search has begun, `InProgress` while it has work left,
 then `Found` or `NoPath`. The raw engines (`AStar`, `JumpSearch`, `ThetaSearch`, `GraphAStar`) keep `SearchStatus`
