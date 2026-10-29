@@ -404,6 +404,19 @@ public sealed partial class Grid
     /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
     public GridPath FindPath(Cell start, Cell goal, GridOptions? options = null, CancellationToken cancellationToken = default) => FindPathCore(start, goal, options ?? DefaultOptions, false, cancellationToken);
 
+    /// <summary>
+    /// As <see cref="FindPath(Cell, Cell, GridOptions?, CancellationToken)"/>, but the result also carries <see cref="GridPath.Points"/>: the cell centres in world space
+    /// through <see cref="Space"/>, so <see cref="GridPath.Length"/> is the polyline length instead of NaN. The status, cost and cells are exactly those of the plain
+    /// cell form; with the default unit <see cref="Space"/> the points are the cell centres (x + 0.5, y + 0.5).
+    /// </summary>
+    /// <param name="start">Start cell.</param>
+    /// <param name="goal">Goal cell.</param>
+    /// <param name="options">Query options; null means <see cref="GridOptions.Default"/>.</param>
+    /// <param name="cancellationToken">Checked every 256 iterations; cancelling throws <see cref="OperationCanceledException"/> and leaves the grid unchanged.</param>
+    /// <returns>The result; check <see cref="GridPath.Status"/>.</returns>
+    /// <exception cref="OperationCanceledException">Cancellation was requested.</exception>
+    public GridPath FindPathWithPoints(Cell start, Cell goal, GridOptions? options = null, CancellationToken cancellationToken = default) => FindPathCore(start, goal, options ?? DefaultOptions, true, cancellationToken);
+
     /// <summary>Finds a least-cost path between two world positions (their containing cells); the result carries world-space cell centres.</summary>
     /// <param name="start">Start position.</param>
     /// <param name="goal">Goal position.</param>

@@ -22,6 +22,7 @@ A filter decides which polygons may be used and prices travel:
   one flag bit must match), `ExcludeFlags` (default 0; any match rejects), per-area multipliers `WithAreaCost(area, cost)` (returns a new filter; a filter is immutable once built)
   (default 1; `+∞` forbids the area; costs must be > 0), and an optional `Func<ushort, byte, bool>` predicate.
 - `IQueryFilter` (struct generic, for speed): `Passes(flags, area)`, `AreaCost(area)`, `MinAreaCost`.
+- `DefaultQueryFilter` is the struct form of `new QueryFilter()` (every polygon passes, every area costs 1, `MinAreaCost` 1): same results, and it lets the span `FindPath<TFilter>` run allocation-free without writing a filter.
   `MinAreaCost` must not exceed the true minimum area cost or paths stop being optimal; 0 disables the heuristic.
 
 Off-mesh links are tested with their own flags and area as well as the target polygon's.

@@ -164,6 +164,38 @@ The body must be exactly as long as the counts imply; the reader checks this bef
 The parameter block is offsets 8..75 (68 bytes); snapshots reuse it verbatim. Reading restores the slots exactly (free slots and generations too) and stitches once. Duplicate (column, row, layer)
 positions are an error.
 
+### Tier-1 envelopes (`ONNM`, `ONNW`; added in release 1.1.0)
+
+`NavMesh.Save` wraps the frozen mesh bytes above, unchanged, in an envelope that also carries the `NavSettings` the mesh was built with, so
+`NavMesh.Load` returns a tier-1 mesh without the caller repeating the settings. The mesh layout and version stay 2. All integers are little-endian.
+
+`ONNM` (one mesh):
+
+| Field | Size | Notes |
+|---|---|---|
+| magic | 4 | `4F 4E 4E 4D` |
+| version | 2 | 1 |
+| flags | 2 | 0 |
+| AgentRadius, AgentHeight, WalkableClimb, AgentMaxSlopeDegrees, CellSize, TileSize, CellHeight, OriginX, OriginZ | 9 × 8 | double |
+| MaxVertsPerPoly | 4 | i32 |
+| FloorY | 8 | double |
+| Area, Flags | 1 + 2 | u8, u16 |
+| SnapBits present, SnapBits | 1 + 4 | u8 (0/1), i32 (0 when absent) |
+| Partition, MinRegionArea, MergeRegionArea | 3 × 4 | i32 each; Partition must be a defined value |
+| ContourMaxError, MaxEdgeLength, DetailSampleDistance, DetailMaxError | 4 × 8 | double |
+| link count *L* | 4 | u32, at most remaining bytes / 64 |
+| per link | 64 | Start xyz, End xyz, Radius (7 × double), Bidirectional u8 (0/1), Area u8, Flags u16, UserId u32 |
+| mesh length | 4 | u32 |
+| mesh | … | the `ONPM` bytes above; nothing may follow |
+
+The reader builds the settings through their validating setters (a value out of range is a `NavMeshFormatException` naming it), reads the
+mesh, and requires the parameter block the settings produce (grid, agent class and settings digest) to equal the mesh's, else
+`NavMeshFingerprintException`. A caller-supplied `NavSettings` is checked the same way. Bare `ONPM` bytes are also accepted by `NavMesh.Load`
+when the caller supplies the settings.
+
+`ONNW` (a `NavWorld`): magic `4F 4E 4E 57`, u16 version 1, u16 flags 0, u32 class count (1 or more, at most remaining bytes / 8), then per
+class a u32 length and an `ONNM` envelope; nothing may follow. The classes keep their order.
+
 ## Behaviour on bad input
 
 Deserialization and `NavTile.Create` never index out of range on hostile input: counts are checked against the remaining

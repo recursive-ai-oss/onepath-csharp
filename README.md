@@ -205,7 +205,7 @@ The formats, tie-breaks and budget units are written down in [docs/](docs/README
 
 ## Documentation
 
-The normative documents in [docs/](docs/README.md) hold every choice the papers leave open. API reference is the XML documentation shipped with the package.
+Coming from Recast, Detour, DotRecast or Unity? [docs/migrating.md](docs/migrating.md) maps the types, settings and units. The normative documents in [docs/](docs/README.md) hold every choice the papers leave open. API reference is the XML documentation shipped with the package.
 
 ## Speed against the references
 

@@ -48,6 +48,26 @@ public sealed partial class NavMesh
         return Build(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(v), System.Runtime.InteropServices.CollectionsMarshal.AsSpan(ix), settings);
     }
 
+    /// <summary>
+    /// Builds a mesh from an indexed triangle soup of single-precision coordinates, as engines and <see cref="System.Numerics.Vector3"/> arrays hold them.
+    /// Each float widens to double exactly, so the result is byte-equal to the double overload given the same values.
+    /// To convert a single <see cref="System.Numerics.Vector3"/> use OneMath's <c>Vector3D</c> conversions to and from <c>System.Numerics</c>.
+    /// </summary>
+    /// <param name="vertices">x, y, z world coordinates, three floats per vertex.</param>
+    /// <param name="indices">Three vertex indices per triangle.</param>
+    /// <param name="settings">Build settings; null means <see cref="NavSettings.Humanoid"/>.</param>
+    /// <exception cref="ArgumentException">A length is not a multiple of three, or a referenced coordinate is NaN or infinite.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">An index is out of range, a coordinate is beyond ±2^21, or a setting is out of range.</exception>
+    public static NavMesh Build(ReadOnlySpan<float> vertices, ReadOnlySpan<int> indices, NavSettings? settings = null)
+    {
+        var wide = new double[vertices.Length];
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            wide[i] = vertices[i];
+        }
+        return Build(wide, indices, settings);
+    }
+
     /// <summary>Builds a mesh from an indexed triangle soup; see <see cref="Build(IEnumerable{Triangle3D}, NavSettings?)"/>.</summary>
     /// <param name="vertices">x, y, z world coordinates, three doubles per vertex.</param>
     /// <param name="indices">Three vertex indices per triangle.</param>

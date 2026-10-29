@@ -21,6 +21,7 @@ The library has three tiers, each built on the one below:
 
 | You want to | Read |
 |---|---|
+| Move from Recast, Detour, DotRecast or Unity's navigation | [migrating.md](migrating.md) |
 | Know what a path result contains and how statuses map across grids, graphs and meshes | [path-results.md](path-results.md) |
 | Search a tile map, hex map or voxel world | [grids.md](grids.md) |
 | Route over a weighted or point graph, with landmarks | [graphs.md](graphs.md) |

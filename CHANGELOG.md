@@ -4,6 +4,19 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- **`NavMesh.Save`/`TrySave`/`GetSaveSize` and `NavMesh.Load`, `NavWorld.Save`/`TrySave`/`GetSaveSize` and `NavWorld.Load`:** a baked tier-1 mesh (or a world of agent classes) saves to bytes and loads back as a tier-1 `NavMesh`/`NavWorld`, with `Settings`, `CreateCrowd`, `CreateStreamer`, `FindPathAsync` and the query members working, and the same bits from every query. The bytes are a small envelope (`ONNM`, `ONNW`) around the unchanged version 2 mesh bytes and carry the `NavSettings`; `Load(bytes, settings)` also takes bare `NavMeshSerializer.WriteMesh` bytes, checking the settings against the mesh's build fingerprint (`NavMeshFingerprintException` on a mismatch). Layout in `docs/navmesh-format.md`; new fixtures under `Fixtures/1.1.0`; a fuzz target `navmesh-load`.
+- **`Crowd.TryAdd`:** like `Add`, but returns `false` instead of throwing when no walkable polygon is near the position or the crowd is full. `Add` is unchanged. The one policy for positions off the mesh is written down in `docs/path-results.md`.
+- **`NavMesh.Build(ReadOnlySpan<float> vertices, ReadOnlySpan<int> indices, NavSettings?)`**: single-precision input, as engines and `System.Numerics` arrays hold it. The float to double step is exact, so the mesh is byte-equal to the double overload's on the same values.
+- **`DefaultQueryFilter`**, a struct `IQueryFilter` that accepts every polygon at cost 1 and gives exactly the results of `new QueryFilter()`, so the allocation-free span `FindPath<TFilter>` needs no user-written filter.
+- **`Grid.FindPathWithPoints(Cell, Cell, ...)`**: the cell form of `FindPath` with `GridPath.Points` filled with the world-space cell centres through `Grid.Space`, so `Length` is a number instead of NaN. `FindPath(Cell, Cell)` is unchanged.
+- `docs/migrating.md`: concept, type and unit tables for moving from Recast, Detour, DotRecast and Unity's navigation, and the note that their mesh bytes must be re-baked.
+
+### Changed
+
+- Error messages of `AgentOptions.Validate`, `CrowdOptions.Validate` and `FollowerOptions.Validate` now state the allowed range (`SeparationWeight must be 0 to 1.`); the setters of `HpaOptions` and `OrcaSimulator.MaxThreads` report their own property name as `ParamName` instead of `value`. Exception types are unchanged.
+
 ## [1.0.0]
 
 The first stable release. The public API is the one frozen in 1.0.0-rc.1 plus the additions below; results and saved formats from here on are covered by the 1.x promises in the README (bit-identical results within a major version, every 1.x release reads every earlier 1.x format).
