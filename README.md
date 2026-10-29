@@ -6,7 +6,7 @@
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4)](#install)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#licence)
 
-**Status: 1.0.0.** Every part meets its speed target on x64 and arm64 (see [the table](#speed-against-the-references)). The public API follows semantic versioning, and results and saved formats are stable across every 1.x release (see [Determinism](#determinism)). See [CHANGELOG.md](CHANGELOG.md).
+**Status: 1.1.0.** Every part meets its speed target on x64 and arm64 (see [the table](#speed-against-the-references)). The public API follows semantic versioning, and results and saved formats are stable across every 1.x release (see [Determinism](#determinism)). See [CHANGELOG.md](CHANGELOG.md).
 
 ## Packages
 

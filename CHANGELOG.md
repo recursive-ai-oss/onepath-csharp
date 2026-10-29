@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.1.0]
+
+Additions only: every 1.0 result and saved format is unchanged, and 1.0 data loads as before.
+
 ### Added
 
 - **`NavMesh.Save`/`TrySave`/`GetSaveSize` and `NavMesh.Load`, `NavWorld.Save`/`TrySave`/`GetSaveSize` and `NavWorld.Load`:** a baked tier-1 mesh (or a world of agent classes) saves to bytes and loads back as a tier-1 `NavMesh`/`NavWorld`, with `Settings`, `CreateCrowd`, `CreateStreamer`, `FindPathAsync` and the query members working, and the same bits from every query. The bytes are a small envelope (`ONNM`, `ONNW`) around the unchanged version 2 mesh bytes and carry the `NavSettings`; `Load(bytes, settings)` also takes bare `NavMeshSerializer.WriteMesh` bytes, checking the settings against the mesh's build fingerprint (`NavMeshFingerprintException` on a mismatch). Layout in `docs/navmesh-format.md`; new fixtures under `Fixtures/1.1.0`; a fuzz target `navmesh-load`.
@@ -138,7 +142,8 @@ These types carry `[Experimental]` and may change or move in any preview:
 - Peak memory is higher than the native references'.
 - Path queries on one large single-tile city mesh ran 1.6-1.8x slower than Detour in the last locked run (a later change to the mesh contours is not yet re-measured), and the tile cache is 4-6x slower than DetourTileCache; the README table lists the rows.
 
-[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v1.0.0-rc.1...v1.0.0
 [1.0.0-rc.1]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.5.0-preview.1...v1.0.0-rc.1
 [0.5.0-preview.1]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.4.0-preview.3...v0.5.0-preview.1
