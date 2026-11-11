@@ -38,6 +38,10 @@ internal static class Program
         {
             Scenes.Make(files);
         }
+        else if (names == FixtureProbes.Names12)
+        {
+            Scenes.Make12(files);
+        }
         else
         {
             Scenes.Make11(files);
@@ -110,7 +114,36 @@ internal static class Scenes
         ["landmarks"] = "Landmarks.Serialize",
         ["navmesh-tier1"] = "NavMesh.Save",
         ["navworld-tier1"] = "NavWorld.Save",
+        ["crowd-replay"] = "CrowdReplay.ToBytes",
     };
+
+    // The crowd replay format: six agents cross an open arena, one leaves, one is stopped, one is teleported and one joins.
+    internal static void Make12(Dictionary<string, byte[]> f)
+    {
+        var crowd = new Crowd(CrowdWorlds.Arena(24, 16));
+        var rec = new RecursiveAI.OnePath.Replay.CrowdRecorder(crowd, CrowdWorlds.Dt, keepSteps: true);
+        var agents = new List<Agent>();
+        for (int i = 0; i < 6; i++)
+        {
+            agents.Add(rec.Add(new Vector3D(2 + i, 0, 3), Agent.Small));
+            rec.SetDestination(agents[i], new Vector3D(20, 0, 3 + i));
+        }
+        for (int s = 0; s < 40; s++)
+        {
+            if (s == 10)
+            {
+                rec.Remove(agents[1]);
+                rec.Stop(agents[2]);
+            }
+            if (s == 20)
+            {
+                rec.Teleport(agents[3], new Vector3D(10, 0, 10));
+                rec.Add(new Vector3D(3, 0, 12), Agent.Small);
+            }
+            rec.Step();
+        }
+        f["crowd-replay"] = rec.ToReplay().ToBytes();
+    }
 
     // Release 1.1.0: the tier-1 envelopes around a small tile-map level (two walls, an off-mesh link) built at two agent sizes.
     internal static void Make11(Dictionary<string, byte[]> f)

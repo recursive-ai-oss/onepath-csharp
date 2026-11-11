@@ -48,3 +48,18 @@ joining and leaving, orders, and series for the agent count, agents moving and m
 Build sources have one empty time step and a `stage` axis of seven positions: voxels, filtered spans, compact spans, regions, contours, polygons, detail.
 Overlays: input triangles (on), the stage output at the axis position (on), and the finished mesh from `NavMesh.Build` (off). The inspector shows each
 stage's hash, counts and a summary. A stage's hash is FNV-1a over what the library's stage function returned, so it equals calling that function directly.
+
+## Grid runs
+
+`GridRun.WriteSearch` / `GridRun.WriteFlow` write an `OPGR` file: a grid (`Grid.SaveState` bytes), A\*/JPS/JPS+ options or flow-field goals, a number of queue pops per
+time step, and per step a list of edits (set a cell's area, move the start, move the goal). Layout, version 1: magic `OPGR`, version 1, kind (1 search, 2 flow field),
+two zero bytes; iterations per step (i32, 1 to 65536); algorithm, connectivity, diagonal rule, zero (u8 each); agent size (i32); point count (i32; 2 for a
+search, 1 to 1024 goals for a flow field) and that many cells (2 × i32); grid state length (i32, at most 64 MiB) and bytes; step count (i32, at most 2^22); per step
+a byte length (i32, a multiple of 10, at most 2^16 edits) and the edits (kind u8, x i32, y i32, area u8). The file ends there; every count is checked against the bytes present before anything is allocated.
+
+A time step applies its edits (an edit restarts the search or recomputes the field), then runs one slice of the library's own engine (`GridSearch.Step`, `GridFlowField.Step`).
+The `iteration` axis views the state after the first *k* pops of the next slice, on a scratch copy, so stepping the axis never changes the time hash. Overlays: cells, closed
+set (A\* and JPS; the settled cells of a flow field), open set, path, start and goal, flow costs (colour map), flow directions. The open and closed sets are read from the
+search's own saved state (`docs/grids-state.md`); the generic engine (agent size above 1 and other fallbacks) has no readable frontier, and the viewer then shows the path only.
+Cells are entities (inspector: area, walkability, clearance, step cost, search state or flow cost and next cell). Pokes on a fork: `move_goal` (the drag poke), `move_start`, `set_wall`,
+`set_area`; an edit is the obstacle poke for grids. Diff names the first differing cell and field.

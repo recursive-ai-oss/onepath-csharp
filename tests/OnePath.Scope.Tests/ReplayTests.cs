@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using OneScope.Sdk;
+using RecursiveAI.OnePath.Grids;
 using RecursiveAI.OneMath;
 using RecursiveAI.OnePath.Replay;
 using Xunit;
@@ -24,6 +25,20 @@ public class ReplayTests
             File.WriteAllBytes(Path.Combine(regen, "crowd2d.oprp"), two);
             File.WriteAllBytes(Path.Combine(regen, "crowd3d.oprp"), three);
             File.WriteAllBytes(Path.Combine(regen, "terrain.opbi"), build);
+        }
+
+        (string, byte[])[] grids = [("grid-astar.opgr", Worlds.GridSearchFile(GridAlgorithm.AStar)), ("grid-jps.opgr", Worlds.GridSearchFile(GridAlgorithm.Jps)), ("grid-astar2.opgr", Worlds.GridSearchFile(GridAlgorithm.AStar, 2)), ("grid-flow.opgr", Worlds.GridFlowFile())];
+        if (!string.IsNullOrEmpty(regen))
+        {
+            foreach ((string file, byte[] bytes) in grids)
+            {
+                File.WriteAllBytes(Path.Combine(regen, file), bytes);
+            }
+        }
+
+        foreach ((string file, byte[] bytes) in grids)
+        {
+            Assert.Equal(bytes, File.ReadAllBytes(Worlds.DataPath(file)));
         }
 
         Assert.Equal(two, File.ReadAllBytes(Worlds.DataPath("crowd2d.oprp")));

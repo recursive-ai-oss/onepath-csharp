@@ -35,7 +35,12 @@ public sealed class OnePathModule : IScopeModule, ILiveModule
             return BuildSource.Open(data, name);
         }
 
-        throw new ScopeFormatException(name, "expected a OnePath crowd replay (starting 'OPRP') or navigation-mesh build input (starting 'OPBI').");
+        if (s.StartsWith(GridRun.Magic))
+        {
+            return GridSource.Open(data, name);
+        }
+
+        throw new ScopeFormatException(name, "expected a OnePath crowd replay (starting 'OPRP'), navigation-mesh build input (starting 'OPBI') or grid run (starting 'OPGR').");
     }
 
     /// <inheritdoc />

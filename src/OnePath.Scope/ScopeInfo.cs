@@ -28,6 +28,11 @@ public static class ScopeInfo
     // Overlay ids (bit positions in the draw request).
     internal const int OvMesh = 0, OvAgents = 1, OvPaths = 2, OvVelocity = 3, OvTargets = 4, OvWalls = 5, OvLabels = 6, OvLinks = 7;
     internal const int OvInput = 0, OvStage = 1, OvFinal = 2;
+    internal const int GridCells = 0, GridClosed = 1, GridOpen = 2, GridPath = 3, GridMarkers = 4, GridCosts = 5, GridArrows = 6;
+    internal static readonly EntityId GridRoot = new(RootTag | 4), StartMarker = new(RootTag | 5), GoalMarker = new(RootTag | 6);
+    internal const ulong CellTag = 2UL << 62;
+
+    internal static EntityId CellEntity(int index) => new(CellTag | (ulong)(uint)index);
 
     // Entity ids: the top two bits say what an id names.
     internal const ulong KindShift = 62;

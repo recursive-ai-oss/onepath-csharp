@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using RecursiveAI.OneMath;
+using RecursiveAI.OnePath.Grids;
 using RecursiveAI.OnePath.Replay;
 
 namespace RecursiveAI.OnePath.Scope.Tests;
@@ -216,6 +217,66 @@ internal static class Worlds
         RunScript(new RecordingHost(rec), 12, 0, 24, 7, 14, 23, afterStep: _ => hashes.Add(rec.Crowd.StateHash()));
         hostHashes = hashes;
         return rec.ToReplay();
+    }
+
+
+    /// <summary>A 48 x 32 grid with a ragged wall that has two gaps, and a few scattered blocks.</summary>
+    public static Grid MazeGrid()
+    {
+        var g = new Grid(48, 32);
+        for (int y = 0; y < 32; y++)
+        {
+            if (y is not (6 or 7 or 22))
+            {
+                g.SetWalkable(24, y, false);
+            }
+        }
+
+        for (int i = 0; i < 40; i++)
+        {
+            g.SetWalkable(3 + ((i * 7) % 18), 2 + ((i * 11) % 28), false);
+            g.SetWalkable(28 + ((i * 5) % 18), 1 + ((i * 13) % 30), false);
+        }
+
+        foreach (Cell c in new[] { new Cell(2, 16), new Cell(45, 16), new Cell(24, 6), new Cell(24, 7), new Cell(24, 22) })
+        {
+            g.SetWalkable(c.X, c.Y, true);
+        }
+
+        return g;
+    }
+
+    public static IReadOnlyList<IReadOnlyList<GridRunOp>> GridEdits(int steps, bool search)
+    {
+        var list = new List<IReadOnlyList<GridRunOp>>();
+        for (int i = 0; i < steps; i++)
+        {
+            GridRunOp[] ops = i switch
+            {
+                10 => [GridRunOp.SetArea(24, 6, 255), GridRunOp.SetArea(24, 7, 255)],
+                25 => [GridRunOp.SetGoal(44, 3)],
+                40 => [GridRunOp.SetArea(24, 6, 0)],
+                55 when search => [GridRunOp.SetStart(3, 28)],
+                _ => [],
+            };
+            list.Add(ops);
+        }
+
+        return list;
+    }
+
+    public static byte[] GridSearchFile(GridAlgorithm algorithm, int agentSize = 1)
+    {
+        var w = new ArrayBufferWriter<byte>();
+        GridRun.WriteSearch(MazeGrid(), new GridOptions { Algorithm = algorithm, AgentSize = agentSize }, new Cell(2, 16), new Cell(45, 16), 24, GridEdits(80, true), w);
+        return w.WrittenSpan.ToArray();
+    }
+
+    public static byte[] GridFlowFile()
+    {
+        var w = new ArrayBufferWriter<byte>();
+        GridRun.WriteFlow(MazeGrid(), null, [new Cell(45, 16), new Cell(2, 30)], 60, GridEdits(60, false), w);
+        return w.WrittenSpan.ToArray();
     }
 
     public static byte[] BuildInputBytes()
