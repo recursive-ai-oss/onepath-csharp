@@ -20,7 +20,17 @@ internal sealed class BuildSource : IScopeSource
         _file = file;
         _stages = stages;
         Recording = recording;
-        _final = new Lazy<MeshView>(() => new MeshView(NavMesh.Build(stages.Input.Vertices, stages.Input.Indices, stages.Input.Settings).Tiles));
+        _final = new Lazy<MeshView>(() =>
+        {
+            try
+            {
+                return new MeshView(NavMesh.Build(stages.Input.Vertices, stages.Input.Indices, stages.Input.Settings).Tiles);
+            }
+            catch (ArgumentException e)
+            {
+                throw new ScopeFormatException(name, "expected geometry the library can build a mesh from: " + e.Message);
+            }
+        });
         Info = new SourceInfo
         {
             ModuleId = ScopeInfo.ModuleId,

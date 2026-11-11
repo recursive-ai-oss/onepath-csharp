@@ -46,7 +46,20 @@ internal sealed class BuildStages
 
     public BuildInput.Parsed Input { get; }
 
-    public StageResult[] All => _stages.Value;
+    public StageResult[] All
+    {
+        get
+        {
+            try
+            {
+                return _stages.Value;
+            }
+            catch (ArgumentException e)
+            {
+                throw new ScopeFormatException("build input", "expected geometry and settings the library's build stages accept: " + e.Message);
+            }
+        }
+    }
 
     private StageResult[] Run()
     {

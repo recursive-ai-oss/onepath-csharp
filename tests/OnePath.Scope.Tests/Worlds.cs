@@ -254,7 +254,7 @@ internal static class Worlds
             GridRunOp[] ops = i switch
             {
                 10 => [GridRunOp.SetArea(24, 6, 255), GridRunOp.SetArea(24, 7, 255)],
-                25 => [GridRunOp.SetGoal(44, 3)],
+                25 => [GridRunOp.SetGoal(44, 4)],
                 40 => [GridRunOp.SetArea(24, 6, 0)],
                 55 when search => [GridRunOp.SetStart(3, 28)],
                 _ => [],

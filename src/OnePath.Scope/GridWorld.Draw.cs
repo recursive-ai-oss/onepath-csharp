@@ -76,10 +76,16 @@ internal sealed partial class GridWorld
                     }
                 }
 
-                if (request.IsOn(ScopeInfo.GridArrows) && next[i] >= 0)
+                if (request.IsOn(ScopeInfo.GridArrows))
                 {
-                    var to = new Vector3((next[i] % w) + 0.5f, (next[i] / w) + 0.5f, 0);
-                    into.Arrow(centre, centre + ((to - centre) * 0.7f), 0.15f, new DrawStyle(ArrowColor, ScopeInfo.GridArrows, 3, DrawFlags.OnTop));
+                    // The library fills its next-cell table only when the field is complete; while it is still running the arrow points at the
+                    // neighbour with the lowest settled cost (first in scan order on a tie), which is what the finished table will mostly say.
+                    int target = next[i] >= 0 ? next[i] : double.IsFinite(c) ? Downhill(i, costs) : -1;
+                    if (target >= 0)
+                    {
+                        var to = new Vector3((target % w) + 0.5f, (target / w) + 0.5f, 0);
+                        into.Arrow(centre, centre + ((to - centre) * 0.7f), 0.15f, new DrawStyle(ArrowColor, ScopeInfo.GridArrows, 3, DrawFlags.OnTop));
+                    }
                 }
             }
         }
@@ -127,6 +133,33 @@ internal sealed partial class GridWorld
                 into.Sphere(new Vector3(g.X + 0.5f, g.Y + 0.5f, 0), 0.35f, new DrawStyle(GoalColor, ScopeInfo.GridMarkers, 5, DrawFlags.OnTop, ScopeInfo.GoalMarker));
             }
         }
+    }
+
+    private int Downhill(int cell, ReadOnlySpan<double> costs)
+    {
+        int w = _grid.Width, h = _grid.Height, x = cell % w, y = cell / w;
+        int best = -1;
+        double bestCost = costs[cell];
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                int nx = x + dx, ny = y + dy;
+                if ((dx == 0 && dy == 0) || nx < 0 || ny < 0 || nx >= w || ny >= h || (_run.Connectivity == Connectivity.Four && dx != 0 && dy != 0))
+                {
+                    continue;
+                }
+
+                double c = costs[(ny * w) + nx];
+                if (c < bestCost)
+                {
+                    bestCost = c;
+                    best = (ny * w) + nx;
+                }
+            }
+        }
+
+        return best;
     }
 
     public bool Inspect(EntityId entity, PropertyList into)

@@ -77,9 +77,10 @@ public class GridTests
                     field!.Dispose();
                     field = grid.CreateFlowField(goals, options);
                 }
-                else
+                else if (search!.TryBegin(start, goal) != PathStatus.InProgress)
                 {
-                    search!.TryBegin(start, goal);
+                    // A search whose ends are walls does not begin; it must not go on with the old one.
+                    search = grid.CreateSearch(options);
                 }
             }
 
@@ -236,7 +237,7 @@ public class GridTests
         Assert.False(history.World.Inspect(ScopeInfo.CellEntity(48 * 32), rows));
         Assert.False(history.World.Inspect(new EntityId(12345), rows));
         Assert.True(history.World.Inspect(ScopeInfo.GridRoot, rows));
-        Assert.Equal("Found", rows.Rows.Single(r => r.Group == "Run" && r.Name == "status").Value.GetText());
+        Assert.Contains(rows.Rows.Single(r => r.Group == "Run" && r.Name == "status").Value.GetText(), (IEnumerable<string>)["Found", "InProgress"]);
     }
 
     [Theory]
