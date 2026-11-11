@@ -32,7 +32,7 @@
     <None Include="../../LICENSE-MIT" Pack="true" PackagePath="/" />
     <None Include="../../LICENSE-APACHE" Pack="true" PackagePath="/" />
     <None Include="../../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" />
-    <!-- The one runtime dependency. Until it is published it restores from the folder in ONEMATH_FEED. -->
+    <!-- The one runtime dependency. -->
     <PackageReference Include="RecursiveAI.OneMath" />
   </ItemGroup>
 

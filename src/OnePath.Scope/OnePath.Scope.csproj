@@ -37,7 +37,7 @@
   </ItemGroup>
 
   <!-- The module needs RecursiveAI.OnePath.Replay, which the library's first release to carry it (1.2.0) has and 1.1.0 does not.
-       A project reference would write the library's current version (1.1.0) into the package as its floor, so a pack takes the library as a package
+       A project reference would write the library's current version into the package as its floor, so a pack takes the library as a package
        with that floor instead; day-to-day builds and tests use the source. -->
   <ItemGroup Condition="'$(_IsPacking)' != 'true'">
     <ProjectReference Include="../OnePath/OnePath.csproj" />
