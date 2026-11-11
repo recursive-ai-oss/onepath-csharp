@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+
+- **Crowd recording and replay** (`RecursiveAI.OnePath.Replay`): `CrowdRecorder` records the adds, removes, destinations, stops, teleports and steps a host performs on a `Crowd`, keeps them as a `CrowdReplay` or hands each change to a live viewer as a record; `CrowdPlayer` rebuilds the crowd from a replay's setup and plays operations (`CrowdOp`, `CrowdOps`) and steps into it; `CrowdReplay.FindMismatch` checks a replay against its recorded per-step hashes. Malformed bytes are a `CrowdReplayException`. Formats and limits in `docs/replay.md`; new hash-matrix scenarios `crowds/replay-record` and `crowds/replay-play`; a fuzz target `crowd-replay`; a format fixture `Fixtures/1.2.0/crowd-replay` (the first fixture for the release after 1.1.0). Nothing existing changes.
+
 ## [1.1.0]
 
 Additions only: every 1.0 result and saved format is unchanged, and 1.0 data loads as before.

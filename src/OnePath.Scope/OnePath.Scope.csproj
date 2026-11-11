@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The OnePath module for the OneScope viewer. It is built against the OneScope SDK, which is not on nuget.org yet, so this project is
+       not in the solution and is not built by CI or the release workflow. See README.md in this folder for the build command. -->
+  <PropertyGroup>
+    <AssemblyName>$(PackagePrefix).OnePath.Scope</AssemblyName>
+    <RootNamespace>RecursiveAI.OnePath.Scope</RootNamespace>
+    <PackageId>$(PackagePrefix).OnePath.Scope</PackageId>
+    <Version>0.1.0-preview.1</Version>
+    <Description>The RecursiveAI.OnePath module for the OneScope viewer: opens OnePath crowd replays and navigation-mesh build inputs in 2D and 3D, steps a build along its stages, and lets the viewer play, seek, fork, diff and inspect them.</Description>
+    <PackageTags>pathfinding;navmesh;crowd;replay;viewer;deterministic;determinism;onescope</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+    <EnablePackageValidation>false</EnablePackageValidation>
+  </PropertyGroup>
+
+  <!-- Where the OneScope SDK package comes from: a folder or feed given as ONESCOPE_SDK_FEED (environment or -p:). -->
+  <PropertyGroup Condition="'$(ONESCOPE_SDK_FEED)' != ''">
+    <RestoreAdditionalProjectSources>$(RestoreAdditionalProjectSources);$(ONESCOPE_SDK_FEED)</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="../../LICENSE-MIT" Pack="true" PackagePath="/" Visible="false" />
+    <None Include="../../LICENSE-APACHE" Pack="true" PackagePath="/" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="OnePath.Scope.Tests" />
+    <ProjectReference Include="../OnePath/OnePath.csproj" />
+    <PackageReference Include="RecursiveAI.OneScope.Sdk" VersionOverride="0.3.0-preview.1" />
+  </ItemGroup>
+
+</Project>

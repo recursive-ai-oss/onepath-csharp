@@ -29,6 +29,7 @@ The library has three tiers, each built on the one below:
 | Build a navmesh from level geometry | [build3d-polys.md](build3d-polys.md) |
 | Query a mesh (path, raycast, nearest, random point) | [navmesh-queries.md](navmesh-queries.md) |
 | Run a crowd | [crowds.md](crowds.md), then [orca.md](orca.md) for the solver |
+| Record a crowd run, replay it, or stream it to a viewer | [replay.md](replay.md) |
 | Run inside a lockstep or rollback host | [Host hooks](#host-hooks-for-deterministic-hosts) below |
 
 ## By area

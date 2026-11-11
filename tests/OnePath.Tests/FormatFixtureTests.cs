@@ -35,8 +35,11 @@ public class FormatFixtureTests
     // Added by release 1.1.0.
     private static readonly string[] Names110 = ["navmesh-tier1", "navworld-tier1"];
 
+    // Added by the release after 1.1.0: the crowd replay format.
+    private static readonly string[] Names120 = ["crowd-replay"];
+
     // Release directories that must exist. A later release appends its own entry (and its own names list when it adds formats).
-    private static readonly (string Release, string[] Names)[] Releases = [("1.0.0", Names100), ("1.1.0", Names110)];
+    private static readonly (string Release, string[] Names)[] Releases = [("1.0.0", Names100), ("1.1.0", Names110), ("1.2.0", Names120)];
 
     private static string Dir(string release) => Path.Combine(AppContext.BaseDirectory, "Fixtures", release);
 
@@ -96,7 +99,7 @@ public class FormatFixtureTests
         {
             foreach (string n in names)
             {
-                Assert.Contains(n, FixtureProbes.Names.Concat(FixtureProbes.Names11));
+                Assert.Contains(n, FixtureProbes.Names.Concat(FixtureProbes.Names11).Concat(FixtureProbes.Names12));
             }
         }
     }
@@ -160,6 +163,7 @@ public class FormatFixtureTests
         ["NavMesh.TrySave"] = ["navmesh-tier1"],
         ["NavWorld.Save"] = ["navworld-tier1"],
         ["NavWorld.TrySave"] = ["navworld-tier1"],
+        ["CrowdReplay.ToBytes"] = ["crowd-replay"],
     };
 
     // Public byte writers that are not saved state: identifiers copied out for a host's own keys, and a scratch classification buffer.
@@ -204,11 +208,11 @@ public class FormatFixtureTests
         {
             foreach (string f in fixtures)
             {
-                Assert.Contains(f, Names100.Concat(Names110));
+                Assert.Contains(f, Names100.Concat(Names110).Concat(Names120));
             }
         }
         // Every fixture is claimed by a writer.
-        foreach (string n in Names100.Concat(Names110))
+        foreach (string n in Names100.Concat(Names110).Concat(Names120))
         {
             Assert.Contains(Writers.Values, v => v.Contains(n));
         }

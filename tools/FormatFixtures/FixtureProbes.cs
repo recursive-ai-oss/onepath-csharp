@@ -40,8 +40,11 @@ internal static class FixtureProbes
     /// <summary>The fixtures added by release 1.1.0.</summary>
     internal static readonly string[] Names11 = ["navmesh-tier1", "navworld-tier1"];
 
+    /// <summary>The fixtures added by the release after 1.1.0 (the crowd replay format).</summary>
+    internal static readonly string[] Names12 = ["crowd-replay"];
+
     /// <summary>The names of the fixtures a release directory holds.</summary>
-    internal static string[] NamesOf(string release) => release == "1.1.0" ? Names11 : Names;
+    internal static string[] NamesOf(string release) => release switch { "1.1.0" => Names11, "1.2.0" => Names12, _ => Names };
 
     // ------------------------------------------------------------------ shared pieces
 
@@ -197,6 +200,7 @@ internal static class FixtureProbes
             case "flow-hex-partial": FlowProbe(bytes, true, false, tx); break;
             case "graph": GraphProbe(Graph.FromState(bytes), null, tx); break;
             case "landmarks": LandmarksProbe(bytes, tx); break;
+            case "crowd-replay": CrowdReplayProbe(read(name), tx); break;
             case "navmesh-tier1": Tier1Probe(NavMesh.Load(bytes), tx); break;
             case "navworld-tier1": WorldProbe(NavWorld.Load(bytes), tx); break;
             default: throw new ArgumentException("No probe for fixture " + name, nameof(name));
@@ -205,6 +209,25 @@ internal static class FixtureProbes
     }
 
     // ------------------------------------------------------------------ navmesh
+
+    // The replay is read, played to its recorded hashes, and written back to the same bytes; the transcript holds what it contains.
+    private static void CrowdReplayProbe(byte[] bytes, Tx tx)
+    {
+        RecursiveAI.OnePath.Replay.CrowdReplay replay = RecursiveAI.OnePath.Replay.CrowdReplay.Read(bytes);
+        tx.I(replay.Steps.Count);
+        tx.I(replay.Setup.Length);
+        for (int i = 0; i < replay.Steps.Count; i++)
+        {
+            tx.I(replay.Steps[i].Length);
+            tx.I((long)replay.Hashes[i]);
+        }
+
+        tx.I(replay.FindMismatch() ?? -1);
+        tx.I(replay.ToBytes().AsSpan().SequenceEqual(bytes) ? 1 : 0);
+        var player = new RecursiveAI.OnePath.Replay.CrowdPlayer(replay.Setup.Span);
+        tx.I(player.Crowd.Count);
+        tx.D(player.Dt);
+    }
 
     private static void Tier1Probe(NavMesh nav, Tx tx)
     {

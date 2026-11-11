@@ -112,4 +112,6 @@ bool state = StateSmoke.Run();
 Console.WriteLine($"Grid state run: {(state ? "ok" : "FAILED")}");
 bool crowds = CrowdSmoke.Run();
 Console.WriteLine($"Crowd run: {(crowds ? "ok" : "FAILED")}");
-return ok && world && tileCache && orca && nav && grids && flow && graphs && corridors && state && crowds && OnePathInfo.Version.Major >= 0 ? 0 : 1;
+bool replay = ReplaySmoke.Run();
+Console.WriteLine($"Crowd replay: {(replay ? "ok" : "FAILED")}");
+return ok && world && tileCache && orca && nav && grids && flow && graphs && corridors && state && crowds && replay && OnePathInfo.Version.Major >= 0 ? 0 : 1;
