@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Not in the solution and not built by CI: the module needs the OneScope SDK package (see src/OnePath.Scope/README.md). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>OnePath.Scope.Tests</AssemblyName>
+    <RootNamespace>RecursiveAI.OnePath.Scope.Tests</RootNamespace>
+    <NoWarn>$(NoWarn);CS1591;CA1707</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(ONESCOPE_SDK_FEED)' != ''">
+    <RestoreAdditionalProjectSources>$(RestoreAdditionalProjectSources);$(ONESCOPE_SDK_FEED)</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="RecursiveAI.OneScope.Sdk" VersionOverride="0.3.0-preview.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/OnePath.Scope/OnePath.Scope.csproj" />
+    <!-- Committed replays and build inputs; the tests also check that regenerating them gives the same bytes. -->
+    <Content Include="../../testdata/scope/**" Link="testdata/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

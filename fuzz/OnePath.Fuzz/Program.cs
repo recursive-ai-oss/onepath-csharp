@@ -124,6 +124,7 @@ public static class Targets
         ["corridor-follow"] = CorridorFuzz.Run,
         ["crowd"] = CrowdFuzz.Run,
         ["crowd-state"] = CrowdStateFuzz.Run,
+        ["crowd-replay"] = CrowdReplayFuzz.Run,
         ["gltf"] = GltfFuzz.Gltf,
         ["links-streaming"] = GltfFuzz.LinksStreaming,
     };

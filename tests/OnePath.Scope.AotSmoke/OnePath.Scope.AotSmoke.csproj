@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Publishes the OnePath module with NativeAOT and full trimming and runs it. Not in the solution: it needs the OneScope SDK package. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PublishAot>true</PublishAot>
+    <IsAotCompatible>true</IsAotCompatible>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(ONESCOPE_SDK_FEED)' != ''">
+    <RestoreAdditionalProjectSources>$(RestoreAdditionalProjectSources);$(ONESCOPE_SDK_FEED)</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="RecursiveAI.OneScope.Sdk" VersionOverride="0.3.0-preview.1" />
+    <ProjectReference Include="../../src/OnePath.Scope/OnePath.Scope.csproj" />
+  </ItemGroup>
+
+</Project>
