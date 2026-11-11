@@ -1,13 +1,13 @@
 # RecursiveAI.OnePath.Scope
 
 The OnePath module for the OneScope viewer. It opens OnePath **crowd replays** and **navigation-mesh build inputs** in 2D or 3D, lets the viewer play, seek,
-fork, poke and diff them, and attaches to a crowd that a running program records. It is built against `RecursiveAI.OneScope.Sdk`
-(preview), is not part of `OnePath.slnx`, and is not built by CI until the SDK is on nuget.org.
+fork, poke and diff them, and attaches to a crowd that a running program records. It is built against `RecursiveAI.OneScope.Sdk` 1.0,
+is not part of `OnePath.slnx`, and is built, tested and packed by the release workflow on a `scope-v<version>` tag, not by CI.
 
-Build and test from the repository root with the SDK package in a local folder:
+Build and test from the repository root (the SDK restores from nuget.org; `ONESCOPE_SDK_FEED` names an extra local folder of packages):
 
 ```
-ONESCOPE_SDK_FEED=<folder holding RecursiveAI.OneScope.Sdk.*.nupkg> dotnet test tests/OnePath.Scope.Tests
+dotnet test tests/OnePath.Scope.Tests
 ```
 
 ## Host side

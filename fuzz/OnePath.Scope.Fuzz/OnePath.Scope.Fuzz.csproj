@@ -12,7 +12,7 @@
   <ItemGroup>
     <PackageReference Include="SharpFuzz" />
     <Content Include="../../testdata/scope/**" Link="testdata/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <PackageReference Include="RecursiveAI.OneScope.Sdk" VersionOverride="0.3.0-preview.1" />
+    <PackageReference Include="RecursiveAI.OneScope.Sdk" VersionOverride="1.0.0" />
     <ProjectReference Include="../../src/OnePath.Scope/OnePath.Scope.csproj" />
     <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshWorlds.cs" Link="Support/NavMeshWorlds.cs" />
     <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshMutations.cs" Link="Support/NavMeshMutations.cs" />

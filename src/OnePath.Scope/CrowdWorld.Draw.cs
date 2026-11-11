@@ -15,9 +15,9 @@ internal sealed partial class CrowdWorld
         bool planar = _mesh.Planar;
         if (request.IsOn(ScopeInfo.OvMesh))
         {
-            into.Mesh(_mesh.Vertices, _mesh.Indices, new DrawStyle(MeshFill, ScopeInfo.OvMesh, 0, DrawFlags.None));
+            into.Mesh(_mesh.Vertices, _mesh.Indices, new DrawStyle(MeshFill, ScopeInfo.OvMesh, 0, DrawFlags.None, EntityId.None));
             ReadOnlySpan<Vector3> e = _mesh.Edges;
-            var edge = new DrawStyle(MeshEdge, ScopeInfo.OvMesh, 1, DrawFlags.None);
+            var edge = new DrawStyle(MeshEdge, ScopeInfo.OvMesh, 1, DrawFlags.None, EntityId.None);
             for (int i = 0; i + 1 < e.Length; i += 2)
             {
                 into.Line(e[i], e[i + 1], edge);
@@ -26,7 +26,7 @@ internal sealed partial class CrowdWorld
 
         if (request.IsOn(ScopeInfo.OvLinks))
         {
-            var style = new DrawStyle(LinkColor, ScopeInfo.OvLinks, 2, DrawFlags.None);
+            var style = new DrawStyle(LinkColor, ScopeInfo.OvLinks, 2, DrawFlags.None, EntityId.None);
             foreach (Debug.DebugLink l in _mesh.Links)
             {
                 if (l.Kind == Mesh.NavLinkKind.OffMesh)
@@ -57,7 +57,7 @@ internal sealed partial class CrowdWorld
 
             if (request.IsOn(ScopeInfo.OvPaths) && a.HasPath)
             {
-                var style = new DrawStyle(PathColor, ScopeInfo.OvPaths, 4, DrawFlags.OnTop);
+                var style = new DrawStyle(PathColor, ScopeInfo.OvPaths, 4, DrawFlags.OnTop, EntityId.None);
                 Vector3 prev = at;
                 foreach (StraightPathPoint c in a.Path.Corners)
                 {
@@ -69,7 +69,7 @@ internal sealed partial class CrowdWorld
 
             if (request.IsOn(ScopeInfo.OvTargets) && a.HasPath)
             {
-                into.Point(ScopeInfo.P(a.Destination, planar), 6, new DrawStyle(TargetColor, ScopeInfo.OvTargets, 4, DrawFlags.OnTop));
+                into.Point(ScopeInfo.P(a.Destination, planar), 6, new DrawStyle(TargetColor, ScopeInfo.OvTargets, 4, DrawFlags.OnTop, EntityId.None));
             }
 
             if (request.IsOn(ScopeInfo.OvVelocity))
@@ -77,14 +77,14 @@ internal sealed partial class CrowdWorld
                 Vector3 v = ScopeInfo.P(a.Velocity, planar);
                 if (v != Vector3.Zero)
                 {
-                    into.Arrow(at, at + v, 0.2f, new DrawStyle(VelocityColor, ScopeInfo.OvVelocity, 5, DrawFlags.OnTop));
+                    into.Arrow(at, at + v, 0.2f, new DrawStyle(VelocityColor, ScopeInfo.OvVelocity, 5, DrawFlags.OnTop, EntityId.None));
                 }
             }
 
             if (request.IsOn(ScopeInfo.OvLabels))
             {
                 a.Id.TryFormat(text, out int n, default, System.Globalization.CultureInfo.InvariantCulture);
-                into.Label(at + (planar ? new Vector3(0, (float)a.Options.Radius * 1.4f, 0) : new Vector3(0, (float)a.Options.Radius * 3.2f, 0)), text[..n], new DrawStyle(LabelColor, ScopeInfo.OvLabels, 6, DrawFlags.OnTop));
+                into.Label(at + (planar ? new Vector3(0, (float)a.Options.Radius * 1.4f, 0) : new Vector3(0, (float)a.Options.Radius * 3.2f, 0)), text[..n], new DrawStyle(LabelColor, ScopeInfo.OvLabels, 6, DrawFlags.OnTop, EntityId.None));
             }
         }
     }
