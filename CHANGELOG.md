@@ -4,9 +4,13 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.2.0]
+
+Additions only: every 1.0 and 1.1 result and saved format is unchanged, and 1.0 and 1.1 data loads as before.
+
 ### Added
 
-- **Crowd recording and replay** (`RecursiveAI.OnePath.Replay`): `CrowdRecorder` records the adds, removes, destinations, stops, teleports and steps a host performs on a `Crowd`, keeps them as a `CrowdReplay` or hands each change to a live viewer as a record; `CrowdPlayer` rebuilds the crowd from a replay's setup and plays operations (`CrowdOp`, `CrowdOps`) and steps into it; `CrowdReplay.FindMismatch` checks a replay against its recorded per-step hashes. Malformed bytes are a `CrowdReplayException`. Formats and limits in `docs/replay.md`; new hash-matrix scenarios `crowds/replay-record` and `crowds/replay-play`; a fuzz target `crowd-replay`; a format fixture `Fixtures/1.2.0/crowd-replay` (the first fixture for the release after 1.1.0). Nothing existing changes.
+- **Crowd recording and replay** (`RecursiveAI.OnePath.Replay`): `CrowdRecorder` records the adds, removes, destinations, stops, teleports and steps a host performs on a `Crowd`, keeps them as a `CrowdReplay` or hands each change to a live viewer as a record; `CrowdPlayer` rebuilds the crowd from a replay's setup and plays operations (`CrowdOp`, `CrowdOps`) and steps into it; `CrowdReplay.FindMismatch` checks a replay against its recorded per-step hashes. Malformed bytes are a `CrowdReplayException`. Formats and limits in `docs/replay.md`; new hash-matrix scenarios `crowds/replay-record` and `crowds/replay-play`; a fuzz target `crowd-replay`; a frozen format fixture `Fixtures/1.2.0/crowd-replay`. Nothing existing changes.
 
 ## [1.1.0]
 
@@ -146,7 +150,8 @@ These types carry `[Experimental]` and may change or move in any preview:
 - Peak memory is higher than the native references'.
 - Path queries on one large single-tile city mesh ran 1.6-1.8x slower than Detour in the last locked run (a later change to the mesh contours is not yet re-measured), and the tile cache is 4-6x slower than DetourTileCache; the README table lists the rows.
 
-[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v1.0.0-rc.1...v1.0.0
 [1.0.0-rc.1]: https://github.com/recursive-ai-oss/onepath-csharp/compare/v0.5.0-preview.1...v1.0.0-rc.1

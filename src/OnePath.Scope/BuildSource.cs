@@ -199,7 +199,7 @@ internal sealed class BuildWorld : IScopeWorld
         {
             double[] v = _stages.Input.Vertices;
             int[] idx = _stages.Input.Indices;
-            var style = new DrawStyle(InputColor, ScopeInfo.OvInput, 0, DrawFlags.None);
+            var style = new DrawStyle(InputColor, ScopeInfo.OvInput, 0, DrawFlags.None, EntityId.None);
             for (int t = 0; t + 2 < idx.Length; t += 3)
             {
                 into.Triangle(Pt(v, idx[t]), Pt(v, idx[t + 1]), Pt(v, idx[t + 2]), style);
@@ -211,7 +211,7 @@ internal sealed class BuildWorld : IScopeWorld
             StageResult r = _stages.All[_view - 1];
             foreach (StagePrim p in r.Prims)
             {
-                var style = new DrawStyle(p.Color, ScopeInfo.OvStage, 2, p.Kind == BuildStages.PrimLine ? DrawFlags.OnTop : DrawFlags.None);
+                var style = new DrawStyle(p.Color, ScopeInfo.OvStage, 2, p.Kind == BuildStages.PrimLine ? DrawFlags.OnTop : DrawFlags.None, EntityId.None);
                 switch (p.Kind)
                 {
                     case BuildStages.PrimLine:
@@ -230,9 +230,9 @@ internal sealed class BuildWorld : IScopeWorld
         if (request.IsOn(ScopeInfo.OvFinal))
         {
             MeshView m = _final.Value;
-            into.Mesh(m.Vertices, m.Indices, new DrawStyle(FinalFill, ScopeInfo.OvFinal, 1, DrawFlags.None));
+            into.Mesh(m.Vertices, m.Indices, new DrawStyle(FinalFill, ScopeInfo.OvFinal, 1, DrawFlags.None, EntityId.None));
             ReadOnlySpan<Vector3> e = m.Edges;
-            var edge = new DrawStyle(FinalEdge, ScopeInfo.OvFinal, 3, DrawFlags.OnTop);
+            var edge = new DrawStyle(FinalEdge, ScopeInfo.OvFinal, 3, DrawFlags.OnTop, EntityId.None);
             for (int i = 0; i + 1 < e.Length; i += 2)
             {
                 into.Line(e[i], e[i + 1], edge);

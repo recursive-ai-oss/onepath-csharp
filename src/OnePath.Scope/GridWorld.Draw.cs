@@ -84,7 +84,7 @@ internal sealed partial class GridWorld
                     if (target >= 0)
                     {
                         var to = new Vector3((target % w) + 0.5f, (target / w) + 0.5f, 0);
-                        into.Arrow(centre, centre + ((to - centre) * 0.7f), 0.15f, new DrawStyle(ArrowColor, ScopeInfo.GridArrows, 3, DrawFlags.OnTop));
+                        into.Arrow(centre, centre + ((to - centre) * 0.7f), 0.15f, new DrawStyle(ArrowColor, ScopeInfo.GridArrows, 3, DrawFlags.OnTop, EntityId.None));
                     }
                 }
             }
@@ -94,7 +94,7 @@ internal sealed partial class GridWorld
         {
             var path = new Cell[_search.PathLength];
             _search.CopyPath(path);
-            var style = new DrawStyle(PathColor, ScopeInfo.GridPath, 4, DrawFlags.OnTop);
+            var style = new DrawStyle(PathColor, ScopeInfo.GridPath, 4, DrawFlags.OnTop, EntityId.None);
             for (int i = 0; i + 1 < path.Length; i++)
             {
                 into.Line(new Vector3(path[i].X + 0.5f, path[i].Y + 0.5f, 0), new Vector3(path[i + 1].X + 0.5f, path[i + 1].Y + 0.5f, 0), style);
@@ -112,7 +112,7 @@ internal sealed partial class GridWorld
                 }
             }
 
-            var style = new DrawStyle(PathColor, ScopeInfo.GridPath, 4, DrawFlags.OnTop);
+            var style = new DrawStyle(PathColor, ScopeInfo.GridPath, 4, DrawFlags.OnTop, EntityId.None);
             for (int guard = 0; far >= 0 && next[far] >= 0 && guard < costs.Length; guard++)
             {
                 int to = next[far];

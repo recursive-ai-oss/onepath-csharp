@@ -16,10 +16,10 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
-    <PackageReference Include="RecursiveAI.OneScope.Sdk" VersionOverride="0.3.0-preview.1" />
+    <PackageReference Include="RecursiveAI.OneScope.Sdk" VersionOverride="1.0.0" />
     <!-- Test only: a real probe on a real socket, and the viewer side that attaches to it. -->
-    <PackageReference Include="RecursiveAI.OneScope.Probe" VersionOverride="0.3.0-preview.1" />
-    <PackageReference Include="RecursiveAI.OneScope.Attach" VersionOverride="0.3.0-preview.1" />
+    <PackageReference Include="RecursiveAI.OneScope.Probe" VersionOverride="1.0.0" />
+    <PackageReference Include="RecursiveAI.OneScope.Attach" VersionOverride="1.0.0" />
   </ItemGroup>
 
   <ItemGroup>

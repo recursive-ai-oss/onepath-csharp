@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="RecursiveAI.OneScope.Sdk" VersionOverride="0.3.0-preview.1" />
+    <PackageReference Include="RecursiveAI.OneScope.Sdk" VersionOverride="1.0.0" />
     <ProjectReference Include="../../src/OnePath.Scope/OnePath.Scope.csproj" />
   </ItemGroup>
 
