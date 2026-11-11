@@ -299,6 +299,15 @@ builds everything, including the WASM smoke app, which needs the `wasm-tools` wo
   runner's per-file include option and run that script on the remote machine.)
 - `ONEPATH_DOTNET_ROOT`: scripts put this user-local SDK folder first on `PATH`.
 
+## Releasing
+
+Releases are tag-driven (`.github/workflows/release.yml`); the checks it runs are in `tools/release-checks.sh` and can be run by hand (`tag-form`, `changelog`, `version`, `notes`).
+
+- `v<version>` (for example `v1.1.0`) publishes `RecursiveAI.OnePath` at the version in `src/OnePath/OnePath.csproj`; the notes come from `CHANGELOG.md`.
+- `scope-v<version>` (for example `scope-v1.0.0` or `scope-v0.1.0-preview.3`) publishes `RecursiveAI.OnePath.Scope` alone, at the `Version` in `src/OnePath.Scope/OnePath.Scope.csproj`; the notes come from `src/OnePath.Scope/CHANGELOG.md`. It never packs the library, and a `v` tag never packs the module. The module restores only from nuget.org, so the OneScope SDK it references and the `RecursiveAI.OnePath` version its package names as a floor must be published before the tag.
+
+Either tag must be on main with a green CI run, have a `## [<version>]` section in its changelog, and equal the version its project builds as. The module's tests run in the release job, not in CI.
+
 ## Licence
 
 Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE) at your option. Copyright Recursive AI, LLC. Third-party material (benchmark maps and the reference implementations used as black-box comparisons) is listed with its terms in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

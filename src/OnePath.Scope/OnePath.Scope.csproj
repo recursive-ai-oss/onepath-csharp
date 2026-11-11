@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- The OnePath module for the OneScope viewer. It is built against the OneScope SDK, which is not on nuget.org yet, so this project is
-       not in the solution and is not built by CI or the release workflow. See README.md in this folder for the build command. -->
+       not in the solution and is not built by CI. The release workflow builds, tests and packs it on a scope-v<version> tag, once the SDK is
+       on nuget.org. See README.md in this folder for the build command. -->
   <PropertyGroup>
     <AssemblyName>$(PackagePrefix).OnePath.Scope</AssemblyName>
     <RootNamespace>RecursiveAI.OnePath.Scope</RootNamespace>
@@ -10,6 +11,9 @@
     <Description>The RecursiveAI.OnePath module for the OneScope viewer: opens OnePath crowd replays and navigation-mesh build inputs in 2D and 3D, steps a build along its stages, and lets the viewer play, seek, fork, diff and inspect them.</Description>
     <PackageTags>pathfinding;navmesh;crowd;replay;viewer;deterministic;determinism;onescope</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <IsAotCompatible>true</IsAotCompatible>
     <IsTrimmable>true</IsTrimmable>
     <EnablePackageValidation>false</EnablePackageValidation>
