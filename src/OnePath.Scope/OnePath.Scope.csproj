@@ -6,7 +6,7 @@
     <AssemblyName>$(PackagePrefix).OnePath.Scope</AssemblyName>
     <RootNamespace>RecursiveAI.OnePath.Scope</RootNamespace>
     <PackageId>$(PackagePrefix).OnePath.Scope</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Description>The RecursiveAI.OnePath module for the OneScope viewer: opens OnePath crowd replays and navigation-mesh build inputs in 2D and 3D, steps a build along its stages, and lets the viewer play, seek, fork, diff and inspect them.</Description>
     <PackageTags>pathfinding;navmesh;crowd;replay;viewer;deterministic;determinism;onescope</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -15,7 +15,9 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <IsAotCompatible>true</IsAotCompatible>
     <IsTrimmable>true</IsTrimmable>
-    <EnablePackageValidation>false</EnablePackageValidation>
+    <!-- Each pack is checked against the last published release of the module, so a break for its users fails the pack. -->
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion>1.0.0</PackageValidationBaselineVersion>
   </PropertyGroup>
 
   <!-- Where the OneScope SDK package comes from: a folder or feed given as ONESCOPE_SDK_FEED (environment or -p:). -->
