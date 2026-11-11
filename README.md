@@ -6,13 +6,14 @@
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4)](#install)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#licence)
 
-**Status: 1.1.0.** Every part meets its speed target on x64 and arm64 (see [the table](#speed-against-the-references)). The public API follows semantic versioning, and results and saved formats are stable across every 1.x release (see [Determinism](#determinism)). See [CHANGELOG.md](CHANGELOG.md).
+**Status: stable.** Every part meets its speed target on x64 and arm64 (see [the table](#speed-against-the-references)). The public API follows semantic versioning, and results and saved formats are stable across every 1.x release (see [Determinism](#determinism)). See [CHANGELOG.md](CHANGELOG.md).
 
 ## Packages
 
 | Package | What it is |
 |---|---|
 | `RecursiveAI.OnePath` | Grids (square, hex, voxel), graphs, the navmesh builders, the query layer, the run-time tile cache and crowds. Trimming drops the parts an app does not use: an app that only uses grids trims the navmesh builders away. |
+| `RecursiveAI.OnePath.Scope` | The OnePath module for the OneScope viewer: plays crowd replays, navmesh build stages and grid searches. Released on its own `scope-v` tags; see [its README](src/OnePath.Scope/README.md). |
 | [`RecursiveAI.OneMath`](https://www.nuget.org/packages/RecursiveAI.OneMath) | The only dependency (1.0 or later): vectors, our own transcendental functions, exact geometric predicates and the fixed-point bridge. Installed automatically. |
 
 ## Install
@@ -292,7 +293,7 @@ builds everything, including the WASM smoke app, which needs the `wasm-tools` wo
   `src/` the calls that could make results machine-dependent (platform maths functions, fused
   multiply-add, `Vector<T>`, clocks, `Random`, processor count).
 - **Math package:** `src/OnePath` depends on `RecursiveAI.OneMath` (version in `Directory.Packages.props`),
-  its only runtime dependency (1.0.0, restored from nuget.org). To use another build, set `ONEMATH_FEED` to a folder containing the
+  its only runtime dependency, restored from nuget.org. To use another build, set `ONEMATH_FEED` to a folder containing the
   `.nupkg` and restore picks it up; the `ci/` scripts default it to `~/onepath/feed` when that exists.
   On a machine that cannot see the folder, `tools/install-feed.sh <folder-with-nupkg>` copies the package
   into `~/onepath/feed`. (For a remote job runner that only syncs the git tree, ship the package with the
@@ -303,7 +304,7 @@ builds everything, including the WASM smoke app, which needs the `wasm-tools` wo
 
 Releases are tag-driven (`.github/workflows/release.yml`); the checks it runs are in `tools/release-checks.sh` and can be run by hand (`tag-form`, `changelog`, `version`, `notes`).
 
-- `v<version>` (for example `v1.1.0`) publishes `RecursiveAI.OnePath` at the version in `src/OnePath/OnePath.csproj`; the notes come from `CHANGELOG.md`.
+- `v<version>` (for example `v1.1.0`) publishes `RecursiveAI.OnePath` at the version in `Directory.Build.props`; the notes come from `CHANGELOG.md`.
 - `scope-v<version>` (for example `scope-v1.0.0` or `scope-v0.1.0-preview.3`) publishes `RecursiveAI.OnePath.Scope` alone, at the `Version` in `src/OnePath.Scope/OnePath.Scope.csproj`; the notes come from `src/OnePath.Scope/CHANGELOG.md`. It never packs the library, and a `v` tag never packs the module. The module restores only from nuget.org, so the OneScope SDK it references and the `RecursiveAI.OnePath` version its package names as a floor must be published before the tag.
 
 Either tag must be on main with a green CI run, have a `## [<version>]` section in its changelog, and equal the version its project builds as. The module's tests run in the release job, not in CI.
