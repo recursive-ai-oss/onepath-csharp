@@ -6,7 +6,7 @@
     <AssemblyName>$(PackagePrefix).OnePath.Scope</AssemblyName>
     <RootNamespace>RecursiveAI.OnePath.Scope</RootNamespace>
     <PackageId>$(PackagePrefix).OnePath.Scope</PackageId>
-    <Version>0.1.0-preview.1</Version>
+    <Version>0.1.0-preview.2</Version>
     <Description>The RecursiveAI.OnePath module for the OneScope viewer: opens OnePath crowd replays and navigation-mesh build inputs in 2D and 3D, steps a build along its stages, and lets the viewer play, seek, fork, diff and inspect them.</Description>
     <PackageTags>pathfinding;navmesh;crowd;replay;viewer;deterministic;determinism;onescope</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -28,8 +28,19 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="OnePath.Scope.Tests" />
-    <ProjectReference Include="../OnePath/OnePath.csproj" />
     <PackageReference Include="RecursiveAI.OneScope.Sdk" VersionOverride="0.3.0-preview.1" />
+  </ItemGroup>
+
+  <!-- The module needs RecursiveAI.OnePath.Replay, which the library's first release to carry it (1.2.0-preview.1 or later) has and 1.1.0 does not.
+       A project reference would write the library's current version (1.1.0) into the package as its floor, so a pack takes the library as a package
+       with that floor instead; day-to-day builds and tests use the source. -->
+  <ItemGroup Condition="'$(_IsPacking)' != 'true'">
+    <ProjectReference Include="../OnePath/OnePath.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(_IsPacking)' == 'true'">
+    <PackageReference Include="RecursiveAI.OnePath" VersionOverride="1.2.0-preview.1" />
+  </ItemGroup>
+  <ItemGroup>
   </ItemGroup>
 
 </Project>

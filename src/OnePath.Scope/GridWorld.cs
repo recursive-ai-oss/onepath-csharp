@@ -92,8 +92,13 @@ internal sealed partial class GridWorld : IScopeWorld
         }
         else
         {
+            // A search that cannot begin (the start or goal is a wall) keeps whatever it held before, so it is replaced by a fresh one that
+            // is not begun; its saved state then says "not started", which a restore reproduces.
             _search ??= _grid.CreateSearch(_options);
-            _search.TryBegin(_start, _goal);
+            if (_search.TryBegin(_start, _goal) != PathStatus.InProgress)
+            {
+                _search = _grid.CreateSearch(_options);
+            }
         }
     }
 
@@ -168,6 +173,11 @@ internal sealed partial class GridWorld : IScopeWorld
             {
                 sink.Sample("open", _open);
             }
+        }
+
+        if (IsFlow && edited && _flow!.Settled == 0 && _flow.Status == FlowFieldStatus.Complete)
+        {
+            sink.Finding("flow.goal-blocked", Severity.Warning, [ScopeInfo.GoalMarker], "No goal cell is walkable, so the flow field has no cells.", "Move the goal onto a walkable cell.");
         }
 
         PathStatus now = Status;
@@ -363,11 +373,13 @@ internal sealed partial class GridWorld : IScopeWorld
                     throw new ArgumentException($"Entity {a[0].GetEntity()} is not the goal marker.", nameof(call));
                 }
 
-                op = GridRunOp.SetGoal(CellOf(a[1].GetVector()).X, CellOf(a[1].GetVector()).Y);
+                Cell goalCell = CellOf(a[1].GetVector(), clamp: true);
+                op = GridRunOp.SetGoal(goalCell.X, goalCell.Y);
                 break;
             case "move_start" when !IsFlow:
                 Need(call, a, ValueKind.Vector);
-                op = GridRunOp.SetStart(CellOf(a[0].GetVector()).X, CellOf(a[0].GetVector()).Y);
+                Cell startCell = CellOf(a[0].GetVector(), clamp: true);
+                op = GridRunOp.SetStart(startCell.X, startCell.Y);
                 break;
             case "set_wall":
                 Need(call, a, ValueKind.Vector, ValueKind.Bool);
@@ -405,20 +417,27 @@ internal sealed partial class GridWorld : IScopeWorld
         }
     }
 
-    private Cell CellOf(Vector3 v)
+    // Turns a view position into a cell. A drag that ends past the grid's edge is clamped to the nearest edge cell (the clamped cell is what
+    // the recording holds, so the result is the same on every replay); a wall edit past the edge is refused.
+    private Cell CellOf(Vector3 v, bool clamp = false)
     {
         if (!float.IsFinite(v.X) || !float.IsFinite(v.Y))
         {
             throw new ArgumentException($"Point ({v.X}, {v.Y}) must be finite.");
         }
 
-        int x = (int)Math.Floor((double)v.X), y = (int)Math.Floor((double)v.Y);
-        if (!float.IsFinite(v.X) || !float.IsFinite(v.Y) || !_grid.Contains(x, y))
+        double fx = Math.Floor((double)v.X), fy = Math.Floor((double)v.Y);
+        if (clamp)
+        {
+            return new Cell((int)Math.Clamp(fx, 0, _grid.Width - 1), (int)Math.Clamp(fy, 0, _grid.Height - 1));
+        }
+
+        if (fx < 0 || fy < 0 || fx >= _grid.Width || fy >= _grid.Height)
         {
             throw new ArgumentException($"Point ({v.X}, {v.Y}) is outside the {_grid.Width} x {_grid.Height} grid.");
         }
 
-        return new Cell(x, y);
+        return new Cell((int)fx, (int)fy);
     }
 
     public Difference? FirstDifference(IScopeWorld other)

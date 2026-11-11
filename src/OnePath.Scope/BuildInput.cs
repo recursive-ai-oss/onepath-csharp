@@ -180,6 +180,28 @@ public static class BuildInput
             indices[i] = v;
         }
 
+        // The extent of the used triangles, so a file that asks for a huge voxel grid is refused here, before any stage or the finished mesh is built.
+        if (indices.Length > 0)
+        {
+            double minX = double.MaxValue, maxX = double.MinValue, minY = double.MaxValue, maxY = double.MinValue, minZ = double.MaxValue, maxZ = double.MinValue;
+            foreach (int i in indices)
+            {
+                minX = Math.Min(minX, vertices[i * 3]);
+                maxX = Math.Max(maxX, vertices[i * 3]);
+                minY = Math.Min(minY, vertices[(i * 3) + 1]);
+                maxY = Math.Max(maxY, vertices[(i * 3) + 1]);
+                minZ = Math.Min(minZ, vertices[(i * 3) + 2]);
+                maxZ = Math.Max(maxZ, vertices[(i * 3) + 2]);
+            }
+
+            double columns = Math.Ceiling((maxX - minX) / settings.CellSize + 1) * Math.Ceiling((maxZ - minZ) / settings.CellSize + 1);
+            double rows = Math.Ceiling((maxY - minY) / settings.CellHeight) + 1;
+            if (columns > MaxColumns || rows > HeightfieldFrame.MaxHeight)
+            {
+                throw new OneScope.Sdk.ScopeFormatException(name, $"expected geometry that fits a voxel grid of at most {MaxColumns} columns and {HeightfieldFrame.MaxHeight} rows at this cell size, got about {columns:0} columns and {rows:0} rows; use a larger cell size or smaller geometry.");
+            }
+        }
+
         return new Parsed(settings, vertices, indices);
     }
 }

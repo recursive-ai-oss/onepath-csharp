@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Fuzz targets for the untrusted-file parsers of the OnePath module. Not in the solution: it needs the OneScope SDK package
+       (ONESCOPE_SDK_FEED, a folder holding RecursiveAI.OneScope.Sdk.*.nupkg). Run it with fuzz/run.sh, FUZZ_PROJECT=fuzz/OnePath.Scope.Fuzz/OnePath.Scope.Fuzz.csproj. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>RecursiveAI.OnePath.Scope.Fuzz</RootNamespace>
+    <AssemblyName>OnePath.Scope.Fuzz</AssemblyName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(ONESCOPE_SDK_FEED)' != ''">
+    <RestoreAdditionalProjectSources>$(RestoreAdditionalProjectSources);$(ONESCOPE_SDK_FEED)</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SharpFuzz" />
+    <Content Include="../../testdata/scope/**" Link="testdata/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <PackageReference Include="RecursiveAI.OneScope.Sdk" VersionOverride="0.3.0-preview.1" />
+    <ProjectReference Include="../../src/OnePath.Scope/OnePath.Scope.csproj" />
+    <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshWorlds.cs" Link="Support/NavMeshWorlds.cs" />
+    <Compile Include="../../tools/HashMatrix/Scenarios/NavMesh/NavMeshMutations.cs" Link="Support/NavMeshMutations.cs" />
+    <Compile Include="../../tools/HashMatrix/Scenarios/Crowds/CorridorWorlds.cs" Link="Support/CorridorWorlds.cs" />
+    <Compile Include="../../tools/HashMatrix/Scenarios/Crowds/CrowdWorlds.cs" Link="Support/CrowdWorlds.cs" />
+    <Compile Include="../../tools/HashMatrix/Scenarios/Crowds/CrowdRollback.cs" Link="Support/CrowdRollback.cs" />
+  </ItemGroup>
+</Project>

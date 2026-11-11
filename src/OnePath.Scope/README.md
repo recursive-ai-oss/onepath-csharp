@@ -63,3 +63,12 @@ set (A\* and JPS; the settled cells of a flow field), open set, path, start and 
 search's own saved state (`docs/grids-state.md`); the generic engine (agent size above 1 and other fallbacks) has no readable frontier, and the viewer then shows the path only.
 Cells are entities (inspector: area, walkability, clearance, step cost, search state or flow cost and next cell). Pokes on a fork: `move_goal` (the drag poke), `move_start`, `set_wall`,
 `set_area`; an edit is the obstacle poke for grids. Diff names the first differing cell and field.
+
+## Entities, ids and vectors
+
+A grid source lists only the grid, the start and the goal as entities; its cells are reached by picking in the view or by id. A cell's entity id is `(2 << 62) | (y * width + x)`
+(`GridWorld` draws every cell with that id, so a pick returns it), and the inspector answers for any such id inside the grid. Listing every cell would make the entity tree as large as the grid.
+In a planar source (a flat navigation mesh or a grid) vectors read `(x, z, 0)` everywhere: the inspector, the pokes' arguments, event text and diff text.
+A `move_goal` or `move_start` drag that ends past the grid's edge is clamped to the nearest edge cell before it is recorded, so replays are unaffected; `set_wall` and `set_area` past the edge are refused.
+A flow field whose goal cells are all walls has no cells (the library seeds nothing from a wall); the viewer raises the finding `flow.goal-blocked` when an edit does that.
+While a flow field is still running the library has not filled its next-cell table, so "Flow directions" arrows then point at the lowest-cost settled neighbour.

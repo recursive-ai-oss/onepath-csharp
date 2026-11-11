@@ -47,7 +47,7 @@ internal sealed partial class CrowdWorld : IScopeWorld
                     bool ok = _player.Apply(op, out long id);
                     if (sink.IsRecording)
                     {
-                        Report(sink, op, id, ok);
+                        Report(sink, op, id, ok, _mesh.Planar);
                     }
                 }
             }
@@ -299,7 +299,7 @@ internal sealed partial class CrowdWorld : IScopeWorld
         return false;
     }
 
-    private static void Report(TimelineSink sink, in CrowdOp op, long id, bool ok)
+    private static void Report(TimelineSink sink, in CrowdOp op, long id, bool ok, bool planar)
     {
         EntityId e = id == 0 ? EntityId.None : ScopeInfo.Agent(id);
         switch (op.Kind)
@@ -311,13 +311,13 @@ internal sealed partial class CrowdWorld : IScopeWorld
                 sink.Event("agents", e, $"agent {id} removed");
                 break;
             case CrowdOpKind.SetDestination:
-                sink.Event("orders", e, $"agent {id} sent to ({Fmt(op.Position.X)}, {Fmt(op.Position.Y)}, {Fmt(op.Position.Z)})");
+                sink.Event("orders", e, $"agent {id} sent to {Fmt(op.Position, planar)}");
                 break;
             case CrowdOpKind.Stop:
                 sink.Event("orders", e, $"agent {id} stopped");
                 break;
             case CrowdOpKind.Teleport:
-                sink.Event("orders", e, $"agent {id} teleported to ({Fmt(op.Position.X)}, {Fmt(op.Position.Y)}, {Fmt(op.Position.Z)})");
+                sink.Event("orders", e, $"agent {id} teleported to {Fmt(op.Position, planar)}");
                 break;
         }
     }
@@ -366,10 +366,11 @@ internal sealed partial class CrowdWorld : IScopeWorld
         return first?.Options ?? Agent.Humanoid;
     }
 
-    private static Difference? Compare(EntityId e, string field, Vector3D l, Vector3D r) =>
-        l.X.Equals(r.X) && l.Y.Equals(r.Y) && l.Z.Equals(r.Z) ? null : new Difference(e, field, Fmt(l), Fmt(r));
+    private Difference? Compare(EntityId e, string field, Vector3D l, Vector3D r) =>
+        l.X.Equals(r.X) && l.Y.Equals(r.Y) && l.Z.Equals(r.Z) ? null : new Difference(e, field, Fmt(l, _mesh.Planar), Fmt(r, _mesh.Planar));
 
     private static string Fmt(double v) => v.ToString("R", CultureInfo.InvariantCulture);
 
-    private static string Fmt(Vector3D v) => $"({Fmt(v.X)}, {Fmt(v.Y)}, {Fmt(v.Z)})";
+    // Vectors read the way the inspector shows them: (x, z, 0) in a planar source, (x, y, z) otherwise.
+    private static string Fmt(Vector3D v, bool planar) => planar ? $"({Fmt(v.X)}, {Fmt(v.Z)}, 0)" : $"({Fmt(v.X)}, {Fmt(v.Y)}, {Fmt(v.Z)})";
 }

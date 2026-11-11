@@ -25,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/OnePath.Scope/OnePath.Scope.csproj" />
     <!-- Committed replays and build inputs; the tests also check that regenerating them gives the same bytes. -->
+    <Content Include="../../testdata/fuzz/scope-*/repro-*" Link="testdata/repro/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../testdata/scope/**" Link="testdata/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
